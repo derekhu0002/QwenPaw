@@ -1,0 +1,25 @@
+{
+	"nodes":[
+		{"id":"10ac1fea6008adb9","x":-400,"y":263,"width":600,"height":341,"type":"text","text":"鉴权与权限模型\n- **现状分析**：QwenPaw 内部没有“权限检查点”。只要能访问 API，就能调用任何 Agent，执行任何 Tool。\n\n思路：\n- **双层鉴权逻辑**：\n    \n    1. **应用层 (App Level)**：用户是否有权启动某个特定的 Agent（RBAC）。\n        \n    2. **动作层 (Action Level/Tool Use)**：Agent 在调用具体 Tool 时，必须经过一个 **Policy Enforcement Point (PEP)**。建议采用 **ABAC (基于属性的访问控制)**，根据用户部门、敏感级和当前环境动态判定。"},
+		{"id":"5c80bcf0e989fce4","x":-425,"y":100,"width":160,"height":61,"type":"text","text":"**身份与访问控制**"},
+		{"id":"a71bf378abc1af9b","x":80,"y":-220,"width":500,"height":180,"type":"text","text":"项目：[https://github.com/agentscope-ai/QwenPaw](https://www.google.com/url?sa=E&q=https%3A%2F%2Fgithub.com%2Fagentscope-ai%2FQwenPaw)  \n我们计划基于该开源项目开发自己公司的个人助理平台  \n我这边负责这个自研平台的安全基础设施，包括权限管理、日志审计、会话加密功能  \n请基于该项目进行分析，该项目在这几方面的现状，以及我们还要做的工作"},
+		{"id":"f29367480842996f","x":1325,"y":268,"width":455,"height":392,"type":"text","text":"#### 审计日志的完整性\n\n- **现状分析**：QwenPaw 只有标准的 Python Logging，用于调试（Debug）。这不叫审计。\n\n**建议**：\n\n- **结构化审计追踪 (Structured Audit Trail)**：每条审计记录必须包含：Timestamp, UserID, AgentID, ToolID, Input_Hash, Output_Hash, Decision_Path。\n    \n- **日志外发与不可篡改性**：日志必须实时流向独立的审计中心（如 ELK 或专门的审计数据库），安全团队以外的人无权修改。"},
+		{"id":"feb37e10e821dd10","x":1700,"y":100,"width":250,"height":60,"type":"text","text":"**可观测性与合规审计**"},
+		{"id":"5e1f258eadf2a0c3","x":1900,"y":298,"width":509,"height":332,"type":"text","text":"#### 合规性检测\n\n- **现状分析**：完全缺失。Agent 可能会输出公司的薪资数据或源代码。\n\n**建议**：\n\n- **引入 Guardrails 机制**：在 Agent 发送给 LLM 前（Input Guard）和返回给用户前（Output Guard）增加 **DLP (数据泄露防护) 引擎**，识别并打码敏感信息（身份证、秘钥、代码片段）。"},
+		{"id":"29e24a7645ab9ed0","x":580,"y":71,"width":250,"height":60,"type":"text","text":"### 数据保护与会话安全"},
+		{"id":"81f47dd9ce4be50f","x":280,"y":277,"width":393,"height":375,"type":"text","text":"#### 会话状态加密\n\n- **现状分析**：QwenPaw/AgentScope 的会话历史（Memory）通常以 Plaintext 形式存储在本地 JSON 或内存中。\n\n**建议**：\n\n- **At-Rest 加密**：将会话持久化到数据库（如 PostgreSQL/Redis），并启用 **AES-256 字段级加密**。密钥（DEK）应由公司 KMS 管理。\n    \n- **租户密钥隔离**：不同部门或不同级别的用户使用不同的加密密钥。"},
+		{"id":"e292d1bb0d0f1f03","x":800,"y":298,"width":442,"height":314,"type":"text","text":"#### 通信加密\n\n- **现状分析**：默认可能是 HTTP。Agent 之间、Agent 与 LLM 服务端之间的通信可能处于明文状态。\n\n**建议**：\n\n- **全链路 mTLS**：利用 Service Mesh (如 Istio) 强制要求所有微服务、Agent 实例之间的通信必须经过双向 TLS 校验。\n    \n- **端到端加解密**：敏感信息在进入 LLM 之前进行脱敏（Sanitization）或在前端直接进行分段加密。"},
+		{"id":"01b5bb406c692cd3","x":-960,"y":305,"width":493,"height":257,"type":"text","text":"认证：\n**现状分析**：QwenPaw 目前仅支持简单的 Web 端接入，缺乏企业级 SSO、MFA 或 Token 刷新机制。\n\n思路：\n- **接入 OIDC/LDAP**：严禁自建用户库，必须对接公司现有的账户体系。\n    \n- **Delegated Credentials (委派凭证)**：引入 **On-Behalf-Of (OBO)** 流程。当 Agent 代替用户执行任务时，必须持有受限的短期 Access Token。"}
+	],
+	"edges":[
+		{"id":"bab8f22d7527917b","fromNode":"a71bf378abc1af9b","fromSide":"bottom","toNode":"5c80bcf0e989fce4","toSide":"top"},
+		{"id":"48c79253a5728338","fromNode":"5c80bcf0e989fce4","fromSide":"bottom","toNode":"10ac1fea6008adb9","toSide":"top"},
+		{"id":"d0827b10ab758afe","fromNode":"a71bf378abc1af9b","fromSide":"bottom","toNode":"feb37e10e821dd10","toSide":"top"},
+		{"id":"2838bd46c9b82712","fromNode":"5c80bcf0e989fce4","fromSide":"bottom","toNode":"01b5bb406c692cd3","toSide":"top"},
+		{"id":"7942fdc6838dd94c","fromNode":"a71bf378abc1af9b","fromSide":"bottom","toNode":"29e24a7645ab9ed0","toSide":"top"},
+		{"id":"8c0fbe8ad72dd4a7","fromNode":"29e24a7645ab9ed0","fromSide":"bottom","toNode":"81f47dd9ce4be50f","toSide":"top"},
+		{"id":"31e60ad16f608a87","fromNode":"29e24a7645ab9ed0","fromSide":"bottom","toNode":"e292d1bb0d0f1f03","toSide":"top"},
+		{"id":"3ff6040df55cd059","fromNode":"feb37e10e821dd10","fromSide":"bottom","toNode":"f29367480842996f","toSide":"top"},
+		{"id":"40f955a21c57e4d8","fromNode":"feb37e10e821dd10","fromSide":"bottom","toNode":"5e1f258eadf2a0c3","toSide":"top"}
+	]
+}
