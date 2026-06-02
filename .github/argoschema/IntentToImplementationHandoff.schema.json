@@ -1,0 +1,146 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "./.github/argoschema/IntentToImplementationHandoff.schema.json",
+  "title": "Intent To Implementation Handoff Schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "stage",
+    "generatedAt",
+    "sourceIntentGraphPath",
+    "intentElementIds",
+    "explicitTestcases",
+    "frozenBaselines",
+    "requiredImplementationArtifacts"
+  ],
+  "properties": {
+    "stage": {
+      "type": "string",
+      "const": "intent-to-implementation"
+    },
+    "generatedAt": {
+      "type": "string"
+    },
+    "sourceIntentGraphPath": {
+      "type": "string"
+    },
+    "summary": {
+      "type": "string"
+    },
+    "intentElementIds": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "string"
+      }
+    },
+    "relationshipIds": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "explicitTestcases": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "$ref": "#/$defs/explicitTestcase"
+      }
+    },
+    "frozenBaselines": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "string"
+      }
+    },
+    "requiredImplementationArtifacts": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "string"
+      }
+    },
+    "openQuestions": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/openQuestion"
+      }
+    },
+    "notes": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    }
+  },
+  "$defs": {
+    "explicitTestcase": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "name",
+        "mountedElementId",
+        "type",
+        "controlPoint",
+        "observationPoint",
+        "acceptanceBoundary",
+        "requiredEntryKind"
+      ],
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "mountedElementId": {
+          "type": "string"
+        },
+        "mountedElementName": {
+          "type": "string"
+        },
+        "type": {
+          "type": "string"
+        },
+        "controlPoint": {
+          "type": "string"
+        },
+        "observationPoint": {
+          "type": "string"
+        },
+        "acceptanceBoundary": {
+          "type": "string"
+        },
+        "requiredEntryKind": {
+          "type": "string",
+          "enum": [
+            "explicit-testcase-entry",
+            "read-only-contract-update",
+            "critical-non-explicit-test"
+          ]
+        },
+        "implementationNotes": {
+          "type": "string"
+        }
+      }
+    },
+    "openQuestion": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "question",
+        "recommendedAnswer",
+        "reason"
+      ],
+      "properties": {
+        "question": {
+          "type": "string"
+        },
+        "recommendedAnswer": {
+          "type": "string"
+        },
+        "reason": {
+          "type": "string"
+        }
+      }
+    }
+  }
+}
