@@ -1,0 +1,203 @@
+{
+  "name": "QwenPaw Current-State System Architecture",
+  "description": "Current-state intent graph reconstructed from repository evidence on 2026-06-02. It captures stable product slices, acceptance baselines, and traceability to current code without adding new product scope.",
+  "attributes": [
+    {
+      "name": "evidence_policy",
+      "value": "current-code-derived"
+    }
+  ],
+  "elements": [
+    {
+      "id": "intent-qwenpaw-platform",
+      "name": "QwenPaw Platform",
+      "type": "Product",
+      "browser_path": "QwenPaw Platform",
+      "description": "Repository-backed personal AI assistant platform spanning backend runtime, local operator CLI, operator console, documentation website, and architecture validation assets.\n#file:README.md\n#file:pyproject.toml"
+    },
+    {
+      "id": "intent-backend-runtime",
+      "parent": "intent-qwenpaw-platform",
+      "name": "Backend Runtime",
+      "type": "ApplicationComponent",
+      "browser_path": "QwenPaw Platform/Backend Runtime",
+      "description": "Python runtime root that owns API routers, agent execution, channels, config, security, providers, and shared utilities.\n#file:src/qwenpaw\n#file:tests/unit/routers/test_settings.py\n#file:tests/unit/routers/test_git.py",
+      "testcases": [
+        {
+          "name": "settings-language-roundtrip",
+          "description": "The settings router must persist a language update and return the same language on the immediately following read.",
+          "type": "Integration Test",
+          "Input": "Send PUT /api/settings/language with a valid language, then GET /api/settings/language using the same temporary settings store.",
+          "acceptanceCriteria": "tests/unit/routers/test_settings.py::test_put_then_get_roundtrip",
+          "TestResults": "The GET response returns the same language value persisted by the prior PUT request."
+        },
+        {
+          "name": "git-helper-command-runner",
+          "description": "The git helper must delegate process execution to the shared command runner with the expected command and kwargs.",
+          "type": "Unit Test",
+          "Input": "Invoke qwenpaw.app.routers.git._git with run_command_async monkeypatched inside a temporary repository path.",
+          "acceptanceCriteria": "tests/unit/routers/test_git.py::test_git_helper_uses_shared_command_runner",
+          "TestResults": "The helper issues git status through the shared command runner with the expected cwd, encoding, errors, check, and timeout parameters."
+        }
+      ]
+    },
+    {
+      "id": "intent-local-operator-cli",
+      "parent": "intent-qwenpaw-platform",
+      "name": "Local Operator CLI",
+      "type": "ApplicationInterface",
+      "browser_path": "QwenPaw Platform/Local Operator CLI",
+      "description": "Click-based local operator surface exposed through the qwenpaw entrypoint.\n#file:src/qwenpaw/cli/main.py\n#file:tests/unit/cli/test_cli_version.py\n#file:tests/unit/cli/test_cli_agents.py\n#file:tests/unit/cli/test_cli_task.py",
+      "testcases": [
+        {
+          "name": "cli-version-surface",
+          "description": "The root CLI surface must expose the current package version via --version.",
+          "type": "Acceptance Test",
+          "Input": "Invoke qwenpaw --version through the click entrypoint.",
+          "acceptanceCriteria": "tests/unit/cli/test_cli_version.py::test_cli_version_option_outputs_current_version",
+          "TestResults": "The command exits successfully and includes the current package version in stdout."
+        },
+        {
+          "name": "agents-list-surface",
+          "description": "The agents list subcommand must stay wired to the shared agent tools helper and render its output through the CLI surface.",
+          "type": "Acceptance Test",
+          "Input": "Invoke qwenpaw agents list with the shared helper monkeypatched to return one agent record.",
+          "acceptanceCriteria": "tests/unit/cli/test_cli_agents.py::test_agents_list_uses_shared_tool_helper",
+          "TestResults": "The command exits successfully and prints the serialized helper-provided agent record."
+        },
+        {
+          "name": "task-help-surface",
+          "description": "The headless task command must remain registered on the root CLI and advertise its stable flag surface.",
+          "type": "Acceptance Test",
+          "Input": "Invoke qwenpaw task --help through the click entrypoint.",
+          "acceptanceCriteria": "tests/unit/cli/test_cli_task.py::test_task_command_registered_in_cli",
+          "TestResults": "The command exits successfully and its help output contains the expected stable flags for instruction, model, guard, skills, output, iteration, timeout, and agent selection."
+        }
+      ]
+    },
+    {
+      "id": "intent-console-frontend",
+      "parent": "intent-qwenpaw-platform",
+      "name": "Console Frontend",
+      "type": "ApplicationInterface",
+      "browser_path": "QwenPaw Platform/Console Frontend",
+      "description": "Operator-facing console frontend built with React/Vite and desktop packaging assets.\n#file:console/package.json\n#file:console/src/App.tsx"
+    },
+    {
+      "id": "intent-docs-website",
+      "parent": "intent-qwenpaw-platform",
+      "name": "Docs Website",
+      "type": "ApplicationInterface",
+      "browser_path": "QwenPaw Platform/Docs Website",
+      "description": "Public documentation and adoption website delivered from the website workspace.\n#file:website/package.json\n#file:website/src/App.tsx"
+    },
+    {
+      "id": "intent-architecture-validator",
+      "parent": "intent-qwenpaw-platform",
+      "name": "Architecture Validator Assets",
+      "type": "Artifact",
+      "browser_path": "QwenPaw Platform/Architecture Validator Assets",
+      "description": "Bundled validator scripts and schemas that validate the graph, stage handoffs, and explicit testcase execution.\n#file:.github/validator/ARCHITECTURE.md\n#file:package.json"
+    }
+  ],
+  "relationships": [
+    {
+      "id": "rel-platform-backend",
+      "statement": "Backend Runtime is part of QwenPaw Platform.",
+      "name": "composition",
+      "source_id": "intent-qwenpaw-platform",
+      "target_id": "intent-backend-runtime",
+      "source_name": "QwenPaw Platform",
+      "target_name": "Backend Runtime"
+    },
+    {
+      "id": "rel-platform-cli",
+      "statement": "Local Operator CLI is part of QwenPaw Platform.",
+      "name": "composition",
+      "source_id": "intent-qwenpaw-platform",
+      "target_id": "intent-local-operator-cli",
+      "source_name": "QwenPaw Platform",
+      "target_name": "Local Operator CLI"
+    },
+    {
+      "id": "rel-platform-console",
+      "statement": "Console Frontend is part of QwenPaw Platform.",
+      "name": "composition",
+      "source_id": "intent-qwenpaw-platform",
+      "target_id": "intent-console-frontend",
+      "source_name": "QwenPaw Platform",
+      "target_name": "Console Frontend"
+    },
+    {
+      "id": "rel-platform-website",
+      "statement": "Docs Website is part of QwenPaw Platform.",
+      "name": "composition",
+      "source_id": "intent-qwenpaw-platform",
+      "target_id": "intent-docs-website",
+      "source_name": "QwenPaw Platform",
+      "target_name": "Docs Website"
+    },
+    {
+      "id": "rel-platform-validator",
+      "statement": "Architecture Validator Assets support QwenPaw Platform governance.",
+      "name": "association",
+      "source_id": "intent-architecture-validator",
+      "target_id": "intent-qwenpaw-platform",
+      "source_name": "Architecture Validator Assets",
+      "target_name": "QwenPaw Platform"
+    },
+    {
+      "id": "rel-cli-backend",
+      "statement": "Local Operator CLI depends on Backend Runtime services and helpers.",
+      "name": "serving",
+      "source_id": "intent-local-operator-cli",
+      "target_id": "intent-backend-runtime",
+      "source_name": "Local Operator CLI",
+      "target_name": "Backend Runtime"
+    },
+    {
+      "id": "rel-console-backend",
+      "statement": "Console Frontend consumes Backend Runtime APIs.",
+      "name": "serving",
+      "source_id": "intent-console-frontend",
+      "target_id": "intent-backend-runtime",
+      "source_name": "Console Frontend",
+      "target_name": "Backend Runtime"
+    },
+    {
+      "id": "rel-website-platform",
+      "statement": "Docs Website describes and publishes QwenPaw Platform capabilities.",
+      "name": "association",
+      "source_id": "intent-docs-website",
+      "target_id": "intent-qwenpaw-platform",
+      "source_name": "Docs Website",
+      "target_name": "QwenPaw Platform"
+    }
+  ],
+  "views": [
+    {
+      "view_id": "view-current-state-overview",
+      "view_name": "Current State Overview",
+      "browser_path": "Views/Current State Overview",
+      "description": "Stable current-state product slices and validator governance assets reconstructed from repository evidence.",
+      "included_elements": [
+        "intent-qwenpaw-platform",
+        "intent-backend-runtime",
+        "intent-local-operator-cli",
+        "intent-console-frontend",
+        "intent-docs-website",
+        "intent-architecture-validator"
+      ],
+      "included_relationships": [
+        "rel-platform-backend",
+        "rel-platform-cli",
+        "rel-platform-console",
+        "rel-platform-website",
+        "rel-platform-validator",
+        "rel-cli-backend",
+        "rel-console-backend",
+        "rel-website-platform"
+      ]
+    }
+  ]
+}

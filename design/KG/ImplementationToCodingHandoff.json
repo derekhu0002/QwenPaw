@@ -1,0 +1,149 @@
+{
+  "stage": "implementation-to-coding",
+  "generatedAt": "2026-06-02T00:00:00Z",
+  "sourceIntentGraphPath": "design/KG/SystemArchitecture.json",
+  "summary": "Current-state implementation handoff that freezes the synthesized root and local contracts, binds explicit testcase entrypoints to existing pytest nodes, and records the current executable baseline. In the present workspace, the explicit pytest entrypoints execute but fail during Python environment bootstrap before testcase bodies run.",
+  "implementationContracts": [
+    "OVERALL_ARCHITECTURE.md",
+    "src/qwenpaw/ARCHITECTURE.md",
+    "src/qwenpaw/cli/ARCHITECTURE.md",
+    "console/ARCHITECTURE.md",
+    "website/ARCHITECTURE.md",
+    "tests/ARCHITECTURE.md",
+    ".github/validator/ARCHITECTURE.md"
+  ],
+  "explicitEntrypoints": [
+    {
+      "testcaseName": "cli-version-surface",
+      "entryPath": "tests/unit/cli/test_cli_version.py::test_cli_version_option_outputs_current_version",
+      "controlPoint": "Invoke qwenpaw --version through the click root entrypoint.",
+      "observationPoint": "Stdout includes the installed package version and exits successfully.",
+      "initialExecutionStatus": "failed",
+      "initialExecutionCommand": "python -m pytest tests/unit/cli/test_cli_version.py::test_cli_version_option_outputs_current_version",
+      "failureReason": "Current workspace Python environment cannot import the qwenpaw package and its runtime dependencies during tests/conftest.py bootstrap."
+    },
+    {
+      "testcaseName": "agents-list-surface",
+      "entryPath": "tests/unit/cli/test_cli_agents.py::test_agents_list_uses_shared_tool_helper",
+      "controlPoint": "Invoke qwenpaw agents list with the shared helper monkeypatched to return one agent record.",
+      "observationPoint": "CLI stdout prints the helper-provided agent record and exits successfully.",
+      "initialExecutionStatus": "failed",
+      "initialExecutionCommand": "python -m pytest tests/unit/cli/test_cli_agents.py::test_agents_list_uses_shared_tool_helper",
+      "failureReason": "Current workspace Python environment cannot import the qwenpaw package and its runtime dependencies during tests/conftest.py bootstrap."
+    },
+    {
+      "testcaseName": "task-help-surface",
+      "entryPath": "tests/unit/cli/test_cli_task.py::test_task_command_registered_in_cli",
+      "controlPoint": "Invoke qwenpaw task --help through the click root entrypoint.",
+      "observationPoint": "Help output contains the stable task flags and exits successfully.",
+      "initialExecutionStatus": "failed",
+      "initialExecutionCommand": "python -m pytest tests/unit/cli/test_cli_task.py::test_task_command_registered_in_cli",
+      "failureReason": "Current workspace Python environment cannot import the qwenpaw package and its runtime dependencies during tests/conftest.py bootstrap."
+    },
+    {
+      "testcaseName": "settings-language-roundtrip",
+      "entryPath": "tests/unit/routers/test_settings.py::test_put_then_get_roundtrip",
+      "controlPoint": "Send PUT and GET requests through the settings FastAPI router with a temporary settings file.",
+      "observationPoint": "The returned language matches the value written by the immediately preceding PUT.",
+      "initialExecutionStatus": "failed",
+      "initialExecutionCommand": "python -m pytest tests/unit/routers/test_settings.py::test_put_then_get_roundtrip",
+      "failureReason": "Current workspace Python environment cannot import the qwenpaw package and its runtime dependencies during tests/conftest.py bootstrap."
+    },
+    {
+      "testcaseName": "git-helper-command-runner",
+      "entryPath": "tests/unit/routers/test_git.py::test_git_helper_uses_shared_command_runner",
+      "controlPoint": "Call qwenpaw.app.routers.git._git with run_command_async monkeypatched in a temporary path.",
+      "observationPoint": "The helper delegates to the shared command runner with the expected command list and kwargs.",
+      "initialExecutionStatus": "failed",
+      "initialExecutionCommand": "python -m pytest tests/unit/routers/test_git.py::test_git_helper_uses_shared_command_runner",
+      "failureReason": "Current workspace Python environment cannot import the qwenpaw package and its runtime dependencies during tests/conftest.py bootstrap."
+    }
+  ],
+  "criticalNonExplicitTests": [
+    {
+      "name": "root-architecture-contracts",
+      "path": "tests/architecture/root-architecture-contracts.test.js",
+      "kind": "implementation-traceability",
+      "controlPoint": "Execute the repository-native Node guardrail script directly from the workspace root.",
+      "observationPoint": "The script confirms that the root architecture deliverables exist and that the root contract references the stable local contracts.",
+      "expectedStatus": "passed"
+    },
+    {
+      "name": "validator-bootstrap-traceability",
+      "path": "tests/architecture/validator-bootstrap-traceability.test.js",
+      "kind": "implementation-traceability",
+      "controlPoint": "Execute the repository-native Node guardrail script directly from the workspace root.",
+      "observationPoint": "The script confirms that package.json validation commands point to the bundled validator scripts and that the validator contract names the same assets.",
+      "expectedStatus": "passed"
+    }
+  ],
+  "supportingNonExplicitTests": [
+    {
+      "name": "cli-task-suite",
+      "path": "tests/unit/cli/test_cli_task.py",
+      "kind": "supporting-regression",
+      "controlPoint": "Run the task CLI pytest module.",
+      "observationPoint": "The task command surface and helper behavior remain stable across CLI changes.",
+      "expectedStatus": "passed"
+    },
+    {
+      "name": "settings-router-suite",
+      "path": "tests/unit/routers/test_settings.py",
+      "kind": "supporting-regression",
+      "controlPoint": "Run the settings router pytest module.",
+      "observationPoint": "The settings router continues to honor valid and invalid language reads and writes.",
+      "expectedStatus": "passed"
+    }
+  ],
+  "expectedFailureRecordsPath": "design/KG/test-failure-records.json",
+  "codingTargets": [
+    {
+      "testcaseName": "cli-version-surface",
+      "path": "src/qwenpaw/cli/main.py",
+      "failureSignal": "If cli-version-surface fails, the root CLI bootstrap or version wiring has drifted from the accepted operator surface.",
+      "nextAction": "Repair click root initialization or version option wiring without weakening the explicit testcase entrypoint."
+    },
+    {
+      "testcaseName": "agents-list-surface",
+      "path": "src/qwenpaw/cli/agents_cmd.py",
+      "failureSignal": "If agents-list-surface fails, the CLI is no longer delegating agent listing through the shared helper seam.",
+      "nextAction": "Restore delegation through the shared helper and keep the explicit pytest node unchanged."
+    },
+    {
+      "testcaseName": "settings-language-roundtrip",
+      "path": "src/qwenpaw/app/routers/settings.py",
+      "failureSignal": "If settings-language-roundtrip fails, the settings router write/read persistence loop has drifted from the accepted behavior.",
+      "nextAction": "Repair the settings router persistence path while preserving the explicit FastAPI testcase entrypoint."
+    },
+    {
+      "testcaseName": "git-helper-command-runner",
+      "path": "src/qwenpaw/app/routers/git.py",
+      "failureSignal": "If git-helper-command-runner fails, the git helper is no longer using the shared command runner seam.",
+      "nextAction": "Restore delegation through the shared command runner without weakening the explicit unit testcase."
+    }
+  ],
+  "frozenFiles": [
+    "design/KG/SystemArchitecture.json",
+    "design/KG/IntentToImplementationHandoff.json",
+    "design/KG/ImplementationToCodingHandoff.json",
+    "OVERALL_ARCHITECTURE.md",
+    "src/qwenpaw/ARCHITECTURE.md",
+    "src/qwenpaw/cli/ARCHITECTURE.md",
+    "console/ARCHITECTURE.md",
+    "website/ARCHITECTURE.md",
+    "tests/ARCHITECTURE.md",
+    ".github/validator/ARCHITECTURE.md",
+    "tests/unit/cli/test_cli_version.py",
+    "tests/unit/cli/test_cli_agents.py",
+    "tests/unit/cli/test_cli_task.py",
+    "tests/unit/routers/test_settings.py",
+    "tests/unit/routers/test_git.py",
+    "tests/architecture/root-architecture-contracts.test.js",
+    "tests/architecture/validator-bootstrap-traceability.test.js"
+  ],
+  "openGaps": [
+    "Current explicit acceptance baselines are concentrated in CLI and backend runtime slices; console and website currently rely on implementation contracts rather than dedicated explicit testcases.",
+    "The current root design assets are synthesized from present repository evidence because no prior design/KG baseline existed.",
+    "The current workspace test environment is not yet prepared for these explicit pytest entrypoints: qwenpaw import resolution and runtime dependencies such as shortuuid and agentscope are missing during tests/conftest.py bootstrap."
+  ]
+}

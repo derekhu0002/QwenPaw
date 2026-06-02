@@ -1,0 +1,101 @@
+{
+  "stage": "intent-to-implementation",
+  "generatedAt": "2026-06-02T00:00:00Z",
+  "sourceIntentGraphPath": "design/KG/SystemArchitecture.json",
+  "summary": "Current-state handoff that freezes the reconstructed intent graph and points implementation design to the root and local contracts needed to materialize existing stable repository slices.",
+  "intentElementIds": [
+    "intent-qwenpaw-platform",
+    "intent-backend-runtime",
+    "intent-local-operator-cli",
+    "intent-console-frontend",
+    "intent-docs-website",
+    "intent-architecture-validator"
+  ],
+  "relationshipIds": [
+    "rel-platform-backend",
+    "rel-platform-cli",
+    "rel-platform-console",
+    "rel-platform-website",
+    "rel-platform-validator",
+    "rel-cli-backend",
+    "rel-console-backend",
+    "rel-website-platform"
+  ],
+  "explicitTestcases": [
+    {
+      "name": "cli-version-surface",
+      "mountedElementId": "intent-local-operator-cli",
+      "mountedElementName": "Local Operator CLI",
+      "type": "Acceptance Test",
+      "controlPoint": "Invoke qwenpaw --version through the click root entrypoint.",
+      "observationPoint": "Stdout contains the current package version and the command exits successfully.",
+      "acceptanceBoundary": "The root CLI version surface must keep exposing the installed package version without requiring any backend side effects.",
+      "requiredEntryKind": "explicit-testcase-entry",
+      "implementationNotes": "Materialize through the existing pytest node id tests/unit/cli/test_cli_version.py::test_cli_version_option_outputs_current_version."
+    },
+    {
+      "name": "agents-list-surface",
+      "mountedElementId": "intent-local-operator-cli",
+      "mountedElementName": "Local Operator CLI",
+      "type": "Acceptance Test",
+      "controlPoint": "Invoke qwenpaw agents list with the shared agent tools helper monkeypatched to return one record.",
+      "observationPoint": "CLI stdout prints the helper-provided agent payload and exits successfully.",
+      "acceptanceBoundary": "The agents list surface must stay wired to the shared helper rather than duplicating agent listing logic inside the CLI shell.",
+      "requiredEntryKind": "explicit-testcase-entry",
+      "implementationNotes": "Materialize through the existing pytest node id tests/unit/cli/test_cli_agents.py::test_agents_list_uses_shared_tool_helper."
+    },
+    {
+      "name": "task-help-surface",
+      "mountedElementId": "intent-local-operator-cli",
+      "mountedElementName": "Local Operator CLI",
+      "type": "Acceptance Test",
+      "controlPoint": "Invoke qwenpaw task --help through the click root entrypoint.",
+      "observationPoint": "Help output contains the stable task command flags and the command exits successfully.",
+      "acceptanceBoundary": "The task command must remain registered on the root CLI and preserve its documented operator-facing flag surface.",
+      "requiredEntryKind": "explicit-testcase-entry",
+      "implementationNotes": "Materialize through the existing pytest node id tests/unit/cli/test_cli_task.py::test_task_command_registered_in_cli."
+    },
+    {
+      "name": "settings-language-roundtrip",
+      "mountedElementId": "intent-backend-runtime",
+      "mountedElementName": "Backend Runtime",
+      "type": "Integration Test",
+      "controlPoint": "Send PUT /api/settings/language and then GET /api/settings/language against the FastAPI router with a temporary settings file.",
+      "observationPoint": "The GET response returns the language value persisted by the prior PUT request.",
+      "acceptanceBoundary": "The runtime settings router must keep the write and immediate read path consistent for language persistence.",
+      "requiredEntryKind": "explicit-testcase-entry",
+      "implementationNotes": "Materialize through the existing pytest node id tests/unit/routers/test_settings.py::test_put_then_get_roundtrip."
+    },
+    {
+      "name": "git-helper-command-runner",
+      "mountedElementId": "intent-backend-runtime",
+      "mountedElementName": "Backend Runtime",
+      "type": "Unit Test",
+      "controlPoint": "Call qwenpaw.app.routers.git._git with run_command_async monkeypatched in a temporary path.",
+      "observationPoint": "The helper delegates to the shared command runner with the expected command list and kwargs.",
+      "acceptanceBoundary": "The runtime git helper must keep using the shared command runner seam rather than embedding subprocess wiring directly in callers.",
+      "requiredEntryKind": "explicit-testcase-entry",
+      "implementationNotes": "Materialize through the existing pytest node id tests/unit/routers/test_git.py::test_git_helper_uses_shared_command_runner."
+    }
+  ],
+  "frozenBaselines": [
+    "design/KG/SystemArchitecture.json",
+    "tests/unit/cli/test_cli_version.py",
+    "tests/unit/cli/test_cli_agents.py",
+    "tests/unit/cli/test_cli_task.py",
+    "tests/unit/routers/test_settings.py",
+    "tests/unit/routers/test_git.py"
+  ],
+  "requiredImplementationArtifacts": [
+    "OVERALL_ARCHITECTURE.md",
+    "src/qwenpaw/ARCHITECTURE.md",
+    "src/qwenpaw/cli/ARCHITECTURE.md",
+    "console/ARCHITECTURE.md",
+    "website/ARCHITECTURE.md",
+    "tests/ARCHITECTURE.md"
+  ],
+  "notes": [
+    "This handoff is synthesized from current repository evidence because no prior design/KG assets were present.",
+    "Console and website are modeled as stable implementation elements even though current explicit acceptance baselines are concentrated in backend and CLI slices."
+  ]
+}

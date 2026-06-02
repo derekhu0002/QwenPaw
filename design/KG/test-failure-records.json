@@ -1,0 +1,67 @@
+[
+  {
+    "testcasename": "settings-language-roundtrip",
+    "testdescription": "The settings router must persist a language update and return the same language on the immediately following read.",
+    "acceptanceCriteria": "tests/unit/routers/test_settings.py::test_put_then_get_roundtrip",
+    "relatedIntentElementId": "intent-backend-runtime",
+    "status": "failed",
+    "resolvedScriptPath": "tests/unit/routers/test_settings.py::test_put_then_get_roundtrip",
+    "executionCommand": "python -m pytest tests/unit/routers/test_settings.py::test_put_then_get_roundtrip",
+    "exitCode": 4,
+    "failureError": "ImportError while loading conftest 'D:\\Projects\\QwenPaw\\tests\\conftest.py'.\r\ntests\\conftest.py:22: in <module>\r\n    from qwenpaw.providers import provider_manager as _provider_manager_module\r\nE   ModuleNotFoundError: No module named 'qwenpaw'",
+    "stdout": "",
+    "stderr": "ImportError while loading conftest 'D:\\Projects\\QwenPaw\\tests\\conftest.py'.\r\ntests\\conftest.py:22: in <module>\r\n    from qwenpaw.providers import provider_manager as _provider_manager_module\r\nE   ModuleNotFoundError: No module named 'qwenpaw'"
+  },
+  {
+    "testcasename": "git-helper-command-runner",
+    "testdescription": "The git helper must delegate process execution to the shared command runner with the expected command and kwargs.",
+    "acceptanceCriteria": "tests/unit/routers/test_git.py::test_git_helper_uses_shared_command_runner",
+    "relatedIntentElementId": "intent-backend-runtime",
+    "status": "failed",
+    "resolvedScriptPath": "tests/unit/routers/test_git.py::test_git_helper_uses_shared_command_runner",
+    "executionCommand": "python -m pytest tests/unit/routers/test_git.py::test_git_helper_uses_shared_command_runner",
+    "exitCode": 4,
+    "failureError": "ImportError while loading conftest 'D:\\Projects\\QwenPaw\\tests\\conftest.py'.\r\ntests\\conftest.py:22: in <module>\r\n    from qwenpaw.providers import provider_manager as _provider_manager_module\r\nE   ModuleNotFoundError: No module named 'qwenpaw'",
+    "stdout": "",
+    "stderr": "ImportError while loading conftest 'D:\\Projects\\QwenPaw\\tests\\conftest.py'.\r\ntests\\conftest.py:22: in <module>\r\n    from qwenpaw.providers import provider_manager as _provider_manager_module\r\nE   ModuleNotFoundError: No module named 'qwenpaw'"
+  },
+  {
+    "testcasename": "cli-version-surface",
+    "testdescription": "The root CLI surface must expose the current package version via --version.",
+    "acceptanceCriteria": "tests/unit/cli/test_cli_version.py::test_cli_version_option_outputs_current_version",
+    "relatedIntentElementId": "intent-local-operator-cli",
+    "status": "failed",
+    "resolvedScriptPath": "tests/unit/cli/test_cli_version.py::test_cli_version_option_outputs_current_version",
+    "executionCommand": "python -m pytest tests/unit/cli/test_cli_version.py::test_cli_version_option_outputs_current_version",
+    "exitCode": 4,
+    "failureError": "ImportError while loading conftest 'D:\\Projects\\QwenPaw\\tests\\conftest.py'.\r\ntests\\conftest.py:22: in <module>\r\n    from qwenpaw.providers import provider_manager as _provider_manager_module\r\nE   ModuleNotFoundError: No module named 'qwenpaw'",
+    "stdout": "",
+    "stderr": "ImportError while loading conftest 'D:\\Projects\\QwenPaw\\tests\\conftest.py'.\r\ntests\\conftest.py:22: in <module>\r\n    from qwenpaw.providers import provider_manager as _provider_manager_module\r\nE   ModuleNotFoundError: No module named 'qwenpaw'"
+  },
+  {
+    "testcasename": "agents-list-surface",
+    "testdescription": "The agents list subcommand must stay wired to the shared agent tools helper and render its output through the CLI surface.",
+    "acceptanceCriteria": "tests/unit/cli/test_cli_agents.py::test_agents_list_uses_shared_tool_helper",
+    "relatedIntentElementId": "intent-local-operator-cli",
+    "status": "failed",
+    "resolvedScriptPath": "tests/unit/cli/test_cli_agents.py::test_agents_list_uses_shared_tool_helper",
+    "executionCommand": "python -m pytest tests/unit/cli/test_cli_agents.py::test_agents_list_uses_shared_tool_helper",
+    "exitCode": 4,
+    "failureError": "ImportError while loading conftest 'D:\\Projects\\QwenPaw\\tests\\conftest.py'.\r\ntests\\conftest.py:22: in <module>\r\n    from qwenpaw.providers import provider_manager as _provider_manager_module\r\nE   ModuleNotFoundError: No module named 'qwenpaw'",
+    "stdout": "",
+    "stderr": "ImportError while loading conftest 'D:\\Projects\\QwenPaw\\tests\\conftest.py'.\r\ntests\\conftest.py:22: in <module>\r\n    from qwenpaw.providers import provider_manager as _provider_manager_module\r\nE   ModuleNotFoundError: No module named 'qwenpaw'"
+  },
+  {
+    "testcasename": "task-help-surface",
+    "testdescription": "The headless task command must remain registered on the root CLI and advertise its stable flag surface.",
+    "acceptanceCriteria": "tests/unit/cli/test_cli_task.py::test_task_command_registered_in_cli",
+    "relatedIntentElementId": "intent-local-operator-cli",
+    "status": "failed",
+    "resolvedScriptPath": "tests/unit/cli/test_cli_task.py::test_task_command_registered_in_cli",
+    "executionCommand": "python -m pytest tests/unit/cli/test_cli_task.py::test_task_command_registered_in_cli",
+    "exitCode": 4,
+    "failureError": "ImportError while loading conftest 'D:\\Projects\\QwenPaw\\tests\\conftest.py'.\r\ntests\\conftest.py:22: in <module>\r\n    from qwenpaw.providers import provider_manager as _provider_manager_module\r\nE   ModuleNotFoundError: No module named 'qwenpaw'",
+    "stdout": "",
+    "stderr": "ImportError while loading conftest 'D:\\Projects\\QwenPaw\\tests\\conftest.py'.\r\ntests\\conftest.py:22: in <module>\r\n    from qwenpaw.providers import provider_manager as _provider_manager_module\r\nE   ModuleNotFoundError: No module named 'qwenpaw'"
+  }
+]

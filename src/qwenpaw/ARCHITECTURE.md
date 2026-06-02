@@ -1,0 +1,105 @@
+---
+contract_type: implementation-architecture-element
+contract_version: 1
+scope: stable-element
+element_name: qwenpaw-runtime-root
+element_kind: RuntimeRoot
+element_path: src/qwenpaw
+---
+
+## Implementation Architecture Contract
+
+### Responsibility
+- Own the Python runtime root for QwenPaw.
+- Contain the stable backend slices that realize routing, agents, channels, config, security, providers, and shared utilities.
+- Expose stable sub-elements rather than forcing callers to reason from individual files.
+
+### Out Of Scope
+- Owning the browser console bundle under console/.
+- Owning the documentation website under website/.
+- Owning test entrypoints outside repository-facing verification contracts.
+
+### Children
+- path: cli
+  kind: OperatorCli
+  role: local operator command surface mounted by the qwenpaw console script
+- path: app
+  kind: RuntimeApp
+  role: API routers, runtime orchestration, channels, approvals, and app lifecycle glue
+- path: agents
+  kind: AgentRuntime
+  role: agent runtime behavior, skill system integration, and coding-mode logic
+- path: config
+  kind: ConfigurationModel
+  role: configuration schemas, loaders, persistence helpers, and working-dir bound config logic
+- path: security
+  kind: SecurityRuntime
+  role: tool guard, file guard, and security policy enforcement assets
+
+### Dependency Direction
+- app may orchestrate agents, config, providers, security, and channels, but those lower slices should not depend on console/ or website/ implementation details.
+- cli remains a child stable element and should consume runtime services through explicit surfaces instead of re-owning backend state.
+
+### Explicit Testcase Entrypoints
+- tests/unit/routers/test_settings.py::test_put_then_get_roundtrip
+- tests/unit/routers/test_git.py::test_git_helper_uses_shared_command_runner
+
+### Supporting Non-Explicit Tests
+- tests/unit/cli/test_cli_agents.py
+- tests/unit/cli/test_cli_task.py---
+contract_type: implementation-architecture-element
+contract_version: 1
+scope: stable-element
+element_name: qwenpaw-runtime
+element_kind: ProductRuntime
+element_path: src/qwenpaw
+---
+
+## Implementation Architecture Contract
+
+### Responsibility
+- Own the Python runtime for QwenPaw, including API routers, agent orchestration, channel runtime, configuration, providers, security, and packaged CLI entrypoints.
+- Expose the stable operator CLI from `cli/` and stable backend HTTP router composition from `app/routers/`.
+
+### Out Of Scope
+- Owning the browser console implementation.
+- Owning the external documentation website.
+- Owning validator schema scripts.
+
+### Children
+- path: app
+  kind: backend-http-runtime
+  role: FastAPI application runtime, routers, and runtime orchestration
+- path: cli
+  kind: operator-cli-surface
+  role: Click-based operator command surface bundled with the Python package
+- path: agents
+  kind: agent-runtime
+  role: agent behaviors, skill system, model routing, and execution mixins
+- path: config
+  kind: runtime-configuration
+  role: typed config models and config loading utilities
+- path: security
+  kind: security-runtime
+  role: tool guard, file guard, and security support services
+
+### Explicit Testcase Entrypoints
+- testcase_name: cli-version-surface
+  entry_path: ../../tests/unit/cli/test_cli_version.py::test_cli_version_option_outputs_current_version
+  control_point: invoke the root Click CLI with `--version`
+  observation_point: command exits successfully and prints the packaged version string
+- testcase_name: cli-task-command-surface
+  entry_path: ../../tests/unit/cli/test_cli_task.py::test_task_command_registered_in_cli
+  control_point: invoke the root Click CLI with `task --help`
+  observation_point: the registered task flags remain visible on the CLI help surface
+- testcase_name: backend-settings-language-roundtrip
+  entry_path: ../../tests/unit/routers/test_settings.py::test_put_then_get_roundtrip
+  control_point: perform PUT then GET on `/api/settings/language` through the mounted FastAPI router
+  observation_point: the GET response returns the language value persisted by the preceding PUT request
+- testcase_name: backend-git-helper-shared-runner
+  entry_path: ../../tests/unit/routers/test_git.py::test_git_helper_uses_shared_command_runner
+  control_point: call the router helper `_git(...)` with a patched shared command runner
+  observation_point: the helper delegates the expected git command and execution kwargs to the shared runner
+
+### Notes
+- The CLI and backend runtime are kept in one stable element because both surfaces ship from the Python package and share config, orchestration, and runtime support modules.

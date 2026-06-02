@@ -11,11 +11,11 @@ element_path: .github/validator
 
 ### Responsibility
 - Store the bundled validator assets that /argo-init projects into Argo-managed workspace paths.
-- Keep validator implementation assets separated from target-workspace business directories while still allowing bootstrap to copy them.
+- Keep validator implementation assets separated from target-workspace business directories while still allowing repository-native validation commands to invoke them in place.
 
 ### Out Of Scope
-- Acting as the repository-level invocation shim for npm scripts.
-- Owning target workspace package.json mutation logic.
+- Owning target-workspace package.json mutation logic.
+- Owning business-facing backend, console, or website behavior.
 
 ### Children
 - path: script/validateStageHandoff.js
@@ -40,8 +40,9 @@ element_path: .github/validator
     - script/runArchitectureTests.js
   protected_baselines:
     - ARCHITECTURE.md
+    - ../../package.json
   rationale: keep validator assets traceable to the bootstrap contract and npm manifest shim
   frozen_by_stage: implementationdesign
 
 ### Notes
-- The repository-level shims remain at ../../scripts/validateStageHandoff.js, ../../scripts/validateSystemArchitecture.js, and ../../scripts/runArchitectureTests.js so package.json can expose stable invocation paths without moving the bundled assets.
+- The repository root package.json invokes these bundled validator scripts directly via .github/validator/script/*.js. No separate root-level validator shims are present in the current repository state.
