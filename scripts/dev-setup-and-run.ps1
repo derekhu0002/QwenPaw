@@ -69,6 +69,44 @@ function Get-VenvQwenPawPath {
     return Join-Path $Path "Scripts\qwenpaw.exe"
 }
 
+function Stop-RepoQwenPawProcesses {
+    param([string]$Path)
+
+    $qwenpawExe = (Get-VenvQwenPawPath -Path $Path).ToLowerInvariant()
+
+    $targets = Get-CimInstance Win32_Process -ErrorAction SilentlyContinue |
+        Where-Object {
+            $commandLine = if ($null -ne $_.CommandLine) {
+                $_.CommandLine.ToLowerInvariant()
+            } else {
+                ""
+            }
+            $executablePath = if ($null -ne $_.ExecutablePath) {
+                $_.ExecutablePath.ToLowerInvariant()
+            } else {
+                ""
+            }
+
+            $executablePath -eq $qwenpawExe -or
+            $commandLine.Contains($qwenpawExe)
+        }
+
+    if (-not $targets) {
+        return
+    }
+
+    Write-Step "Stopping existing repo-local QwenPaw processes"
+    foreach ($target in $targets) {
+        try {
+            Stop-Process -Id $target.ProcessId -Force -ErrorAction Stop
+        } catch {
+            Fail "Failed to stop running QwenPaw process $($target.ProcessId)"
+        }
+    }
+
+    Start-Sleep -Seconds 2
+}
+
 function Ensure-Venv {
     param([string]$Path)
 
@@ -95,7 +133,7 @@ function Ensure-PythonDependencies {
 
     $venvPython = Get-VenvPythonPath -Path $Path
     Write-Step "Upgrading pip tooling"
-    & $venvPython -m pip install --upgrade pip setuptools wheel
+    & $venvPython -m pip install --upgrade pip wheel "setuptools<82"
     if ($LASTEXITCODE -ne 0) {
         Fail "Failed to upgrade pip tooling"
     }
@@ -237,6 +275,7 @@ if (-not (Test-Path (Join-Path $RepoRoot "pyproject.toml"))) {
 }
 
 Ensure-Venv -Path $VenvPath
+Stop-RepoQwenPawProcesses -Path $VenvPath
 Ensure-PythonDependencies -Path $VenvPath
 Ensure-NodeDependencies
 Ensure-Initialized -Path $VenvPath
@@ -255,6 +294,7 @@ $browserJob = Start-BrowserProbe -Url $url
 $qwenpawExe = Get-VenvQwenPawPath -Path $VenvPath
 
 try {
+    Stop-RepoQwenPawProcesses -Path $VenvPath
     Write-Step "Starting QwenPaw app"
     & $qwenpawExe app --port $port
     exit $LASTEXITCODE
