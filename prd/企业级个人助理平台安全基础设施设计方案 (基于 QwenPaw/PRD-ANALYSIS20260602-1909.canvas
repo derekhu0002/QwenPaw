@@ -1,6 +1,6 @@
 {
 	"nodes":[
-		{"id":"a71bf378abc1af9b","type":"text","text":"项目：[https://github.com/agentscope-ai/QwenPaw](https://www.google.com/url?sa=E&q=https%3A%2F%2Fgithub.com%2Fagentscope-ai%2FQwenPaw)  \n我们计划基于该开源项目开发自己公司的个人助理平台  \n我这边负责这个自研平台的安全基础设施，包括权限管理、日志审计、会话加密功能  \n请基于该项目进行分析，该项目在这几方面的现状，以及我们还要做的工作","x":180,"y":-500,"width":500,"height":180}
+		{"id":"a71bf378abc1af9b","type":"text","text":"项目：[https://github.com/agentscope-ai/QwenPaw](https://www.google.com/url?sa=E&q=https%3A%2F%2Fgithub.com%2Fagentscope-ai%2FQwenPaw)  \n我们计划基于该开源项目开发自己公司的个人助理平台  \n我这边负责这个自研平台的安全基础设施，包括权限管理、日志审计、会话加密功能  \n请基于该项目进行分析，该项目在这几方面的现状，以及我们还要做的工作","x":160,"y":-580,"width":500,"height":180}
 	],
 	"edges":[]
 }
