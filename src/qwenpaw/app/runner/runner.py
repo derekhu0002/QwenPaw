@@ -387,6 +387,7 @@ class AgentRunner(Runner):
             set_current_root_session_id,
             set_current_user_id,
             set_current_channel,
+            set_current_request_prompt,
         )
 
         set_current_agent_id(self.agent_id)
@@ -404,6 +405,7 @@ class AgentRunner(Runner):
             channel = getattr(request, "channel", DEFAULT_CHANNEL)
             set_current_user_id(user_id)
             set_current_channel(channel)
+            set_current_request_prompt(query)
 
             logger.info(
                 "Handle agent query:\n%s",

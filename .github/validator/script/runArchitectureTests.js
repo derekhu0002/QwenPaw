@@ -6,6 +6,7 @@ const { promisify } = require('util');
 const execFileAsync = promisify(execFile);
 
 const repoRoot = path.resolve(__dirname, '..', '..', '..');
+const PYTHON_EXECUTABLE = resolvePythonExecutable(repoRoot);
 const DEFAULT_ARCHITECTURE_GRAPH_PATH = 'design/KG/SystemArchitecture.json';
 const FAILURE_RECORDS_PATH = 'design/KG/test-failure-records.json';
 const DEFAULT_TEST_TIMEOUT_MS = 120000;
@@ -211,7 +212,7 @@ async function executeAcceptanceScript(criteria, cwd, scriptPath) {
         case '.mjs':
             return runCommand(process.execPath, [scriptPath], cwd);
         case '.py':
-            return runCommand('python', [scriptPath], cwd);
+            return runCommand(PYTHON_EXECUTABLE, [scriptPath], cwd);
         case '.ps1':
             return runCommand('powershell', ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', scriptPath], cwd);
         case '.cmd':
@@ -223,7 +224,27 @@ async function executeAcceptanceScript(criteria, cwd, scriptPath) {
 }
 
 async function runPythonPytestNodeId(criteria, cwd) {
-    return runCommand('python', ['-m', 'pytest', buildPytestNodeId(criteria)], cwd);
+    return runCommand(PYTHON_EXECUTABLE, ['-m', 'pytest', buildPytestNodeId(criteria)], cwd);
+}
+
+function resolvePythonExecutable(workspaceRoot) {
+    const candidates = process.platform === 'win32'
+        ? [
+            path.join(workspaceRoot, '.venv', 'Scripts', 'python.exe'),
+            path.join(workspaceRoot, 'venv', 'Scripts', 'python.exe'),
+        ]
+        : [
+            path.join(workspaceRoot, '.venv', 'bin', 'python'),
+            path.join(workspaceRoot, 'venv', 'bin', 'python'),
+        ];
+
+    for (const candidate of candidates) {
+        if (fs.existsSync(candidate)) {
+            return candidate;
+        }
+    }
+
+    return 'python';
 }
 
 async function runCommand(command, args, cwd) {

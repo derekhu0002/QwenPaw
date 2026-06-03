@@ -1,0 +1,62 @@
+{
+  "agent_id": "my-sub-agent1",
+  "audit_scope": "sec-e2e-024",
+  "chain": [
+    "default:to:my-sub-agent1:1780489127802:67942dc2",
+    "my-sub-agent1",
+    "",
+    "execute_shell_command"
+  ],
+  "channel": "local_console",
+  "confirmation_context": {
+    "authenticated_session_id": "default:to:my-sub-agent1:1780489127802:67942dc2",
+    "channel_name": "local_console",
+    "delegated_agent_name": "my-sub-agent1",
+    "employee_id": "default:to:my-sub-agent1:1780489127802:67942dc2",
+    "high_risk_tool_name": "execute_shell_command",
+    "third_party_plugin_name": "",
+    "user_confirmation_phrase": ""
+  },
+  "confirmation_digest": "2f0049e6af149fdcc933e2a3abfb2b6d23e8698fc66e0b0b70e9b58e03d12812",
+  "confirmed_at": 1780489134.91269,
+  "context_user_id": "default:to:my-sub-agent1:1780489127802:67942dc2",
+  "continuity_anchor": "2f0049e6af149fdcc933e2a3abfb2b6d23e8698fc66e0b0b70e9b58e03d12812",
+  "created_at": 1780489134.91269,
+  "current_hash": "2f0049e6af149fdcc933e2a3abfb2b6d23e8698fc66e0b0b70e9b58e03d12812",
+  "delegated_agent_name": "my-sub-agent1",
+  "event_type": "USER_CONFIRMATION",
+  "extra": {
+    "approval_state": "pending",
+    "delegated_agent_name": null,
+    "high_risk_tool_name": "execute_shell_command",
+    "request_id": "d3ce3af2-8598-48ec-ae3f-c726884a2b5c",
+    "third_party_plugin_name": null,
+    "tool_call": {
+      "id": "call_00_dGaPUV7eBpLKY3o6n9ci4984",
+      "input": {
+        "command": "powershell -Command \"Remove-Item -Path 'D:\\Projects\\QwenPaw\\temp\\test-file.txt' -RecycleBin -Force -ErrorAction Stop; Write-Host '已安全删除（送入回收站）' -ForegroundColor Green\"",
+        "timeout": 10
+      },
+      "name": "execute_shell_command",
+      "raw_input": "{\"command\": \"powershell -Command \\\"Remove-Item -Path 'D:\\\\Projects\\\\QwenPaw\\\\temp\\\\test-file.txt' -RecycleBin -Force -ErrorAction Stop; Write-Host '已安全删除（送入回收站）' -ForegroundColor Green\\\"\", \"timeout\": 10}",
+      "type": "tool_use"
+    },
+    "user_confirmation_phrase": ""
+  },
+  "hash_chain_valid": true,
+  "high_risk_tool_name": "execute_shell_command",
+  "payload_hash": "2f0049e6af149fdcc933e2a3abfb2b6d23e8698fc66e0b0b70e9b58e03d12812",
+  "prior_hash": "d3a8453fb84a27e857104e98d44cd9b75424f28e7db1a3c5fb51172f0ffb25e4",
+  "prompt_text": "[Agent default requesting] 请帮我删除文件 D:\\Projects\\QwenPaw\\temp\\test-file.txt。\n步骤：\n1. 先确认文件是否存在\n2. 如果存在，用安全方式删除（Windows 推荐用 PowerShell Remove-Item，如果能进回收站更好）\n3. 验证文件是否已成功删除\n4. 将结果反馈给我",
+  "released_at": 1780489142.2565765,
+  "request_user_id": "default:to:my-sub-agent1:1780489127802:67942dc2",
+  "run_id": "d3ce3af2-8598-48ec-ae3f-c726884a2b5c",
+  "session_id": "default:to:my-sub-agent1:1780489127802:67942dc2",
+  "status": "approved",
+  "third_party_plugin_name": "",
+  "tool_effect_at": 1780489142.2565765,
+  "tool_name": "execute_shell_command",
+  "user_confirmation_phrase": "",
+  "user_id": "default:to:my-sub-agent1:1780489127802:67942dc2",
+  "verified_at": 1780489142.2565765
+}

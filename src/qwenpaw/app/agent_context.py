@@ -7,11 +7,11 @@ from contextvars import ContextVar
 from pathlib import Path
 from typing import Optional, TYPE_CHECKING
 from fastapi import Request
-from .multi_agent_manager import MultiAgentManager
 from ..config.utils import load_config
 
 if TYPE_CHECKING:
     from .workspace import Workspace
+    from .multi_agent_manager import MultiAgentManager
 
 # Context variable to store current agent ID across async calls
 _current_agent_id: ContextVar[Optional[str]] = ContextVar(
@@ -38,6 +38,11 @@ _current_user_id: ContextVar[Optional[str]] = ContextVar(
 
 _current_channel: ContextVar[Optional[str]] = ContextVar(
     "current_channel",
+    default=None,
+)
+
+_current_request_prompt: ContextVar[Optional[str]] = ContextVar(
+    "current_request_prompt",
     default=None,
 )
 
@@ -228,3 +233,13 @@ def set_current_channel(channel: Optional[str]) -> None:
 def get_current_channel() -> Optional[str]:
     """Get current channel from context."""
     return _current_channel.get()
+
+
+def set_current_request_prompt(prompt: Optional[str]) -> None:
+    """Set the current request prompt in context."""
+    _current_request_prompt.set(prompt)
+
+
+def get_current_request_prompt() -> Optional[str]:
+    """Get current request prompt from context."""
+    return _current_request_prompt.get()

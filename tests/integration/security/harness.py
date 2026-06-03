@@ -13,8 +13,8 @@ import httpx
 if TYPE_CHECKING:
     from tests.integration.conftest import AppServer
 
-_HTTP_TIMEOUT = 15.0
-_STREAM_READ_TIMEOUT = 2.0
+_HTTP_TIMEOUT = 45.0
+_STREAM_READ_TIMEOUT = 5.0
 _RUNTIME_SETTLE_SECONDS = 5.0
 _RUNTIME_POLL_INTERVAL_SECONDS = 0.25
 

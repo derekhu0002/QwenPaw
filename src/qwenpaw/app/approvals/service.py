@@ -15,6 +15,10 @@ from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any
 
 from ...constant import TOOL_GUARD_APPROVAL_TIMEOUT_SECONDS
+from ..inbox_trace_store import (
+    finalize_confirmation_trace,
+    record_confirmation_trace,
+)
 from ...security.tool_guard.approval import ApprovalDecision
 
 if TYPE_CHECKING:
@@ -119,9 +123,59 @@ class ApprovalService:
             extra=dict(extra or {}),
         )
 
+        runtime_prompt = str(pending.extra.get("request_prompt") or "")
+        tool_call = pending.extra.get("tool_call")
+        tool_input = tool_call.get("input", {}) if isinstance(tool_call, dict) else {}
+
         async with self._lock:
             self._pending[request_id] = pending
             self._gc_pending_locked()
+
+        audit_record = await record_confirmation_trace(
+            run_id=request_id,
+            session_id=session_id,
+            user_id=user_id,
+            channel=channel,
+            agent_id=agent_id,
+            tool_name=tool_name,
+            extra={
+                "tool_call": tool_call or {},
+                "delegated_agent_name": tool_input.get("delegated_agent_name"),
+                "third_party_plugin_name": tool_input.get("third_party_plugin_name"),
+                "high_risk_tool_name": tool_input.get("high_risk_tool_name")
+                or tool_name,
+                "user_confirmation_phrase": tool_input.get(
+                    "user_confirmation_phrase",
+                )
+                or runtime_prompt,
+                "request_id": request_id,
+                "approval_state": "pending",
+            },
+        )
+        pending.extra.setdefault("audit", {})
+        pending.extra["audit"].update(
+            {
+                "confirmation_digest": audit_record.get("confirmation_digest"),
+                "prior_hash": audit_record.get("prior_hash"),
+                "current_hash": audit_record.get("current_hash"),
+                "confirmed_at": audit_record.get("confirmed_at"),
+            },
+        )
+        pending.extra.update(
+            {
+                "agent_id": audit_record.get("agent_id"),
+                "delegated_agent_name": audit_record.get("delegated_agent_name"),
+                "third_party_plugin_name": audit_record.get(
+                    "third_party_plugin_name",
+                ),
+                "high_risk_tool_name": audit_record.get("high_risk_tool_name"),
+                "user_confirmation_phrase": audit_record.get(
+                    "user_confirmation_phrase",
+                ),
+                "confirmation_context": audit_record.get("confirmation_context"),
+                "chain": audit_record.get("chain"),
+            },
+        )
 
         logger.info(
             "Approval pending created: request_id=%s agent_id=%s tool=%s "
@@ -157,6 +211,12 @@ class ApprovalService:
         # Set Future result outside lock
         if not pending.future.done():
             pending.future.set_result(decision)
+
+        if decision in {ApprovalDecision.APPROVED, ApprovalDecision.DENIED}:
+            await finalize_confirmation_trace(
+                request_id,
+                status=decision.value,
+            )
 
         logger.info(
             "Approval request %s resolved: decision=%s tool=%s",

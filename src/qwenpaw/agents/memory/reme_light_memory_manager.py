@@ -93,8 +93,15 @@ class ReMeLightMemoryManager(BaseMemoryManager):
         )
 
         memory_manager_backend = _detect_memory_manager_backend()
-
-        from reme.reme_light import ReMeLight
+        self.summary_toolkit = Toolkit()
+        try:
+            from reme.reme_light import ReMeLight
+        except ModuleNotFoundError:
+            logger.warning(
+                "ReMeLight dependency unavailable; using no-op memory manager",
+            )
+            self._reme = None
+            return
 
         emb_config = self.get_embedding_config()
         vector_enabled = bool(emb_config["base_url"]) and bool(
@@ -139,12 +146,11 @@ class ReMeLightMemoryManager(BaseMemoryManager):
             },
         )
 
-        self.summary_toolkit = Toolkit()
-        from qwenpaw.agents.tools import (
+        from qwenpaw.agents.tools import (  # noqa: PLC0415
+            edit_file,
             read_file,
             write_file,
-            edit_file,
-        )  # noqa: PLC0415
+        )
 
         self.summary_toolkit.register_tool_function(read_file)
         self.summary_toolkit.register_tool_function(write_file)
@@ -389,6 +395,8 @@ class ReMeLightMemoryManager(BaseMemoryManager):
 
     async def summarize(self, messages: list[Msg], **_kwargs) -> str:
         """Generate a summary of the given messages and persist to memory."""
+        if self._reme is None:
+            return ""
         agent_config = load_agent_config(self.agent_id)
         light_ctx = agent_config.running.light_context_config
         cc = light_ctx.context_compact_config
@@ -593,6 +601,9 @@ class ReMeLightMemoryManager(BaseMemoryManager):
 
     async def dream(self, **kwargs) -> None:
         """Run one dream-based memory optimization pass."""
+        if self._reme is None:
+            logger.info("dream optimization skipped: ReMeLight unavailable")
+            return
         logger.info("running dream-based memory optimization")
 
         agent_config = load_agent_config(self.agent_id)

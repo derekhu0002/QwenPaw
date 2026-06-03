@@ -9,6 +9,10 @@ from pathlib import Path
 from typing import Any
 
 from ..constant import WORKING_DIR
+from ..security.audit_foundation import (
+    finalize_confirmation_record as _finalize_confirmation_record,
+    write_confirmation_record as _write_confirmation_record,
+)
 
 _TRACE_DIR = WORKING_DIR / "inbox_traces"
 _LOCK = asyncio.Lock()
@@ -220,3 +224,41 @@ async def delete_trace(run_id: str) -> bool:
             return False
         path.unlink(missing_ok=True)
     return True
+
+
+async def record_confirmation_trace(
+    *,
+    run_id: str,
+    session_id: str,
+    user_id: str,
+    channel: str,
+    agent_id: str,
+    tool_name: str,
+    extra: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    return await _write_confirmation_record(
+        run_id=run_id,
+        session_id=session_id,
+        user_id=user_id,
+        channel=channel,
+        agent_id=agent_id,
+        tool_name=tool_name,
+        extra=extra,
+    )
+
+
+async def finalize_confirmation_trace(
+    run_id: str,
+    *,
+    status: str = "released",
+    released_at: float | None = None,
+    tool_effect_at: float | None = None,
+    extra: dict[str, Any] | None = None,
+) -> dict[str, Any] | None:
+    return await _finalize_confirmation_record(
+        run_id,
+        status=status,
+        released_at=released_at,
+        tool_effect_at=tool_effect_at,
+        extra=extra,
+    )
