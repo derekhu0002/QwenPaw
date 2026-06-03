@@ -164,14 +164,14 @@
 
 #### 8.3.2 模块拆分
 
-| 模块 | 责任 | 主要落点 |
-| --- | --- | --- |
-| `security_context` | 生成和传递安全上下文、TraceID、会话和 Agent 标识。 | 后端请求入口、Agent 运行上下文、工具调用上下文。 |
-| `policy_engine` | 计算 MCP/API/工具调用的 allow/deny/approval/remote-audit 决策。 | `src/qwenpaw/security/` 下新增策略模块，接入 Tool Guard。 |
-| `audit_event_store` | 写入本地审计事件、hash chain、checkpoint、外发状态。 | `src/qwenpaw/security/` 下新增审计模块。 |
-| `audit_exporter` | 将审计事件外发到公司日志中心或后续 SIEM。 | 先提供接口和本地模拟 sink，后续接真实基础设施。 |
-| `session_crypto` | 管理每会话 DEK、加密会话原文、解密会话上下文。 | 在会话持久化和加载路径接入。 |
-| `security_console` | 展示策略、审批、审计、外发状态和配置历史。 | `console/src/pages/Settings/Security/` 或新增审计页面。 |
+| 模块                  | 责任                                                    | 主要落点                                            |
+| ------------------- | ----------------------------------------------------- | ----------------------------------------------- |
+| `security_context`  | 生成和传递安全上下文、TraceID、会话和 Agent 标识。                      | 后端请求入口、Agent 运行上下文、工具调用上下文。                     |
+| `policy_engine`     | 计算 MCP/API/工具调用的 allow/deny/approval/remote-audit 决策。 | `src/qwenpaw/security/` 下新增策略模块，接入 Tool Guard。  |
+| `audit_event_store` | 写入本地审计事件、hash chain、checkpoint、外发状态。                  | `src/qwenpaw/security/` 下新增审计模块。                |
+| `audit_exporter`    | 将审计事件外发到公司日志中心或后续 SIEM。                               | 先提供接口和本地模拟 sink，后续接真实基础设施。                      |
+| `session_crypto`    | 管理每会话 DEK、加密会话原文、解密会话上下文。                             | 在会话持久化和加载路径接入。                                  |
+| `security_console`  | 展示策略、审批、审计、外发状态和配置历史。                                 | `console/src/pages/Settings/Security/` 或新增审计页面。 |
 
 ### 8.4 端到端验收规格
 
