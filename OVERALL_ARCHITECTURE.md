@@ -3,6 +3,7 @@
 ## Scope
 - Freeze the stable implementation boundaries that currently realize QwenPaw in this repository.
 - Materialize the `sec-e2e-024` explicit acceptance entrypoint as a repository-owned, read-only testcase file plus its harness abstractions.
+- Constrain `sec-e2e-024` to a real-environment acceptance baseline that uses the live app subprocess, real HTTP surfaces, and an isolated working directory.
 - Record where intent is already directly implemented, where current code only provides transitional evidence, and which gaps are intentionally handed to Coding/Repair.
 
 ## Stable Elements
@@ -72,7 +73,7 @@
 - indirect implementation chain: `src/qwenpaw/app/agent_context.py` provides current contextvars evidence for `intent-implicit-security-context-manager` under the owning `src/qwenpaw/security` contract.
 - indirect implementation chain: `src/qwenpaw/app/approvals/service.py` provides current approval-routing evidence that must be converged into durable confirmation evidence under the owning `src/qwenpaw/security` contract.
 - indirect implementation chain: `src/qwenpaw/app/inbox_trace_store.py` provides append-only trace evidence that must be converged into canonical audit-chain projection under the owning `src/qwenpaw/security` contract.
-- direct testcase materialization: `tests/integration/security/test_audit_foundation.py::test_end_to_end_non_repudiation_evidence_chain` is the single read-only explicit entrypoint for `sec-e2e-024-end-to-end-non-repudiation-evidence-chain`.
+- direct testcase materialization: `tests/integration/security/test_audit_foundation.py::test_end_to_end_non_repudiation_evidence_chain` is the single read-only explicit entrypoint for `sec-e2e-024-end-to-end-non-repudiation-evidence-chain`, and it must run through the real `app_server` fixture rather than repository source inspection.
 
 ## Explicit Testcase Materialization
 - testcase: cli-version-surface
@@ -98,6 +99,7 @@
 - testcase: sec-e2e-024-end-to-end-non-repudiation-evidence-chain
   intent_element: intent-local-security-audit-foundation
   entrypoint: tests/integration/security/test_audit_foundation.py::test_end_to_end_non_repudiation_evidence_chain
+  runtime_mode: real-app-subprocess
 
 ## Critical Non-Explicit Guardrails
 - tests/architecture/root-architecture-contracts.test.js guards the presence and cross-reference integrity of the root contracts, including the new security contracts.

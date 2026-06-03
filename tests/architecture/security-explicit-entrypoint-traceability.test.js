@@ -23,6 +23,10 @@ const harnessBody = fs.readFileSync(
     path.join(repoRoot, 'tests', 'integration', 'security', 'harness.py'),
     'utf8',
 );
+const integrationConftestBody = fs.readFileSync(
+    path.join(repoRoot, 'tests', 'integration', 'conftest.py'),
+    'utf8',
+);
 
 const graphTestcase = (graph.elements || [])
     .flatMap(element => element.testcases || [])
@@ -67,6 +71,8 @@ for (const marker of [
     '# // GIVEN',
     '# // WHEN',
     '# // THEN',
+    'app_server',
+    'for_app_server',
     'expect_context_propagation',
     'get_last_audit_record_from_disk',
     'verify_local_hash_chain_integrity',
@@ -80,6 +86,7 @@ for (const marker of [
 }
 
 for (const harnessMethod of [
+    'for_app_server',
     'expect_context_propagation',
     'get_last_audit_record_from_disk',
     'verify_local_hash_chain_integrity',
@@ -89,6 +96,16 @@ for (const harnessMethod of [
     assert.ok(
         harnessBody.includes(`def ${harnessMethod}`),
         `The protected harness must keep the method ${harnessMethod}.`,
+    );
+}
+
+for (const marker of [
+    'startup_error',
+    'raise AssertionError(self.startup_error)',
+]) {
+    assert.ok(
+        integrationConftestBody.includes(marker),
+        `The shared real-environment bootstrap must keep the readable startup marker: ${marker}`,
     );
 }
 

@@ -1,8 +1,8 @@
 {
   "stage": "implementation-to-coding",
-  "generatedAt": "2026-06-03T15:52:47+08:00",
+  "generatedAt": "2026-06-03T17:27:00+08:00",
   "sourceIntentGraphPath": "design/KG/SystemArchitecture.json",
-  "summary": "Implementation-stage handoff for the currently materialized explicit testcase sec-e2e-024. The handoff freezes src/qwenpaw/security as the owning audit-foundation boundary, freezes the read-only entrypoint under tests/integration/security, and hardens that entrypoint against soft happy-path bypasses by requiring tool-boundary context spying, physical audit-ledger inspection, hash-chain verification, and pre-execution evidence ordering. The entrypoint currently fails with business-readable Non_Repudiation_Gap signals rather than bootstrap noise.",
+  "summary": "Implementation-stage handoff for the currently materialized explicit testcase sec-e2e-024. The handoff freezes src/qwenpaw/security as the owning audit-foundation boundary, freezes the read-only entrypoint under tests/integration/security, constrains that entrypoint to the real app subprocess and isolated working directory, and hardens it against soft happy-path bypasses by requiring tool-boundary context spying, physical audit-ledger inspection, hash-chain verification, and pre-execution evidence ordering. The app subprocess now starts successfully (startup_error=None, segno and all previously missing deps have been installed); the entrypoint fails with pure business-implementation Non_Repudiation_Gap signals that define the Coding/Repair repair queue.",
   "implementationContracts": [
     "OVERALL_ARCHITECTURE.md",
     "src/qwenpaw/ARCHITECTURE.md",
@@ -16,11 +16,11 @@
     {
       "testcaseName": "sec-e2e-024-end-to-end-non-repudiation-evidence-chain",
       "entryPath": "tests/integration/security/test_audit_foundation.py::test_end_to_end_non_repudiation_evidence_chain",
-      "controlPoint": "Authenticate an employee, request a delegated high-risk action through an agent and plugin seam, then provide the required confirmation through the security harness.",
-      "observationPoint": "The resulting observations must prove tool-boundary implicit context propagation, a continuous employee -> agent -> plugin -> tool evidence chain, a physical USER_CONFIRMATION record on disk with the expected digest, local hash-chain integrity, and the order 'store evidence before releasing the high-risk tool'.",
+      "controlPoint": "Authenticate an employee, request a delegated high-risk action through the real app subprocess and agent/plugin seam, then provide the required confirmation through the security harness.",
+      "observationPoint": "The resulting observations must prove tool-boundary implicit context propagation, a continuous employee -> agent -> plugin -> tool evidence chain, a physical USER_CONFIRMATION record on disk inside the isolated working directory with the expected digest, local hash-chain integrity, and the order 'store evidence before releasing the high-risk tool'.",
       "initialExecutionStatus": "failed",
       "initialExecutionCommand": "python -m pytest tests/integration/security/test_audit_foundation.py::test_end_to_end_non_repudiation_evidence_chain -q",
-      "failureReason": "AssertionError category=\"Non_Repudiation_Gap\": the current repository still lacks a tool-boundary user-identity context spy, a tamper-evident physical USER_CONFIRMATION record with digest and prior-hash, a local hash-chain verifier plus continuity anchor, and an enforced pre-execution evidence write order behind src/qwenpaw/security."
+      "failureReason": "AssertionError category=\"Non_Repudiation_Gap\": the app subprocess starts successfully but the audit foundation is not yet implemented. The following business capabilities are all missing: tool-boundary implicit user-identity context spy, durable USER_CONFIRMATION record on disk with payload digest and prior-hash anchor, local hash-chain integrity verifier, continuity anchor artifact, human approval gate, and the pre-execution evidence ordering guarantee (store evidence before releasing the high-risk tool). Coding/Repair must realize all of these inside src/qwenpaw/security."
     }
   ],
   "criticalNonExplicitTests": [
@@ -61,9 +61,9 @@
       "path": "tests/architecture/security-explicit-entrypoint-traceability.test.js",
       "kind": "explicit-entrypoint-correctness",
       "controlPoint": "Execute the sec-e2e-024 traceability guard from the repository root.",
-      "observationPoint": "The guard confirms that SystemArchitecture.json, ImplementationToCodingHandoff.json, and test-failure-records.json all point to the same read-only sec-e2e-024 entrypoint and that the entrypoint still contains the frozen runtime-inspection methods.",
-      "expectedStatus": "passed"
-    }
+        "observationPoint": "The guard confirms that SystemArchitecture.json, ImplementationToCodingHandoff.json, and test-failure-records.json all point to the same read-only sec-e2e-024 entrypoint, that the entrypoint still contains the frozen runtime-inspection methods, and that the shared real-environment bootstrap keeps the readable startup-failure surface.",
+        "expectedStatus": "passed"
+      }
   ],
   "supportingNonExplicitTests": [
     {
@@ -80,10 +80,10 @@
     {
       "testcaseName": "sec-e2e-024-end-to-end-non-repudiation-evidence-chain",
       "path": "src/qwenpaw/security",
-      "failureSignal": "If sec-e2e-024 fails with Non_Repudiation_Gap, the runtime still lacks a tool-boundary user-identity context spy, a tamper-evident physical confirmation record with digest and prior-hash, a local hash-chain verifier plus continuity anchor, and a hard guarantee that evidence is stored before the high-risk tool effect.",
-      "nextAction": "Realize the audit foundation inside src/qwenpaw/security, adapt app/agent_context.py, app/approvals/service.py, app/inbox_trace_store.py, and the high-risk execution gate behind that contract, and keep tests/integration/security/test_audit_foundation.py unchanged."
-    }
-  ],
+        "failureSignal": "If sec-e2e-024 fails with Non_Repudiation_Gap, either the shared real-environment bootstrap is still incomplete for the live app subprocess, or the runtime still lacks a tool-boundary user-identity context spy, a tamper-evident physical confirmation record with digest and prior-hash, a local hash-chain verifier plus continuity anchor, and a hard guarantee that evidence is stored before the high-risk tool effect.",
+        "nextAction": "Realize the audit foundation inside src/qwenpaw/security: (1) add a tool-boundary user-identity context spy that reads from contextvars without explicit parameter threading; (2) implement a durable hash-linked confirmation record writer that stores a USER_CONFIRMATION artifact with payload_digest and prior_hash before releasing the high-risk tool; (3) implement a local hash-chain verifier; (4) implement a continuity anchor emitter; (5) implement a human approval gate that emits a pending approval record; (6) implement a Security Center query seam that projects the employee -> agent -> plugin -> tool lineage as a queryable runtime trace. Adapt app/agent_context.py, app/approvals/service.py, app/inbox_trace_store.py, and the high-risk execution gate behind that contract. Keep tests/integration/security/test_audit_foundation.py unchanged."
+      }
+    ],
   "frozenFiles": [
     "design/KG/SystemArchitecture.json",
     "design/KG/IntentToImplementationHandoff.json",
@@ -94,6 +94,7 @@
     "src/qwenpaw/security/ARCHITECTURE.md",
     "tests/ARCHITECTURE.md",
     "tests/architecture/ARCHITECTURE.md",
+    "tests/integration/conftest.py",
     "tests/integration/security/ARCHITECTURE.md",
     "tests/integration/security/harness.py",
     "tests/integration/security/test_audit_foundation.py",
@@ -105,7 +106,7 @@
     ".github/validator/ARCHITECTURE.md"
   ],
   "openGaps": [
-    "The current sec-e2e-024 explicit entrypoint is intentionally failing until Coding/Repair realizes a tool-boundary user-identity context spy, durable confirmation artifacts, canonical hash-linked audit records, a local hash-chain verifier, and a queryable Security Center projection behind src/qwenpaw/security.",
+    "The current sec-e2e-024 explicit entrypoint is intentionally failing with business-implementation Non_Repudiation_Gap signals. The app subprocess starts successfully (all declared bootstrap dependencies including segno are now installed). Coding/Repair must implement the audit foundation inside src/qwenpaw/security to make this test pass.",
     "The remaining explicit security scenarios from design/KG/SystemArchitecture.json (sec-e2e-025, sec-e2e-026, sec-e2e-027, sec-e2e-021, sec-e2e-022, sec-e2e-023) are still unmaterialized in this focused sec-e2e-024 design pass."
   ]
 }

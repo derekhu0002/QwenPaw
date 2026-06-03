@@ -27,7 +27,7 @@ element_path: tests/architecture
   role: verifies the new security contract, explicit-entrypoint-zone contract, and protected harness files stay wired together
 - path: security-explicit-entrypoint-traceability.test.js
   kind: critical-non-explicit-test
-  role: verifies `sec-e2e-024` remains mounted to the declared explicit entrypoint, keeps its runtime-inspection shape, and preserves failure-record traceability
+  role: verifies `sec-e2e-024` remains mounted to the declared explicit entrypoint, keeps its real-environment runtime-inspection shape, and preserves failure-record traceability
 
 ### Test Guardrails
 #### critical_non_explicit_tests
@@ -98,7 +98,8 @@ element_path: tests/architecture
     - ../../design/KG/test-failure-records.json
   protected_baselines:
     - ARCHITECTURE.md
+    - ../../tests/integration/conftest.py
     - ../../tests/integration/security/test_audit_foundation.py
     - ../../tests/integration/security/harness.py
-  rationale: keep sec-e2e-024 pointed at one read-only entrypoint, freeze the runtime-inspection assertions that make the testcase harder to bypass, and preserve the first expected-failure signal handed to Coding/Repair
+  rationale: keep sec-e2e-024 pointed at one read-only entrypoint, freeze the real-app runtime-inspection assertions plus readable startup-failure surface that make the testcase harder to bypass, and preserve the first expected-failure signal handed to Coding/Repair
   frozen_by_stage: implementationdesign

@@ -12,7 +12,7 @@ element_path: tests
 ### Responsibility
 - Own the physical repository entrypoints for explicit and non-explicit verification assets.
 - Keep architecture guardrails under `tests/architecture` and product behavior tests under `unit/`, `integration/`, `contract/`, and `e2e/`.
-- Keep explicit security acceptance bodies business-readable by routing low-level inspection through harness helpers inside `tests/integration/security`.
+- Keep explicit security acceptance bodies business-readable by routing low-level live-runtime inspection through harness helpers inside `tests/integration/security`.
 
 ### Out Of Scope
 - Defining acceptance scope independently from `design/KG/SystemArchitecture.json`.
@@ -58,4 +58,5 @@ element_path: tests
 
 ### Notes
 - The current explicit testcases are intentionally anchored to repository-owned pytest entrypoints so the architecture baseline stays executable in the current workspace state.
-- `tests/integration/security/harness.py` is a protected fixture for explicit security acceptance bodies. Coding/Repair may realize the runtime behind it, but should not rewrite its business-facing vocabulary, runtime-inspection method names, or the read-only testcase entrypoint without an upstream architecture change.
+- `tests/integration/security/harness.py` is a protected fixture for explicit security acceptance bodies. Coding/Repair may realize the runtime behind it, but should not rewrite its business-facing vocabulary, runtime-inspection method names, the required `app_server` real-environment binding, or the read-only testcase entrypoint without an upstream architecture change.
+- `tests/integration/conftest.py` now carries the shared real-app subprocess bootstrap baseline for integration entrypoints; when runtime startup fails, it must surface a readable `startup_error` to test bodies instead of terminating those entrypoints during fixture setup.

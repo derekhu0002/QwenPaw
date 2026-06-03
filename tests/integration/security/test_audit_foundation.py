@@ -12,7 +12,7 @@ from .harness import (
 
 @pytest.mark.integration
 @pytest.mark.p0
-def test_end_to_end_non_repudiation_evidence_chain() -> None:
+def test_end_to_end_non_repudiation_evidence_chain(app_server) -> None:
     """Control point: authenticated employee requests a delegated high-risk action
     and confirms it.
 
@@ -22,7 +22,7 @@ def test_end_to_end_non_repudiation_evidence_chain() -> None:
     expose to operators.
     """
 
-    harness = SecurityAuditHarness.for_repo_root()
+    harness = SecurityAuditHarness.for_app_server(app_server)
 
     # // GIVEN
     authenticated_employee = EmployeeIdentity(

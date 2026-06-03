@@ -221,6 +221,7 @@ class AppServer:
     # backups, etc.) write directly under this path. The subprocess re-reads
     # these files on each HTTP request, so no restart is needed after seeding.
     working_dir: Path
+    startup_error: str | None = None
 
     @property
     def base_url(self) -> str:
@@ -257,6 +258,8 @@ class AppServer:
         **kwargs: Any,
     ) -> httpx.Response:
         """Send a request and print the full request/response to stdout."""
+        if self.startup_error is not None:
+            raise AssertionError(self.startup_error)
         url = f"{self.base_url}{path}" if path.startswith("/") else path
         request_payload = kwargs.get("json")
         if request_payload is None:
@@ -296,6 +299,8 @@ def app_server(  # pylint: disable=too-many-statements,too-many-branches
     a module — current convention (e.g. ``integ_ws_01``) already supports this.
     """
     tmp_path = tmp_path_factory.mktemp("app_server")
+    repo_root = Path(__file__).resolve().parents[2]
+    src_root = repo_root / "src"
     host = "127.0.0.1"
     port = _find_free_port(host)
 
@@ -316,6 +321,12 @@ def app_server(  # pylint: disable=too-many-statements,too-many-branches
     env["QWENPAW_AUTH_ENABLED"] = "false"
     env["NO_PROXY"] = "*"
     env["PYTHONUNBUFFERED"] = "1"
+    existing_pythonpath = env.get("PYTHONPATH", "").strip()
+    env["PYTHONPATH"] = (
+        str(src_root)
+        if not existing_pythonpath
+        else os.pathsep.join((str(src_root), existing_pythonpath))
+    )
     # Force UTF-8 stdio in the subprocess so non-ASCII log lines (e.g.
     # 中文/emoji from skills, agentscope, etc.) don't crash the parent's
     # _tee_stream reader on Windows where the default console encoding
@@ -359,6 +370,7 @@ def app_server(  # pylint: disable=too-many-statements,too-many-branches
         encoding="utf-8",
         errors="replace",
         env=env,
+        cwd=repo_root,
     ) as process:
         assert process.stdout is not None
 
@@ -379,13 +391,15 @@ def app_server(  # pylint: disable=too-many-statements,too-many-branches
             max_wait_seconds = 60
             start_at = time.time()
             last_error: str | None = None
+            startup_error: str | None = None
             while time.time() - start_at < max_wait_seconds:
                 if process.poll() is not None:
-                    raise AssertionError(
+                    startup_error = (
                         "qwenpaw app exited during startup.\n"
                         f"exit_code={process.returncode}\n"
-                        f"logs:\n{''.join(logs)[-4000:]}",
+                        f"logs:\n{''.join(logs)[-4000:]}"
                     )
+                    break
 
                 try:
                     resp = client.get(f"http://{host}:{port}/api/version")
@@ -395,10 +409,10 @@ def app_server(  # pylint: disable=too-many-statements,too-many-branches
                     last_error = str(exc)
                 time.sleep(0.5)
             else:
-                raise AssertionError(
+                startup_error = (
                     "qwenpaw app did not become ready in time.\n"
                     f"last_error={last_error}\n"
-                    f"logs:\n{''.join(logs)[-4000:]}",
+                    f"logs:\n{''.join(logs)[-4000:]}"
                 )
 
             yield AppServer(
@@ -409,6 +423,7 @@ def app_server(  # pylint: disable=too-many-statements,too-many-branches
                 logs=logs,
                 log_thread=log_thread,
                 working_dir=working_dir,
+                startup_error=startup_error,
             )
         finally:
             client.close()
