@@ -1,6 +1,6 @@
 {
   "name": "QwenPaw System Architecture",
-  "description": "Intent architecture for QwenPaw covering the current platform slices plus the strengthened P0 local security audit foundation required for implicit identity propagation, tamper-evident auditing, external checkpoint anchoring, out-of-band configuration tamper detection, and tiered audit durability. The security extension is scoped from the AgentScope security infrastructure PRD and is intentionally limited to the minimum closed loop needed for SEC-E2E-006, SEC-E2E-007, automatic user attribution across third-party agents, and bounded TTFT impact under full audit mode.",
+  "description": "Intent architecture for QwenPaw covering the current platform slices plus the strengthened P0 local security audit foundation required for end-to-end non-repudiation, tamper-evident auditing, external checkpoint anchoring, out-of-band configuration tamper detection, tiered audit durability, replay-resistant cloud reconciliation, and behavior-level anomaly detection. The security extension is scoped from the AgentScope security infrastructure PRD and is intentionally limited to the minimum business closure needed for four core business scenarios and three deep-risk scenarios: full-chain evidence continuity, audit-integrity self-healing lock mode, bounded TTFT impact under full audit mode, lease-expiry-driven active defense, prompt-injection-resistant tool enforcement, stolen-session replay blocking, and silent exfiltration pattern alerting.",
   "standard": {
     "name": "ArchiMate",
     "version": "3.2",
@@ -58,15 +58,15 @@
       "archimate_layer": "Application",
       "archimate_aspect": "Active Structure",
       "browser_path": "QwenPaw Platform/Backend Runtime/Local Security Audit Foundation",
-      "description": "Backend-owned P0 security foundation that standardizes implicit SecurityContext propagation, defines the canonical AuditEvent envelope, persists append-only local audit records with a hash chain, anchors continuity through a restricted checkpoint store, verifies startup consistency against configuration hashes, enforces security lock mode after integrity failures, supports human-in-the-loop confirmation for high-risk tool execution, and supports tiered audit durability for critical versus informational events. This element is intentionally limited to the minimum closure for SEC-E2E-006 and SEC-E2E-007 plus the required context-propagation, confirmation, and performance guardrails, rather than the full later audit pipeline.\n#file:prd/企业级个人助理平台安全基础设施设计方案 (基于 QwenPaw/AgentScope).md\n#file:src/qwenpaw/app/auth.py\n#file:src/qwenpaw/app/agent_context.py\n#file:src/qwenpaw/app/runner/utils.py\n#file:src/qwenpaw/app/routers/config.py\n#file:src/qwenpaw/app/routers/settings.py\n#file:src/qwenpaw/security",
+      "description": "Backend-owned P0 security foundation that standardizes implicit SecurityContext propagation, defines the canonical AuditEvent envelope, persists append-only local audit records with a hash chain, anchors continuity through a restricted checkpoint store, verifies startup consistency against configuration hashes, enforces security lock mode after integrity failures, supports human-in-the-loop confirmation for high-risk tool execution, resists prompt-driven guard bypass at the tool-call layer, and supports tiered audit durability for critical versus informational events. This element is intentionally limited to the minimum closure needed for end-to-end non-repudiation evidence chains, audit-integrity self-healing lock mode, bounded TTFT impact, active liveness defense, replay-resistant session continuity, and behavior-anomaly evidence generation rather than the full later audit pipeline.\n#file:prd/企业级个人助理平台安全基础设施设计方案 (基于 QwenPaw/AgentScope).md\n#file:src/qwenpaw/app/auth.py\n#file:src/qwenpaw/app/agent_context.py\n#file:src/qwenpaw/app/runner/utils.py\n#file:src/qwenpaw/app/routers/config.py\n#file:src/qwenpaw/app/routers/settings.py\n#file:src/qwenpaw/security",
       "attributes": [
         {
           "name": "verification_focus",
-          "value": "implicit identity continuity, tamper-evident local audit integrity, accountable security configuration changes, high-risk user confirmation traceability, and bounded full-audit latency"
+          "value": "end-to-end actor trace continuity, tamper-evident and self-healing audit integrity, accountable security configuration changes, prompt-injection-resistant high-risk enforcement, replay-resistant session continuity, behavior-level anomaly surfacing, and bounded full-audit latency"
         },
         {
           "name": "scope_limit",
-          "value": "P0 covers implicit context propagation via contextvars, local append-only audit write, checkpoint-anchored hash continuity, configuration-hash consistency verification, security lock mode, basic query, approval persistence, human-in-the-loop confirmation records for high-risk tool execution, tiered L1/L2 audit write semantics, and asynchronous uplink of critical audit anchors to the cloud situational awareness platform for remote integrity mirroring; session encryption remains later phases."
+          "value": "P0 covers implicit context propagation via contextvars, local append-only audit write, checkpoint-anchored hash continuity, configuration-hash consistency verification, security lock mode, basic query, approval persistence, human-in-the-loop confirmation records for high-risk tool execution, tool-layer enforcement against prompt-driven bypass attempts, tiered L1/L2 audit write semantics, asynchronous uplink of critical audit anchors to the cloud situational awareness platform for remote integrity mirroring, and cloud-visible anomaly evidence for replay or silent exfiltration patterns; session encryption remains later phases."
         },
         {
           "name": "context_propagation_rule",
@@ -93,66 +93,74 @@
           "value": "High-risk tool execution must pause for explicit user confirmation, persist the confirmation artifact, and emit a synchronous L1 USER_CONFIRMATION audit record before execution resumes."
         },
         {
+          "name": "tool_layer_enforcement_rule",
+          "value": "High-risk enforcement must execute at the tool invocation boundary rather than trusting conversational intent classification; prompts that claim test mode, maintenance mode, or other bypass narratives cannot suppress guard evaluation when the tool risk remains High."
+        },
+        {
+          "name": "session_replay_rule",
+          "value": "Cloud-side reconciliation must validate that each trusted trace or session advances through the expected monotonic sequence and hash continuity. A replayed or cloned session presented from an unaudited process must be blocked before additional actions are authorized."
+        },
+        {
           "name": "trust_recovery_rule",
           "value": "Whenever a client resumes from UNTRUSTED state, it must perform a mandatory full-chain sync for the missing sequence gap. No new high-risk tools are permitted until the gap is validated by the cloud mirror."
         }
       ],
       "testcases": [
         {
-          "name": "sec-e2e-006-local-audit-tamper-detected",
-          "description": "The local audit foundation must detect deletion or mutation of persisted audit records by validating event continuity, hash-chain integrity, and checkpoint-anchored sequence expectations before trust-sensitive operations continue.",
+          "name": "sec-e2e-024-end-to-end-non-repudiation-evidence-chain",
+          "description": "When an employee triggers a high-risk action through a third-party agent plugin, the system must preserve a complete business-visible evidence chain from the original user to the final high-risk tool effect and bind that chain to the user's confirmation artifact.",
           "type": "Scenario Test",
-          "Input": "Generate a contiguous sequence of local audit events, anchor a checkpoint, then either mutate a middle persisted record or delete the newest persisted records before restarting the backend runtime or invoking the explicit audit integrity verification entrypoint.",
-          "acceptanceCriteria": "tests/integration/security/test_audit_foundation.py::test_local_audit_tamper_detected_after_restart",
-          "TestResults": "Integrity verification reports tamper detection through a hash-chain break, checkpoint mismatch, or expected-sequence-versus-actual mismatch after tail truncation, and the audit query surface exposes the anomaly for an operator."
+          "Input": "Authenticate as user A, ask QwenPaw to delegate a high-risk operation through Agent B and third-party plugin C toward high-risk tool D, then provide the required user confirmation so the action is allowed to continue.",
+          "acceptanceCriteria": "tests/integration/security/test_audit_foundation.py::test_end_to_end_non_repudiation_evidence_chain",
+          "TestResults": "Security Center and the audit query surface expose a continuous evidence chain from user A to Agent B to plugin C to tool D together with the confirmation artifact digest, and no link in the chain is anonymous, broken, or attributed to a fallback system identity."
         },
         {
-          "name": "sec-e2e-007-security-config-change-accountable",
-          "description": "Every security configuration change covered by the P0 audit foundation must produce a queryable audit record when changed through the backend API, and out-of-band file tampering must be detected by startup consistency verification against the last anchored target hash.",
+          "name": "sec-e2e-025-audit-integrity-self-healing-lockdown",
+          "description": "When an employee attempts to hide a sensitive action by deleting records, editing configuration files, or reconnecting after offline tampering, the system must surface a single business-level data continuity anomaly and refuse further sensitive use until trust is re-established.",
           "type": "Scenario Test",
-          "Input": "First change a security configuration such as an MCP allowlist entry, tool risk level, or read-only-mode flag through the backend-owned configuration path while local auditing is enabled; then separately simulate direct operating-system modification of settings.json before backend startup or sensitive tool initialization.",
-          "acceptanceCriteria": "tests/integration/security/test_audit_foundation.py::test_security_config_change_is_queryable",
-          "TestResults": "The API-driven configuration change takes effect and a basic audit query returns the corresponding audit record with actor identity, trace_id, changed field, before value, after value, target hash, and event integrity metadata; if settings.json was changed out of band, startup consistency verification enters security lock mode and sensitive tools are refused."
+          "Input": "Execute a sensitive action, unplug the network cable, modify or truncate the local audit store or settings database by operating-system means, restart the client, then attempt to reconnect or invoke another sensitive tool.",
+          "acceptanceCriteria": "tests/integration/security/test_audit_foundation.py::test_audit_integrity_self_healing_lockdown",
+          "TestResults": "Before the device can continue sensitive work or upload new anchors, the system raises a data continuity anomaly in Security Center, enters local lock mode, and refuses sensitive tools until the local ledger, checkpoint anchors, and cloud mirror are reconciled."
         },
         {
-          "name": "sec-e2e-016-implicit-security-context-propagation",
-          "description": "Any agent or service participating in an authenticated request must inherit the originating user identity and trace through implicit contextvars propagation rather than explicit SecurityContext parameters.",
-          "type": "Scenario Test",
-          "Input": "Enter through the FastAPI middleware boundary with an authenticated request, trigger agent execution that crosses AgentScope message dispatch and reaches a tool call implemented by a third-party contributed agent without modifying that agent's code.",
-          "acceptanceCriteria": "tests/integration/security/test_audit_foundation.py::test_security_context_propagates_through_async_agent_message_flow",
-          "TestResults": "The downstream tool-call audit record contains the original user_id, trace_id, session identifiers, and agent identifier even though the tool path did not receive an explicit SecurityContext function argument."
-        },
-        {
-          "name": "sec-e2e-017-tiered-audit-ttft-budget",
-          "description": "Full audit mode must preserve strong durability for L1 critical events while batching L2 reasoning events asynchronously so first-token latency remains within the allowed budget.",
+          "name": "sec-e2e-026-tiered-audit-ttft-balance",
+          "description": "When the highest audit tier and cloud mirroring are enabled, the operator must still receive the first token without perceptible slowdown while critical evidence remains durable.",
           "type": "System Test",
-          "Input": "Run an agent interaction with full audit mode enabled so that authentication, configuration lookup, and tool execution emit L1 records while reasoning emits L2 records, then compare first-token latency against the same scenario with informational reasoning audit disabled.",
-          "acceptanceCriteria": "tests/integration/security/test_audit_foundation.py::test_tiered_audit_keeps_ttft_within_budget",
-          "TestResults": "L1 records are durably persisted and anchored before control returns, L2 reasoning records are visible as pending verification until batch persistence completes, and measured TTFT drift stays within five percent of the baseline."
+          "Input": "Run the same user-visible workflow once with critical-only audit and once with full audit plus cloud mirroring, ensuring authentication, tool execution, and reasoning all emit their expected audit records.",
+          "acceptanceCriteria": "tests/integration/security/test_audit_foundation.py::test_tiered_audit_balances_ttft_within_budget",
+          "TestResults": "Measured TTFT drift stays within five percent of the baseline, critical L1 evidence remains durably persisted before control returns, and L2 reasoning records remain available for later analytics without forcing synchronous latency on the operator path."
         },
         {
-          "name": "sec-e2e-018-offline-tamper-detected-before-uplink",
-          "description": "When the client reconnects after offline operation, the audit uplink path must perform a pre-upload handshake against the cloud integrity mirror and refuse to upload any new records if local hash-chain state diverges from the cloud shadow chain.",
+          "name": "sec-e2e-027-lease-expiry-active-defense",
+          "description": "When a QwenPaw device goes missing or stays offline beyond its lease window, Security Center must actively downgrade the device to untrusted and keep it blocked until it proves continuity on return.",
           "type": "Scenario Test",
-          "Input": "Disconnect the network, generate and locally anchor audit records, tamper with the local log so the chain no longer matches the last cloud-mirrored anchor, restore connectivity, and attempt to resume audit uplink.",
-          "acceptanceCriteria": "tests/integration/security/test_audit_foundation.py::test_offline_tamper_detected_before_uplink",
-          "TestResults": "The uplink manager first asks the cloud integrity mirror for the last accepted anchor, detects the local-versus-cloud mismatch before sending any new records, enters security lock mode, emits a tamper alert, and refuses to sync additional audit data that would pollute the cloud mirror."
+          "Input": "Let a client miss its heartbeat long enough to exceed the lease TTL, observe the cloud dashboard state turn untrusted, then reconnect the device and attempt to resume model access without first completing the missing-gap verification.",
+          "acceptanceCriteria": "tests/integration/security/test_audit_foundation.py::test_lease_expiry_blocks_untrusted_rejoin_until_gap_sync",
+          "TestResults": "Security Center marks the device untrusted when the lease expires, denies restored authorization on reconnect until the full missing hash gap is validated, and only then allows the node to regain normal model access."
         },
         {
-          "name": "sec-e2e-019-high-risk-tool-user-confirmation-recorded",
-          "description": "When an agent attempts a tool marked as High risk, execution must pause until the user returns a valid confirmation artifact, and the confirmation must be durably recorded as a synchronous USER_CONFIRMATION audit event.",
+          "name": "sec-e2e-021-prompt-injection-tool-guard-enforced",
+          "description": "A malicious prompt or contaminated external text must not be able to talk an agent into skipping the high-risk confirmation path or into treating a high-risk action as if it were a trusted test operation.",
           "type": "Scenario Test",
-          "Input": "Trigger a high-risk tool invocation, block execution at the high-risk tool guard, submit a confirmation token or signature from the user, and then allow the tool to continue.",
-          "acceptanceCriteria": "tests/integration/security/test_audit_foundation.py::test_high_risk_tool_requires_user_confirmation",
-          "TestResults": "The tool does not execute before confirmation, a synchronous L1 USER_CONFIRMATION audit event is persisted with confirmation_signature or auth_token_ref bound to the tool request, and the resumed tool execution remains trace-linked to that confirmation artifact."
+          "Input": "In a live conversation, submit nested or deceptive instructions that claim the agent is in test mode or otherwise exempt from approval, then drive the agent toward a tool whose configured risk level is High without providing a valid trusted context or confirmation artifact.",
+          "acceptanceCriteria": "tests/integration/security/test_audit_foundation.py::test_prompt_injection_cannot_bypass_high_risk_tool_guard",
+          "TestResults": "The high-risk tool remains blocked at the tool-call layer, the guard rejects execution because the required trusted context and confirmation are absent, and the attempted bypass is recorded as a rejected security-relevant event rather than silently executing."
         },
         {
-          "name": "sec-e2e-020-lease-expiry-triggers-untrusted-mode",
-          "description": "If a client exceeds the lease TTL without sending a valid heartbeat, the Security Center must mark it UNTRUSTED and require forced gap reconciliation before restoring normal trust or re-enabling high-risk actions.",
+          "name": "sec-e2e-022-session-hijack-replay-blocked",
+          "description": "If an attacker steals a still-valid session context and replays it from an unaudited process, Security Center must detect that the session lineage no longer matches the next expected sequence and stop the session before it can continue operating.",
           "type": "Scenario Test",
-          "Input": "Simulate a QwenPaw node staying offline past the lease TTL, observe the Security Center lease registry and dashboard state, then reconnect the node and attempt to resume operation.",
-          "acceptanceCriteria": "tests/integration/security/test_audit_foundation.py::test_lease_expiry_triggers_untrusted_mode",
-          "TestResults": "The Security Center dashboard marks the client as lease-expired and UNTRUSTED, the reconnecting client enters forced-sync mode, and only after the missing sequence gap is validated by the cloud mirror does the client return to normal trusted status."
+          "Input": "Capture a valid session context after an authenticated operation, inject it into a second process that is not participating in the audited runtime, and attempt to emit additional operations under the same trace or session identity.",
+          "acceptanceCriteria": "tests/integration/security/test_audit_foundation.py::test_stolen_session_replay_is_blocked_by_cloud_sequence_validation",
+          "TestResults": "Security Center or its cloud verifier detects that the replayed trace or session does not match the next expected sequence and hash continuity, blocks further authorization for that session, and surfaces the attempted hijack as a business-visible alert."
+        },
+        {
+          "name": "sec-e2e-023-silent-exfiltration-pattern-alerted",
+          "description": "Even when every single low-risk tool call is individually allowed, Security Center must still recognize the business pattern of a covert local data sweep and alert on the aggregate behavior.",
+          "type": "Scenario Test",
+          "Input": "Run an agent workflow that repeatedly reads many small local files, searches across them, and summarizes the results without calling any tool currently classified as High risk.",
+          "acceptanceCriteria": "tests/integration/security/test_audit_foundation.py::test_silent_exfiltration_pattern_triggers_behavior_alert",
+          "TestResults": "Security Center analyzes the emitted L2 reasoning and access evidence, flags the high-frequency local resource sweep as an abnormal behavior pattern, and raises an operator-visible alert even though no single tool invocation violated the point-in-time allow policy."
         }
       ]
     },
@@ -174,7 +182,13 @@
       "archimate_layer": "Application",
       "archimate_aspect": "Passive Structure",
       "browser_path": "QwenPaw Platform/Backend Runtime/Local Security Audit Foundation/Security Context",
-      "description": "Canonical runtime context carried across request entry, agent execution, tool execution, and security-configuration mutation so that audit and policy decisions share one stable identity envelope. The minimum P0 payload includes trace_id, user_id, session_id, root_session_id, agent_id, channel, and the acted-on security scope when present.\n#file:prd/企业级个人助理平台安全基础设施设计方案 (基于 QwenPaw/AgentScope).md"
+      "description": "Canonical runtime context carried across request entry, agent execution, tool execution, and security-configuration mutation so that audit and policy decisions share one stable identity envelope. The minimum P0 payload includes trace_id, user_id, session_id, root_session_id, agent_id, channel, the acted-on security scope when present, and enough trusted provenance metadata to distinguish audited runtime continuity from replayed or cloned session usage.\n#file:prd/企业级个人助理平台安全基础设施设计方案 (基于 QwenPaw/AgentScope).md",
+      "attributes": [
+        {
+          "name": "integrity_binding",
+          "description": "Opaque provenance binding or signature reference that lets downstream guards verify the context originated from a trusted audited runtime rather than an injected or replayed process."
+        }
+      ]
     },
     {
       "id": "intent-audit-event",
@@ -184,11 +198,15 @@
       "archimate_layer": "Application",
       "archimate_aspect": "Passive Structure",
       "browser_path": "QwenPaw Platform/Backend Runtime/Local Security Audit Foundation/Audit Event",
-      "description": "Canonical append-only security audit record that captures event identity, event type, actor, session, agent, resource or configuration scope, decision or result metadata, prior_hash, current_hash, and sufficient fields to support integrity verification, remote integrity mirroring, and basic operator query.\n#file:prd/企业级个人助理平台安全基础设施设计方案 (基于 QwenPaw/AgentScope).md",
+      "description": "Canonical append-only security audit record that captures event identity, event type, actor, session, agent, resource or configuration scope, decision or result metadata, prior_hash, current_hash, and sufficient fields to support integrity verification, remote integrity mirroring, replay detection, and basic operator query.\n#file:prd/企业级个人助理平台安全基础设施设计方案 (基于 QwenPaw/AgentScope).md",
       "attributes": [
         {
           "name": "sync_status",
           "description": "Per-entry uplink state for DEMO integrity mirroring. Valid values are PENDING, SYNCED, and FAILED."
+        },
+        {
+          "name": "sequence_number",
+          "description": "Monotonic sequence ordinal used by the local verifier and cloud mirror to detect missing, duplicated, or replayed operations within a trusted trace or session."
         },
         {
           "name": "confirmation_signature",
@@ -197,6 +215,10 @@
         {
           "name": "auth_token_ref",
           "description": "Optional reference to the confirmation token or authentication artifact that authorized a high-risk action without embedding the raw secret in the audit payload."
+        },
+        {
+          "name": "resource_access_summary",
+          "description": "Optional summary of resource category, access frequency, and aggregation scope used by cloud-side behavior analytics to distinguish normal work from silent exfiltration patterns."
         }
       ]
     },
@@ -228,7 +250,7 @@
       "archimate_layer": "Application",
       "archimate_aspect": "Active Structure",
       "browser_path": "QwenPaw Platform/Backend Runtime/Local Security Audit Foundation/High Risk Tool Guard",
-      "description": "Interceptor that pauses execution whenever an agent attempts to invoke a tool marked with High risk level. It waits for a user-provided confirmation token or signature, records the confirmation as a synchronous L1 USER_CONFIRMATION audit event, and only then releases the blocked tool execution path.\n#file:prd/企业级个人助理平台安全基础设施设计方案 (基于 QwenPaw/AgentScope).md"
+      "description": "Interceptor that evaluates every tool invocation against the configured risk policy at the tool-call boundary. Whenever an agent attempts to invoke a tool marked with High risk level, it pauses execution, requires trusted Security Context provenance plus a user-provided confirmation token or signature, records the confirmation as a synchronous L1 USER_CONFIRMATION audit event, and only then releases the blocked tool execution path. Prompt content, nested instructions, or claimed test-mode narratives cannot bypass this enforcement.\n#file:prd/企业级个人助理平台安全基础设施设计方案 (基于 QwenPaw/AgentScope).md"
     },
     {
       "id": "intent-audit-uplink-manager",
@@ -278,7 +300,7 @@
       "archimate_layer": "Application",
       "archimate_aspect": "Active Structure",
       "browser_path": "QwenPaw Platform/Security Center",
-      "description": "Security hub deployed in a controlled environment such as cloud or server infrastructure. It aggregates audit uplinks from multiple QwenPaw nodes, maintains per-client shadow audit chains, triggers real-time Tamper_Detected alerts whenever incoming prior_hash diverges from the stored cloud hash, and exposes a visual console that aggregates live violations for SEC-E2E-006 and SEC-E2E-007.\n#file:prd/企业级个人助理平台安全基础设施设计方案 (基于 QwenPaw/AgentScope).md"
+      "description": "Security hub deployed in a controlled environment such as cloud or server infrastructure. It aggregates audit uplinks from multiple QwenPaw nodes, maintains per-client shadow audit chains, reconstructs end-to-end evidence chains for operator review, triggers real-time data continuity alerts whenever incoming integrity state diverges from the stored cloud expectation, blocks replayed session lineages, and surfaces abnormal behavior patterns such as covert low-risk data sweeps in a business-facing visual console.\n#file:prd/企业级个人助理平台安全基础设施设计方案 (基于 QwenPaw/AgentScope).md"
     },
     {
       "id": "intent-audit-lease-monitor",
@@ -298,7 +320,7 @@
       "archimate_layer": "Application",
       "archimate_aspect": "Active Structure",
       "browser_path": "QwenPaw Platform/Security Center/Cloud Integrity Stub",
-      "description": "Logical verification stub inside the Security Center used for the DEMO. It receives critical audit anchors and L1 events from one QwenPaw client, maintains a shadow hash chain for that client, and validates each uplink by comparing incoming prior_hash against the cloud-stored current_hash.\n#file:prd/企业级个人助理平台安全基础设施设计方案 (基于 QwenPaw/AgentScope).md",
+      "description": "Logical verification stub inside the Security Center used for the DEMO. It receives critical audit anchors and L1 events from one QwenPaw client, maintains a shadow hash chain for that client, validates each uplink by comparing incoming prior_hash against the cloud-stored current_hash, and rejects replayed or cloned session activity when the presented trace lineage does not match the next expected sequence.\n#file:prd/企业级个人助理平台安全基础设施设计方案 (基于 QwenPaw/AgentScope).md",
       "attributes": [
         {
           "name": "external_scope",
