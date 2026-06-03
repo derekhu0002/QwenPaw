@@ -1,11 +1,25 @@
 {
   "stage": "intent-to-implementation",
-  "generatedAt": "2026-06-02T00:00:00Z",
+  "generatedAt": "2026-06-03T00:00:00Z",
   "sourceIntentGraphPath": "design/KG/SystemArchitecture.json",
-  "summary": "Current-state handoff that freezes the reconstructed intent graph and points implementation design to the root and local contracts needed to materialize existing stable repository slices.",
+  "summary": "Intent handoff for the existing QwenPaw platform slices plus the strengthened P0 local security audit foundation. The next stage must materialize a backend-owned security audit slice that forbids explicit SecurityContext parameter threading, relies on contextvars-based implicit propagation across FastAPI and AgentScope message boundaries, writes tamper-evident local audit records, anchors continuity through a restricted checkpoint store, verifies configuration hashes during startup, enters security lock mode on trust divergence, separates synchronous L1 durability from asynchronous L2 reasoning audit writes, asynchronously uplinks critical audit anchors to a cloud integrity mirror only after a successful pre-upload hash-alignment handshake, enforces a shared edge-cloud schema contract for canonical JSON ordering and hash computation, persists human-in-the-loop confirmation records for high-risk tool execution as P0 synchronous audit artifacts, and enforces lease-expiry-driven UNTRUSTED recovery through periodic heartbeats plus mandatory full-gap sync before trust is restored.",
   "intentElementIds": [
     "intent-qwenpaw-platform",
     "intent-backend-runtime",
+    "intent-local-security-audit-foundation",
+    "intent-security-schema-contract",
+    "intent-implicit-security-context-manager",
+    "intent-security-context",
+    "intent-audit-event",
+    "intent-audit-checkpoint-anchor",
+    "intent-tiered-audit-stream",
+    "intent-high-risk-tool-guard",
+    "intent-audit-uplink-manager",
+    "intent-heartbeat-emitter",
+    "intent-audit-uplink-service",
+    "intent-security-center",
+    "intent-audit-lease-monitor",
+    "intent-cloud-integrity-stub",
     "intent-local-operator-cli",
     "intent-console-frontend",
     "intent-docs-website",
@@ -13,6 +27,30 @@
   ],
   "relationshipIds": [
     "rel-platform-backend",
+    "rel-backend-security-audit-foundation",
+    "rel-backend-security-schema-contract",
+    "rel-audit-foundation-implicit-context-manager",
+    "rel-audit-foundation-security-context",
+    "rel-audit-foundation-audit-event",
+    "rel-audit-foundation-checkpoint-anchor",
+    "rel-audit-foundation-tiered-stream",
+    "rel-audit-foundation-high-risk-tool-guard",
+    "rel-high-risk-tool-guard-audit-event",
+    "rel-uplink-manager-foundation",
+    "rel-uplink-manager-heartbeat-emitter",
+    "rel-heartbeat-emitter-audit-event",
+    "rel-uplink-manager-uplink-service",
+    "rel-heartbeat-emitter-security-center",
+    "rel-uplink-manager-platform",
+    "rel-uplink-service-security-center",
+    "rel-platform-security-center",
+    "rel-security-center-lease-monitor",
+    "rel-security-center-cloud-stub",
+    "rel-lease-monitor-cloud-stub",
+    "rel-security-schema-contract-audit-event",
+    "rel-uplink-service-security-schema-contract",
+    "rel-security-center-security-schema-contract",
+    "rel-uplink-manager-cloud-stub",
     "rel-platform-cli",
     "rel-platform-console",
     "rel-platform-website",
@@ -76,10 +114,89 @@
       "acceptanceBoundary": "The runtime git helper must keep using the shared command runner seam rather than embedding subprocess wiring directly in callers.",
       "requiredEntryKind": "explicit-testcase-entry",
       "implementationNotes": "Materialize through the existing pytest node id tests/unit/routers/test_git.py::test_git_helper_uses_shared_command_runner."
+    },
+    {
+      "name": "sec-e2e-006-local-audit-tamper-detected",
+      "mountedElementId": "intent-local-security-audit-foundation",
+      "mountedElementName": "Local Security Audit Foundation",
+      "type": "Scenario Test",
+      "controlPoint": "Generate contiguous local audit events, anchor a checkpoint, then either mutate a middle persisted record or truncate the newest persisted records before restarting the backend runtime or invoking the integrity verifier.",
+      "observationPoint": "The verifier reports tamper detection via a hash-chain break, checkpoint mismatch, or expected anchored sequence versus actual sequence mismatch, and the anomaly is queryable through the audit read surface.",
+      "acceptanceBoundary": "Local audit persistence must be tamper-evident rather than silently best-effort; integrity failure becomes a first-class observable state before trust-sensitive work continues, including tail truncation after the latest anchored checkpoint.",
+      "requiredEntryKind": "explicit-testcase-entry",
+      "implementationNotes": "Materialize a new executable entrypoint at tests/integration/security/test_audit_foundation.py::test_local_audit_tamper_detected_after_restart and ensure the same test covers both middle-record mutation and tail truncation after checkpoint anchoring."
+    },
+    {
+      "name": "sec-e2e-007-security-config-change-accountable",
+      "mountedElementId": "intent-local-security-audit-foundation",
+      "mountedElementName": "Local Security Audit Foundation",
+      "type": "Scenario Test",
+      "controlPoint": "First apply a security configuration change such as allowlist mutation, risk-level update, or read-only-mode toggle through the backend-owned mutation path while local auditing is enabled; then separately simulate direct operating-system modification of settings.json before backend startup or sensitive tool initialization.",
+      "observationPoint": "A basic audit query returns the API-driven change record with actor identity, trace_id, changed field, before value, after value, target hash, and integrity metadata, while startup consistency verification detects out-of-band tampering and activates security lock mode.",
+      "acceptanceBoundary": "Security configuration changes must be attributable and queryable from local audit storage without depending on remote SIEM availability, and out-of-band configuration tampering must refuse sensitive tool loading until trust is re-established.",
+      "requiredEntryKind": "explicit-testcase-entry",
+      "implementationNotes": "Materialize a new executable entrypoint at tests/integration/security/test_audit_foundation.py::test_security_config_change_is_queryable and ensure it covers both active API audit and passive startup hash-consistency detection with security lock mode enforcement."
+    },
+    {
+      "name": "sec-e2e-016-implicit-security-context-propagation",
+      "mountedElementId": "intent-local-security-audit-foundation",
+      "mountedElementName": "Local Security Audit Foundation",
+      "type": "Scenario Test",
+      "controlPoint": "Enter through the authenticated FastAPI middleware boundary, trigger agent execution that crosses AgentScope message dispatch, and reach a downstream tool call implemented by a third-party contributed agent without modifying that agent's code.",
+      "observationPoint": "The downstream tool-call audit record contains the original user_id, trace_id, session identifiers, and agent identifier even though no explicit SecurityContext function parameter was passed through the call chain.",
+      "acceptanceBoundary": "Implicit context propagation is mandatory across async and message-dispatch boundaries; third-party agents and services must inherit caller identity without being rewritten to thread SecurityContext arguments.",
+      "requiredEntryKind": "explicit-testcase-entry",
+      "implementationNotes": "Materialize a new executable entrypoint at tests/integration/security/test_audit_foundation.py::test_security_context_propagates_through_async_agent_message_flow and bind it to FastAPI middleware capture plus AgentScope message metadata restoration."
+    },
+    {
+      "name": "sec-e2e-017-tiered-audit-ttft-budget",
+      "mountedElementId": "intent-local-security-audit-foundation",
+      "mountedElementName": "Local Security Audit Foundation",
+      "type": "System Test",
+      "controlPoint": "Run the same agent interaction once with critical-only audit and once with full tiered audit so authentication, configuration lookup, and tool execution emit L1 records while reasoning emits L2 records.",
+      "observationPoint": "Measured TTFT drift remains within five percent of the baseline, L1 events are durably persisted before control returns, and L2 reasoning records are queryable as pending verification until batch anchoring completes.",
+      "acceptanceBoundary": "Full audit mode must not collapse responsiveness by forcing high-frequency reasoning logs through the same synchronous path as critical security events.",
+      "requiredEntryKind": "explicit-testcase-entry",
+      "implementationNotes": "Materialize a new executable entrypoint at tests/integration/security/test_audit_foundation.py::test_tiered_audit_keeps_ttft_within_budget and make the performance assertion part of the frozen acceptance boundary for P0."
+    },
+    {
+      "name": "sec-e2e-018-offline-tamper-detected-before-uplink",
+      "mountedElementId": "intent-audit-uplink-manager",
+      "mountedElementName": "Audit Uplink Manager",
+      "type": "Scenario Test",
+      "controlPoint": "Disconnect the network, generate and locally anchor audit records, tamper with the local ledger, restore connectivity, and let the uplink manager attempt to resume cloud sync.",
+      "observationPoint": "Before sending any new data, the uplink manager performs a pre-upload handshake, compares the cloud-reported last accepted anchor with the local anchor state, detects divergence, emits a tamper alert, enters security lock mode, and refuses further uplink.",
+      "acceptanceBoundary": "Offline tamper detection is a core DEMO use case: reconnect logic must not blindly push local data if cloud and local hash state are misaligned, because that would contaminate the remote audit mirror.",
+      "requiredEntryKind": "explicit-testcase-entry",
+      "implementationNotes": "Materialize a new executable entrypoint at tests/integration/security/test_audit_foundation.py::test_offline_tamper_detected_before_uplink and bind it to a cloud-stub handshake seam that returns the last accepted anchor before any replay or retry upload begins."
+    },
+    {
+      "name": "sec-e2e-019-high-risk-tool-user-confirmation-recorded",
+      "mountedElementId": "intent-high-risk-tool-guard",
+      "mountedElementName": "High Risk Tool Guard",
+      "type": "Scenario Test",
+      "controlPoint": "Trigger a High risk tool invocation, force execution to pause at the guard, then submit a user confirmation token or signature that authorizes the pending action.",
+      "observationPoint": "The tool remains blocked before confirmation, a synchronous L1 USER_CONFIRMATION audit record is durably written with confirmation_signature or auth_token_ref linked to the request, and the resumed tool execution remains traceable back to that confirmation record.",
+      "acceptanceBoundary": "High-risk tool execution must be human-gated in P0 rather than best-effort advisory; confirmation persistence and audit traceability are part of the acceptance baseline, not later-phase enhancements.",
+      "requiredEntryKind": "explicit-testcase-entry",
+      "implementationNotes": "Materialize a new executable entrypoint at tests/integration/security/test_audit_foundation.py::test_high_risk_tool_requires_user_confirmation and bind it to the guard's pause-resume seam plus synchronous USER_CONFIRMATION audit persistence."
+    },
+    {
+      "name": "sec-e2e-020-lease-expiry-triggers-untrusted-mode",
+      "mountedElementId": "intent-audit-lease-monitor",
+      "mountedElementName": "Audit Lease Monitor",
+      "type": "Scenario Test",
+      "controlPoint": "Simulate a QwenPaw node staying offline past the TTL threshold, observe lease expiry in the Security Center, then reconnect the client and attempt to resume normal operation.",
+      "observationPoint": "The Security Center dashboard marks the node lease-expired and UNTRUSTED, the reconnecting client enters forced-sync mode, and only after the missing sequence gap is validated by the cloud mirror does the client return to normal trusted status and re-enable high-risk actions.",
+      "acceptanceBoundary": "Lease expiry must actively degrade trust rather than remaining informational only; recovery from UNTRUSTED state requires mandatory full-gap validation before normal or high-risk operation resumes.",
+      "requiredEntryKind": "explicit-testcase-entry",
+      "implementationNotes": "Materialize a new executable entrypoint at tests/integration/security/test_audit_foundation.py::test_lease_expiry_triggers_untrusted_mode and bind it to lease-monitor TTL evaluation, dashboard status propagation, and cloud-verified forced-gap sync recovery."
     }
   ],
   "frozenBaselines": [
     "design/KG/SystemArchitecture.json",
+    "design/KG/IntentToImplementationHandoff.json",
+    "prd/企业级个人助理平台安全基础设施设计方案 (基于 QwenPaw/AgentScope).md",
     "tests/unit/cli/test_cli_version.py",
     "tests/unit/cli/test_cli_agents.py",
     "tests/unit/cli/test_cli_task.py",
@@ -89,13 +206,58 @@
   "requiredImplementationArtifacts": [
     "OVERALL_ARCHITECTURE.md",
     "src/qwenpaw/ARCHITECTURE.md",
-    "src/qwenpaw/cli/ARCHITECTURE.md",
+    "src/qwenpaw/security/ARCHITECTURE.md",
     "console/ARCHITECTURE.md",
-    "website/ARCHITECTURE.md",
-    "tests/ARCHITECTURE.md"
+    "tests/ARCHITECTURE.md",
+    "tests/integration/security/test_audit_foundation.py"
+  ],
+  "openQuestions": [
+    {
+      "question": "Should explicit SecurityContext function parameters remain allowed as a convenience fallback for new agent or service code?",
+      "recommendedAnswer": "No. Treat explicit SecurityContext parameter threading as an architecture violation and require implicit propagation through contextvars plus message metadata restoration.",
+      "reason": "The user requirement is to eliminate audit discontinuity caused by developer omission. Allowing explicit parameter threading preserves the same failure mode and weakens the acceptance boundary for third-party agent compatibility."
+    },
+    {
+      "question": "Should the checkpoint anchor be stored separately from the primary audit-event log even if both remain local in P0?",
+      "recommendedAnswer": "Yes. Use a separate restricted append-only checkpoint store or similarly protected key-value slot for anchored_event_id and global_hash.",
+      "reason": "Tail truncation is invisible if the only trust anchor lives in the same mutable store as the audit events. The checkpoint has to survive as an independent comparison point for startup verification."
+    },
+    {
+      "question": "Should startup consistency failure only warn operators, or must it actively block sensitive tools before manual recovery?",
+      "recommendedAnswer": "It must actively block sensitive tools by entering security lock mode.",
+      "reason": "A warning-only model preserves an exploitable gap after out-of-band tampering. The user requirement explicitly calls for refusing to load any sensitive tool when settings divergence is detected."
+    },
+    {
+      "question": "Should L2 reasoning audit records be allowed to remain temporarily unanchored and visibly pending in exchange for preserving TTFT?",
+      "recommendedAnswer": "Yes. Permit short-lived pending-verification state for L2 reasoning records, while keeping L1 security events synchronous and anchored.",
+      "reason": "The five-percent TTFT budget is incompatible with forcing high-frequency reasoning traces through the same synchronous durability path as authentication, configuration mutation, and tool execution events."
+    },
+    {
+      "question": "When connectivity returns after offline operation, should the uplink manager replay local anchors immediately or first reconcile with the cloud mirror's last accepted hash?",
+      "recommendedAnswer": "It must reconcile first through a pre-upload handshake and refuse replay if the cloud and local anchors diverge.",
+      "reason": "The DEMO's credibility depends on proving the client cannot pollute the cloud mirror with a tampered local chain after reconnect. Handshake-first semantics make offline tamper detection observable before any new sync occurs."
+    },
+    {
+      "question": "Should the Security Center visual console be materialized by the existing console boundary in the repository rather than inventing a second UI surface for the DEMO?",
+      "recommendedAnswer": "Yes. Reuse the existing console architecture boundary to display aggregated SEC-E2E-006 and SEC-E2E-007 violations for the DEMO.",
+      "reason": "The intent requires a visual console, but the repository already has a stable operator UI boundary. Reusing it keeps implementation design focused on cloud-edge security behavior rather than unnecessary UI proliferation."
+    },
+    {
+      "question": "For high-risk confirmations, should the audit log prefer storing a direct user confirmation signature or a reference to a separately managed confirmation token artifact?",
+      "recommendedAnswer": "Prefer storing an auth_token_ref by default while permitting confirmation_signature when the confirmation mechanism itself produces a durable signed artifact.",
+      "reason": "The audit baseline needs proof of user intent without forcing raw sensitive confirmation material into every record. Token references keep the ledger leaner while still letting implementations support stronger signed-confirmation flows when available."
+    },
+    {
+      "question": "When a client reconnects after lease expiry, should high-risk tools remain blocked until a full missing-gap sync is validated by the cloud mirror?",
+      "recommendedAnswer": "Yes. Keep the client in UNTRUSTED forced-sync mode and block high-risk tools until cloud validation closes the sequence gap.",
+      "reason": "Without this recovery gate, an expired client could resume sensitive activity before the cloud mirror confirms whether its missing offline segment is trustworthy. The trust_recovery_rule requires verification before privilege restoration."
+    }
   ],
   "notes": [
-    "This handoff is synthesized from current repository evidence because no prior design/KG assets were present.",
-    "Console and website are modeled as stable implementation elements even though current explicit acceptance baselines are concentrated in backend and CLI slices."
+    "This handoff intentionally extends the prior P0 model because the strengthened security requirements define explicit architectural constraints around implicit context propagation, checkpoint anchoring, startup trust verification, and tiered audit durability that were not yet frozen in the repository design assets.",
+    "The explicit acceptance boundary now covers five P0 concerns together: automatic user attribution across third-party agents, tail-truncation-resistant local tamper evidence, accountable plus out-of-band-detectable security configuration changes, bounded TTFT impact under full audit mode, and handshake-gated cloud integrity mirroring that rejects offline-tampered ledgers before uplink.",
+    "The cloud-edge collaboration model now explicitly includes a Security Center hub, an edge-side Audit Uplink Service adapter, and a shared Security Schema Contract so edge and cloud hashing logic cannot drift apart silently during DEMO verification.",
+    "P0 now also freezes human-in-the-loop confirmation persistence for High risk tool execution, including a synchronous USER_CONFIRMATION audit event that links the eventual tool side effect back to an explicit user authorization artifact.",
+    "Cloud-edge trust now has a lease lifecycle: heartbeats keep a client trusted, lease expiry drives UNTRUSTED dashboard state, and reconnect requires mandatory full-gap synchronization plus cloud validation before high-risk privileges are restored."
   ]
 }

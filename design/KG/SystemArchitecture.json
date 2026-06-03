@@ -1,10 +1,10 @@
 {
-  "name": "QwenPaw Current-State System Architecture",
-  "description": "Current-state intent graph reconstructed from repository evidence on 2026-06-02. It captures stable product slices, acceptance baselines, and traceability to current code without adding new product scope.",
+  "name": "QwenPaw System Architecture",
+  "description": "Intent architecture for QwenPaw covering the current platform slices plus the strengthened P0 local security audit foundation required for implicit identity propagation, tamper-evident auditing, external checkpoint anchoring, out-of-band configuration tamper detection, and tiered audit durability. The security extension is scoped from the AgentScope security infrastructure PRD and is intentionally limited to the minimum closed loop needed for SEC-E2E-006, SEC-E2E-007, automatic user attribution across third-party agents, and bounded TTFT impact under full audit mode.",
   "attributes": [
     {
       "name": "evidence_policy",
-      "value": "current-code-derived"
+      "value": "repository-current-state-plus-prd-scoped-security-foundation"
     }
   ],
   "elements": [
@@ -13,7 +13,7 @@
       "name": "QwenPaw Platform",
       "type": "Product",
       "browser_path": "QwenPaw Platform",
-      "description": "Repository-backed personal AI assistant platform spanning backend runtime, local operator CLI, operator console, documentation website, and architecture validation assets.\n#file:README.md\n#file:pyproject.toml"
+      "description": "Repository-backed personal AI assistant platform spanning backend runtime, local operator CLI, operator console, documentation website, architecture validation assets, and the P0 security audit foundation required for local safe operation.\n#file:README.md\n#file:pyproject.toml\n#file:prd/企业级个人助理平台安全基础设施设计方案 (基于 QwenPaw/AgentScope).md"
     },
     {
       "id": "intent-backend-runtime",
@@ -40,6 +40,228 @@
           "TestResults": "The helper issues git status through the shared command runner with the expected cwd, encoding, errors, check, and timeout parameters."
         }
       ]
+    },
+    {
+      "id": "intent-local-security-audit-foundation",
+      "parent": "intent-backend-runtime",
+      "name": "Local Security Audit Foundation",
+      "type": "ApplicationComponent",
+      "browser_path": "QwenPaw Platform/Backend Runtime/Local Security Audit Foundation",
+      "description": "Backend-owned P0 security foundation that standardizes implicit SecurityContext propagation, defines the canonical AuditEvent envelope, persists append-only local audit records with a hash chain, anchors continuity through a restricted checkpoint store, verifies startup consistency against configuration hashes, enforces security lock mode after integrity failures, supports human-in-the-loop confirmation for high-risk tool execution, and supports tiered audit durability for critical versus informational events. This element is intentionally limited to the minimum closure for SEC-E2E-006 and SEC-E2E-007 plus the required context-propagation, confirmation, and performance guardrails, rather than the full later audit pipeline.\n#file:prd/企业级个人助理平台安全基础设施设计方案 (基于 QwenPaw/AgentScope).md\n#file:src/qwenpaw/app/auth.py\n#file:src/qwenpaw/app/agent_context.py\n#file:src/qwenpaw/app/runner/utils.py\n#file:src/qwenpaw/app/routers/config.py\n#file:src/qwenpaw/app/routers/settings.py\n#file:src/qwenpaw/security",
+      "attributes": [
+        {
+          "name": "verification_focus",
+          "value": "implicit identity continuity, tamper-evident local audit integrity, accountable security configuration changes, high-risk user confirmation traceability, and bounded full-audit latency"
+        },
+        {
+          "name": "scope_limit",
+          "value": "P0 covers implicit context propagation via contextvars, local append-only audit write, checkpoint-anchored hash continuity, configuration-hash consistency verification, security lock mode, basic query, approval persistence, human-in-the-loop confirmation records for high-risk tool execution, tiered L1/L2 audit write semantics, and asynchronous uplink of critical audit anchors to the cloud situational awareness platform for remote integrity mirroring; session encryption remains later phases."
+        },
+        {
+          "name": "context_propagation_rule",
+          "value": "SecurityContext must not be architecture-visible as an explicit function parameter; request entry and message dispatch must rely on implicit contextvars capture and restoration."
+        },
+        {
+          "name": "checkpoint_rule",
+          "value": "A restricted append-only checkpoint store must anchor latest anchored_event_id and global_hash every N events and on each high-risk configuration change so tail truncation is detectable on restart."
+        },
+        {
+          "name": "lock_mode_rule",
+          "value": "If startup consistency verification detects settings or audit-anchor divergence, backend runtime enters security lock mode and refuses sensitive tool loading until trust is re-established."
+        },
+        {
+          "name": "audit_tiering_rule",
+          "value": "L1 critical events use synchronous durable write plus hash-chain and checkpoint updates before returning; L2 informational reasoning events may batch asynchronously and remain visible as pending verification until anchored."
+        },
+        {
+          "name": "uplink_rule",
+          "value": "Critical audit anchors and L1 audit records must be asynchronously uplinked with retry to a cloud integrity mirror; before sending new data after reconnect, the client must perform a pre-upload hash-alignment handshake and refuse sync if local and cloud anchors diverge."
+        },
+        {
+          "name": "high_risk_confirmation_rule",
+          "value": "High-risk tool execution must pause for explicit user confirmation, persist the confirmation artifact, and emit a synchronous L1 USER_CONFIRMATION audit record before execution resumes."
+        },
+        {
+          "name": "trust_recovery_rule",
+          "value": "Whenever a client resumes from UNTRUSTED state, it must perform a mandatory full-chain sync for the missing sequence gap. No new high-risk tools are permitted until the gap is validated by the cloud mirror."
+        }
+      ],
+      "testcases": [
+        {
+          "name": "sec-e2e-006-local-audit-tamper-detected",
+          "description": "The local audit foundation must detect deletion or mutation of persisted audit records by validating event continuity, hash-chain integrity, and checkpoint-anchored sequence expectations before trust-sensitive operations continue.",
+          "type": "Scenario Test",
+          "Input": "Generate a contiguous sequence of local audit events, anchor a checkpoint, then either mutate a middle persisted record or delete the newest persisted records before restarting the backend runtime or invoking the explicit audit integrity verification entrypoint.",
+          "acceptanceCriteria": "tests/integration/security/test_audit_foundation.py::test_local_audit_tamper_detected_after_restart",
+          "TestResults": "Integrity verification reports tamper detection through a hash-chain break, checkpoint mismatch, or expected-sequence-versus-actual mismatch after tail truncation, and the audit query surface exposes the anomaly for an operator."
+        },
+        {
+          "name": "sec-e2e-007-security-config-change-accountable",
+          "description": "Every security configuration change covered by the P0 audit foundation must produce a queryable audit record when changed through the backend API, and out-of-band file tampering must be detected by startup consistency verification against the last anchored target hash.",
+          "type": "Scenario Test",
+          "Input": "First change a security configuration such as an MCP allowlist entry, tool risk level, or read-only-mode flag through the backend-owned configuration path while local auditing is enabled; then separately simulate direct operating-system modification of settings.json before backend startup or sensitive tool initialization.",
+          "acceptanceCriteria": "tests/integration/security/test_audit_foundation.py::test_security_config_change_is_queryable",
+          "TestResults": "The API-driven configuration change takes effect and a basic audit query returns the corresponding audit record with actor identity, trace_id, changed field, before value, after value, target hash, and event integrity metadata; if settings.json was changed out of band, startup consistency verification enters security lock mode and sensitive tools are refused."
+        },
+        {
+          "name": "sec-e2e-016-implicit-security-context-propagation",
+          "description": "Any agent or service participating in an authenticated request must inherit the originating user identity and trace through implicit contextvars propagation rather than explicit SecurityContext parameters.",
+          "type": "Scenario Test",
+          "Input": "Enter through the FastAPI middleware boundary with an authenticated request, trigger agent execution that crosses AgentScope message dispatch and reaches a tool call implemented by a third-party contributed agent without modifying that agent's code.",
+          "acceptanceCriteria": "tests/integration/security/test_audit_foundation.py::test_security_context_propagates_through_async_agent_message_flow",
+          "TestResults": "The downstream tool-call audit record contains the original user_id, trace_id, session identifiers, and agent identifier even though the tool path did not receive an explicit SecurityContext function argument."
+        },
+        {
+          "name": "sec-e2e-017-tiered-audit-ttft-budget",
+          "description": "Full audit mode must preserve strong durability for L1 critical events while batching L2 reasoning events asynchronously so first-token latency remains within the allowed budget.",
+          "type": "System Test",
+          "Input": "Run an agent interaction with full audit mode enabled so that authentication, configuration lookup, and tool execution emit L1 records while reasoning emits L2 records, then compare first-token latency against the same scenario with informational reasoning audit disabled.",
+          "acceptanceCriteria": "tests/integration/security/test_audit_foundation.py::test_tiered_audit_keeps_ttft_within_budget",
+          "TestResults": "L1 records are durably persisted and anchored before control returns, L2 reasoning records are visible as pending verification until batch persistence completes, and measured TTFT drift stays within five percent of the baseline."
+        },
+        {
+          "name": "sec-e2e-018-offline-tamper-detected-before-uplink",
+          "description": "When the client reconnects after offline operation, the audit uplink path must perform a pre-upload handshake against the cloud integrity mirror and refuse to upload any new records if local hash-chain state diverges from the cloud shadow chain.",
+          "type": "Scenario Test",
+          "Input": "Disconnect the network, generate and locally anchor audit records, tamper with the local log so the chain no longer matches the last cloud-mirrored anchor, restore connectivity, and attempt to resume audit uplink.",
+          "acceptanceCriteria": "tests/integration/security/test_audit_foundation.py::test_offline_tamper_detected_before_uplink",
+          "TestResults": "The uplink manager first asks the cloud integrity mirror for the last accepted anchor, detects the local-versus-cloud mismatch before sending any new records, enters security lock mode, emits a tamper alert, and refuses to sync additional audit data that would pollute the cloud mirror."
+        },
+        {
+          "name": "sec-e2e-019-high-risk-tool-user-confirmation-recorded",
+          "description": "When an agent attempts a tool marked as High risk, execution must pause until the user returns a valid confirmation artifact, and the confirmation must be durably recorded as a synchronous USER_CONFIRMATION audit event.",
+          "type": "Scenario Test",
+          "Input": "Trigger a high-risk tool invocation, block execution at the high-risk tool guard, submit a confirmation token or signature from the user, and then allow the tool to continue.",
+          "acceptanceCriteria": "tests/integration/security/test_audit_foundation.py::test_high_risk_tool_requires_user_confirmation",
+          "TestResults": "The tool does not execute before confirmation, a synchronous L1 USER_CONFIRMATION audit event is persisted with confirmation_signature or auth_token_ref bound to the tool request, and the resumed tool execution remains trace-linked to that confirmation artifact."
+        },
+        {
+          "name": "sec-e2e-020-lease-expiry-triggers-untrusted-mode",
+          "description": "If a client exceeds the lease TTL without sending a valid heartbeat, the Security Center must mark it UNTRUSTED and require forced gap reconciliation before restoring normal trust or re-enabling high-risk actions.",
+          "type": "Scenario Test",
+          "Input": "Simulate a QwenPaw node staying offline past the lease TTL, observe the Security Center lease registry and dashboard state, then reconnect the node and attempt to resume operation.",
+          "acceptanceCriteria": "tests/integration/security/test_audit_foundation.py::test_lease_expiry_triggers_untrusted_mode",
+          "TestResults": "The Security Center dashboard marks the client as lease-expired and UNTRUSTED, the reconnecting client enters forced-sync mode, and only after the missing sequence gap is validated by the cloud mirror does the client return to normal trusted status."
+        }
+      ]
+    },
+    {
+      "id": "intent-implicit-security-context-manager",
+      "parent": "intent-local-security-audit-foundation",
+      "name": "Implicit Security Context Manager",
+      "type": "ApplicationComponent",
+      "browser_path": "QwenPaw Platform/Backend Runtime/Local Security Audit Foundation/Implicit Security Context Manager",
+      "description": "Runtime manager that captures SecurityContext in FastAPI middleware, stores it in Python contextvars, packages it into AgentScope message metadata when crossing asynchronous message boundaries, and restores it on the consumer side so lower-layer tools can resolve identity implicitly. Explicit SecurityContext parameter threading is forbidden by this intent element.\n#file:src/qwenpaw/app/auth.py\n#file:src/qwenpaw/app/agent_context.py\n#file:src/qwenpaw/app/runner/utils.py"
+    },
+    {
+      "id": "intent-security-context",
+      "parent": "intent-local-security-audit-foundation",
+      "name": "Security Context",
+      "type": "DataObject",
+      "browser_path": "QwenPaw Platform/Backend Runtime/Local Security Audit Foundation/Security Context",
+      "description": "Canonical runtime context carried across request entry, agent execution, tool execution, and security-configuration mutation so that audit and policy decisions share one stable identity envelope. The minimum P0 payload includes trace_id, user_id, session_id, root_session_id, agent_id, channel, and the acted-on security scope when present.\n#file:prd/企业级个人助理平台安全基础设施设计方案 (基于 QwenPaw/AgentScope).md"
+    },
+    {
+      "id": "intent-audit-event",
+      "parent": "intent-local-security-audit-foundation",
+      "name": "Audit Event",
+      "type": "DataObject",
+      "browser_path": "QwenPaw Platform/Backend Runtime/Local Security Audit Foundation/Audit Event",
+      "description": "Canonical append-only security audit record that captures event identity, event type, actor, session, agent, resource or configuration scope, decision or result metadata, prior_hash, current_hash, and sufficient fields to support integrity verification, remote integrity mirroring, and basic operator query.\n#file:prd/企业级个人助理平台安全基础设施设计方案 (基于 QwenPaw/AgentScope).md",
+      "attributes": [
+        {
+          "name": "sync_status",
+          "description": "Per-entry uplink state for DEMO integrity mirroring. Valid values are PENDING, SYNCED, and FAILED."
+        },
+        {
+          "name": "confirmation_signature",
+          "description": "Optional user confirmation signature persisted on audit entries that record explicit approval for high-risk actions."
+        },
+        {
+          "name": "auth_token_ref",
+          "description": "Optional reference to the confirmation token or authentication artifact that authorized a high-risk action without embedding the raw secret in the audit payload."
+        }
+      ]
+    },
+    {
+      "id": "intent-audit-checkpoint-anchor",
+      "parent": "intent-local-security-audit-foundation",
+      "name": "Audit Checkpoint Anchor",
+      "type": "DataObject",
+      "browser_path": "QwenPaw Platform/Backend Runtime/Local Security Audit Foundation/Audit Checkpoint Anchor",
+      "description": "Restricted checkpoint record stored outside the primary audit-event log so tail truncation becomes detectable. The minimum P0 payload includes anchored_event_id, global_hash, checkpoint_reason, checkpoint_timestamp, and the protected storage location metadata used during startup integrity verification.\n#file:prd/企业级个人助理平台安全基础设施设计方案 (基于 QwenPaw/AgentScope).md"
+    },
+    {
+      "id": "intent-tiered-audit-stream",
+      "parent": "intent-local-security-audit-foundation",
+      "name": "Tiered Audit Stream",
+      "type": "ApplicationComponent",
+      "browser_path": "QwenPaw Platform/Backend Runtime/Local Security Audit Foundation/Tiered Audit Stream",
+      "description": "Audit write orchestration that separates L1 critical events from L2 informational reasoning events. L1 uses synchronous durable writes and checkpoint updates before sensitive actions continue, while L2 batches asynchronously and remains operator-visible as pending verification until anchored.\n#file:prd/企业级个人助理平台安全基础设施设计方案 (基于 QwenPaw/AgentScope).md"
+    },
+    {
+      "id": "intent-high-risk-tool-guard",
+      "parent": "intent-local-security-audit-foundation",
+      "name": "High Risk Tool Guard",
+      "type": "ApplicationComponent",
+      "browser_path": "QwenPaw Platform/Backend Runtime/Local Security Audit Foundation/High Risk Tool Guard",
+      "description": "Interceptor that pauses execution whenever an agent attempts to invoke a tool marked with High risk level. It waits for a user-provided confirmation token or signature, records the confirmation as a synchronous L1 USER_CONFIRMATION audit event, and only then releases the blocked tool execution path.\n#file:prd/企业级个人助理平台安全基础设施设计方案 (基于 QwenPaw/AgentScope).md"
+    },
+    {
+      "id": "intent-audit-uplink-manager",
+      "parent": "intent-local-security-audit-foundation",
+      "name": "Audit Uplink Manager",
+      "type": "ApplicationComponent",
+      "browser_path": "QwenPaw Platform/Backend Runtime/Local Security Audit Foundation/Audit Uplink Manager",
+      "description": "Manager responsible for asynchronously pushing the local ledger tail state, including last event id and global hash, plus L1 critical audit records to the cloud situational awareness platform. The DEMO path uses fire-and-forget with retries, supports resume after reconnect, and must perform a pre-upload handshake against the cloud mirror before sending new data.\n#file:prd/企业级个人助理平台安全基础设施设计方案 (基于 QwenPaw/AgentScope).md"
+    },
+    {
+      "id": "intent-heartbeat-emitter",
+      "parent": "intent-audit-uplink-manager",
+      "name": "Heartbeat Emitter",
+      "type": "ApplicationComponent",
+      "browser_path": "QwenPaw Platform/Backend Runtime/Local Security Audit Foundation/Audit Uplink Manager/Heartbeat Emitter",
+      "description": "Emitter that periodically reads the most recent EventID and GlobalHash from the local audit ledger and sends them, together with client identity proof, to the Security Center as a lease heartbeat. The DEMO cadence is periodic, for example every five minutes.\n#file:prd/企业级个人助理平台安全基础设施设计方案 (基于 QwenPaw/AgentScope).md"
+    },
+    {
+      "id": "intent-audit-uplink-service",
+      "parent": "intent-local-security-audit-foundation",
+      "name": "Audit Uplink Service",
+      "type": "ApplicationComponent",
+      "browser_path": "QwenPaw Platform/Backend Runtime/Local Security Audit Foundation/Audit Uplink Service",
+      "description": "Edge-side transport adapter that implements secure audit uplink. Whenever an L1 audit record or critical anchor is durably written, it triggers an asynchronous HTTPS or gRPC call that sends an encrypted audit summary toward the Security Center while preserving retry and resume semantics under intermittent connectivity.\n#file:prd/企业级个人助理平台安全基础设施设计方案 (基于 QwenPaw/AgentScope).md"
+    },
+    {
+      "id": "intent-security-schema-contract",
+      "parent": "intent-backend-runtime",
+      "name": "Security Schema Contract",
+      "type": "Constraint",
+      "browser_path": "QwenPaw Platform/Backend Runtime/Security Schema Contract",
+      "description": "Shared contract that fixes the hash algorithm, canonical JSON field ordering, and serialization rules used by both edge-side uplink and cloud-side verification. Its purpose is to prevent false integrity failures caused by formatting drift rather than real tampering.\n#file:prd/企业级个人助理平台安全基础设施设计方案 (基于 QwenPaw/AgentScope).md"
+    },
+    {
+      "id": "intent-security-center",
+      "parent": "intent-qwenpaw-platform",
+      "name": "Security Center",
+      "type": "ApplicationComponent",
+      "browser_path": "QwenPaw Platform/Security Center",
+      "description": "Security hub deployed in a controlled environment such as cloud or server infrastructure. It aggregates audit uplinks from multiple QwenPaw nodes, maintains per-client shadow audit chains, triggers real-time Tamper_Detected alerts whenever incoming prior_hash diverges from the stored cloud hash, and exposes a visual console that aggregates live violations for SEC-E2E-006 and SEC-E2E-007.\n#file:prd/企业级个人助理平台安全基础设施设计方案 (基于 QwenPaw/AgentScope).md"
+    },
+    {
+      "id": "intent-audit-lease-monitor",
+      "parent": "intent-security-center",
+      "name": "Audit Lease Monitor",
+      "type": "ApplicationComponent",
+      "browser_path": "QwenPaw Platform/Security Center/Audit Lease Monitor",
+      "description": "Monitor that maintains the lease registry for all connected clients. It applies a TTL threshold, for example thirty minutes, marks devices UNTRUSTED when no valid heartbeat is received within the threshold, and drives dashboard state plus forced-recovery requirements on reconnect.\n#file:prd/企业级个人助理平台安全基础设施设计方案 (基于 QwenPaw/AgentScope).md"
+    },
+    {
+      "id": "intent-cloud-integrity-stub",
+      "parent": "intent-security-center",
+      "name": "Cloud Integrity Stub",
+      "type": "ExternalSystem",
+      "browser_path": "QwenPaw Platform/Security Center/Cloud Integrity Stub",
+      "description": "Logical verification stub inside the Security Center used for the DEMO. It receives critical audit anchors and L1 events from one QwenPaw client, maintains a shadow hash chain for that client, and validates each uplink by comparing incoming prior_hash against the cloud-stored current_hash.\n#file:prd/企业级个人助理平台安全基础设施设计方案 (基于 QwenPaw/AgentScope).md"
     },
     {
       "id": "intent-local-operator-cli",
@@ -111,6 +333,222 @@
       "target_name": "Backend Runtime"
     },
     {
+      "id": "rel-backend-security-audit-foundation",
+      "statement": "Local Security Audit Foundation is part of Backend Runtime.",
+      "name": "composition",
+      "source_id": "intent-backend-runtime",
+      "target_id": "intent-local-security-audit-foundation",
+      "source_name": "Backend Runtime",
+      "target_name": "Local Security Audit Foundation"
+    },
+    {
+      "id": "rel-backend-security-schema-contract",
+      "statement": "Security Schema Contract is part of Backend Runtime.",
+      "name": "composition",
+      "source_id": "intent-backend-runtime",
+      "target_id": "intent-security-schema-contract",
+      "source_name": "Backend Runtime",
+      "target_name": "Security Schema Contract"
+    },
+    {
+      "id": "rel-audit-foundation-security-context",
+      "statement": "Local Security Audit Foundation standardizes the Security Context carried across trust-sensitive runtime boundaries.",
+      "name": "association",
+      "source_id": "intent-local-security-audit-foundation",
+      "target_id": "intent-security-context",
+      "source_name": "Local Security Audit Foundation",
+      "target_name": "Security Context"
+    },
+    {
+      "id": "rel-audit-foundation-implicit-context-manager",
+      "statement": "Local Security Audit Foundation relies on the Implicit Security Context Manager to preserve identity across async and message-dispatch boundaries.",
+      "name": "association",
+      "source_id": "intent-local-security-audit-foundation",
+      "target_id": "intent-implicit-security-context-manager",
+      "source_name": "Local Security Audit Foundation",
+      "target_name": "Implicit Security Context Manager"
+    },
+    {
+      "id": "rel-audit-foundation-audit-event",
+      "statement": "Local Security Audit Foundation persists and verifies Audit Event records as its canonical tamper-evident ledger payload.",
+      "name": "association",
+      "source_id": "intent-local-security-audit-foundation",
+      "target_id": "intent-audit-event",
+      "source_name": "Local Security Audit Foundation",
+      "target_name": "Audit Event"
+    },
+    {
+      "id": "rel-audit-foundation-checkpoint-anchor",
+      "statement": "Local Security Audit Foundation anchors audit continuity through the Audit Checkpoint Anchor so tail truncation remains detectable after restart.",
+      "name": "association",
+      "source_id": "intent-local-security-audit-foundation",
+      "target_id": "intent-audit-checkpoint-anchor",
+      "source_name": "Local Security Audit Foundation",
+      "target_name": "Audit Checkpoint Anchor"
+    },
+    {
+      "id": "rel-audit-foundation-tiered-stream",
+      "statement": "Local Security Audit Foundation uses the Tiered Audit Stream to separate synchronous critical durability from asynchronous informational batching.",
+      "name": "association",
+      "source_id": "intent-local-security-audit-foundation",
+      "target_id": "intent-tiered-audit-stream",
+      "source_name": "Local Security Audit Foundation",
+      "target_name": "Tiered Audit Stream"
+    },
+    {
+      "id": "rel-audit-foundation-high-risk-tool-guard",
+      "statement": "Local Security Audit Foundation uses High Risk Tool Guard to block high-risk tool execution until explicit user confirmation is durably recorded.",
+      "name": "association",
+      "source_id": "intent-local-security-audit-foundation",
+      "target_id": "intent-high-risk-tool-guard",
+      "source_name": "Local Security Audit Foundation",
+      "target_name": "High Risk Tool Guard"
+    },
+    {
+      "id": "rel-high-risk-tool-guard-audit-event",
+      "statement": "High Risk Tool Guard persists USER_CONFIRMATION audit events through the canonical Audit Event schema before releasing execution.",
+      "name": "association",
+      "source_id": "intent-high-risk-tool-guard",
+      "target_id": "intent-audit-event",
+      "source_name": "High Risk Tool Guard",
+      "target_name": "Audit Event"
+    },
+    {
+      "id": "rel-uplink-manager-foundation",
+      "statement": "Audit Uplink Manager depends on Local Security Audit Foundation for reading the local tamper-evident ledger and anchored tail state.",
+      "name": "dependency",
+      "source_id": "intent-audit-uplink-manager",
+      "target_id": "intent-local-security-audit-foundation",
+      "source_name": "Audit Uplink Manager",
+      "target_name": "Local Security Audit Foundation"
+    },
+    {
+      "id": "rel-uplink-manager-heartbeat-emitter",
+      "statement": "Audit Uplink Manager depends on Heartbeat Emitter to publish periodic lease heartbeats based on the local audit tail state.",
+      "name": "dependency",
+      "source_id": "intent-audit-uplink-manager",
+      "target_id": "intent-heartbeat-emitter",
+      "source_name": "Audit Uplink Manager",
+      "target_name": "Heartbeat Emitter"
+    },
+    {
+      "id": "rel-heartbeat-emitter-audit-event",
+      "statement": "Heartbeat Emitter reads the current Audit Event tail to publish EventID and GlobalHash as lease heartbeat state.",
+      "name": "association",
+      "source_id": "intent-heartbeat-emitter",
+      "target_id": "intent-audit-event",
+      "source_name": "Heartbeat Emitter",
+      "target_name": "Audit Event"
+    },
+    {
+      "id": "rel-uplink-manager-uplink-service",
+      "statement": "Audit Uplink Manager depends on Audit Uplink Service to perform the actual secure transport toward the cloud-side security hub.",
+      "name": "dependency",
+      "source_id": "intent-audit-uplink-manager",
+      "target_id": "intent-audit-uplink-service",
+      "source_name": "Audit Uplink Manager",
+      "target_name": "Audit Uplink Service"
+    },
+    {
+      "id": "rel-uplink-manager-platform",
+      "statement": "Audit Uplink Manager serves QwenPaw Platform by providing outward audit transparency and remote integrity mirroring status.",
+      "name": "serving",
+      "source_id": "intent-audit-uplink-manager",
+      "target_id": "intent-qwenpaw-platform",
+      "source_name": "Audit Uplink Manager",
+      "target_name": "QwenPaw Platform"
+    },
+    {
+      "id": "rel-heartbeat-emitter-security-center",
+      "statement": "Heartbeat Emitter serves Security Center by periodically sending client identity, latest EventID, and GlobalHash as a lease heartbeat.",
+      "name": "serving",
+      "source_id": "intent-heartbeat-emitter",
+      "target_id": "intent-security-center",
+      "source_name": "Heartbeat Emitter",
+      "target_name": "Security Center"
+    },
+    {
+      "id": "rel-uplink-service-security-center",
+      "statement": "Audit Uplink Service serves Security Center by delivering encrypted L1 audit summaries and critical anchors from the edge node.",
+      "name": "serving",
+      "source_id": "intent-audit-uplink-service",
+      "target_id": "intent-security-center",
+      "source_name": "Audit Uplink Service",
+      "target_name": "Security Center"
+    },
+    {
+      "id": "rel-platform-security-center",
+      "statement": "Security Center is part of the QwenPaw Platform's cloud-edge security collaboration model.",
+      "name": "composition",
+      "source_id": "intent-qwenpaw-platform",
+      "target_id": "intent-security-center",
+      "source_name": "QwenPaw Platform",
+      "target_name": "Security Center"
+    },
+    {
+      "id": "rel-security-center-lease-monitor",
+      "statement": "Audit Lease Monitor is part of Security Center as the component that tracks client TTL expiry and UNTRUSTED status.",
+      "name": "composition",
+      "source_id": "intent-security-center",
+      "target_id": "intent-audit-lease-monitor",
+      "source_name": "Security Center",
+      "target_name": "Audit Lease Monitor"
+    },
+    {
+      "id": "rel-security-center-cloud-stub",
+      "statement": "Cloud Integrity Stub is part of Security Center as the per-client shadow-chain verifier used in the DEMO.",
+      "name": "composition",
+      "source_id": "intent-security-center",
+      "target_id": "intent-cloud-integrity-stub",
+      "source_name": "Security Center",
+      "target_name": "Cloud Integrity Stub"
+    },
+    {
+      "id": "rel-lease-monitor-cloud-stub",
+      "statement": "Audit Lease Monitor coordinates with Cloud Integrity Stub to require full-gap validation before an UNTRUSTED client can recover trusted status.",
+      "name": "association",
+      "source_id": "intent-audit-lease-monitor",
+      "target_id": "intent-cloud-integrity-stub",
+      "source_name": "Audit Lease Monitor",
+      "target_name": "Cloud Integrity Stub"
+    },
+    {
+      "id": "rel-security-schema-contract-audit-event",
+      "statement": "Security Schema Contract fixes the canonical Audit Event hashing and serialization rules shared across edge and cloud verification.",
+      "name": "association",
+      "source_id": "intent-security-schema-contract",
+      "target_id": "intent-audit-event",
+      "source_name": "Security Schema Contract",
+      "target_name": "Audit Event"
+    },
+    {
+      "id": "rel-uplink-service-security-schema-contract",
+      "statement": "Audit Uplink Service depends on Security Schema Contract so transport payloads use the exact canonical hashing and field-order semantics expected by verification.",
+      "name": "dependency",
+      "source_id": "intent-audit-uplink-service",
+      "target_id": "intent-security-schema-contract",
+      "source_name": "Audit Uplink Service",
+      "target_name": "Security Schema Contract"
+    },
+    {
+      "id": "rel-security-center-security-schema-contract",
+      "statement": "Security Center depends on Security Schema Contract so cloud-side mirroring and alerting validate the same canonical payload semantics as the edge node.",
+      "name": "dependency",
+      "source_id": "intent-security-center",
+      "target_id": "intent-security-schema-contract",
+      "source_name": "Security Center",
+      "target_name": "Security Schema Contract"
+    },
+    {
+      "id": "rel-uplink-manager-cloud-stub",
+      "statement": "Audit Uplink Manager associates with Cloud Integrity Stub over the cross-boundary uplink path used for hash alignment and critical-audit mirroring.",
+      "name": "association",
+      "source_id": "intent-audit-uplink-manager",
+      "target_id": "intent-cloud-integrity-stub",
+      "source_name": "Audit Uplink Manager",
+      "target_name": "Cloud Integrity Stub"
+    },
+    {
       "id": "rel-platform-cli",
       "statement": "Local Operator CLI is part of QwenPaw Platform.",
       "name": "composition",
@@ -177,12 +615,26 @@
   "views": [
     {
       "view_id": "view-current-state-overview",
-      "view_name": "Current State Overview",
-      "browser_path": "Views/Current State Overview",
-      "description": "Stable current-state product slices and validator governance assets reconstructed from repository evidence.",
+      "view_name": "Platform Overview",
+      "browser_path": "Views/Platform Overview",
+      "description": "Stable platform slices and the strengthened P0 local security audit foundation required for safe local operation.",
       "included_elements": [
         "intent-qwenpaw-platform",
         "intent-backend-runtime",
+        "intent-local-security-audit-foundation",
+        "intent-implicit-security-context-manager",
+        "intent-security-schema-contract",
+        "intent-security-context",
+        "intent-audit-event",
+        "intent-audit-checkpoint-anchor",
+        "intent-tiered-audit-stream",
+        "intent-high-risk-tool-guard",
+        "intent-audit-uplink-manager",
+        "intent-heartbeat-emitter",
+        "intent-audit-uplink-service",
+        "intent-security-center",
+        "intent-audit-lease-monitor",
+        "intent-cloud-integrity-stub",
         "intent-local-operator-cli",
         "intent-console-frontend",
         "intent-docs-website",
@@ -190,6 +642,30 @@
       ],
       "included_relationships": [
         "rel-platform-backend",
+        "rel-backend-security-audit-foundation",
+        "rel-backend-security-schema-contract",
+        "rel-audit-foundation-implicit-context-manager",
+        "rel-audit-foundation-security-context",
+        "rel-audit-foundation-audit-event",
+        "rel-audit-foundation-checkpoint-anchor",
+        "rel-audit-foundation-tiered-stream",
+        "rel-audit-foundation-high-risk-tool-guard",
+        "rel-high-risk-tool-guard-audit-event",
+        "rel-uplink-manager-foundation",
+        "rel-uplink-manager-heartbeat-emitter",
+        "rel-heartbeat-emitter-audit-event",
+        "rel-uplink-manager-uplink-service",
+        "rel-heartbeat-emitter-security-center",
+        "rel-uplink-manager-platform",
+        "rel-uplink-service-security-center",
+        "rel-platform-security-center",
+        "rel-security-center-lease-monitor",
+        "rel-security-center-cloud-stub",
+        "rel-lease-monitor-cloud-stub",
+        "rel-security-schema-contract-audit-event",
+        "rel-uplink-service-security-schema-contract",
+        "rel-security-center-security-schema-contract",
+        "rel-uplink-manager-cloud-stub",
         "rel-platform-cli",
         "rel-platform-console",
         "rel-platform-website",
@@ -197,6 +673,97 @@
         "rel-cli-backend",
         "rel-console-backend",
         "rel-website-platform"
+      ]
+    },
+    {
+      "view_id": "view-p0-security-audit-foundation",
+      "view_name": "P0 Security Audit Foundation",
+      "browser_path": "Views/P0 Security Audit Foundation",
+      "description": "Intent view for the strengthened local security audit closure that standardizes implicit context propagation, audit event shape, checkpoint-anchored tamper evidence, out-of-band configuration consistency verification, tiered logging semantics, and edge-to-cloud integrity mirroring with pre-upload handshake.",
+      "included_elements": [
+        "intent-backend-runtime",
+        "intent-local-security-audit-foundation",
+        "intent-implicit-security-context-manager",
+        "intent-security-schema-contract",
+        "intent-security-context",
+        "intent-audit-event",
+        "intent-audit-checkpoint-anchor",
+        "intent-tiered-audit-stream",
+        "intent-high-risk-tool-guard",
+        "intent-audit-uplink-manager",
+        "intent-heartbeat-emitter",
+        "intent-audit-uplink-service",
+        "intent-security-center",
+        "intent-audit-lease-monitor",
+        "intent-cloud-integrity-stub"
+      ],
+      "included_relationships": [
+        "rel-backend-security-audit-foundation",
+        "rel-backend-security-schema-contract",
+        "rel-audit-foundation-implicit-context-manager",
+        "rel-audit-foundation-security-context",
+        "rel-audit-foundation-audit-event",
+        "rel-audit-foundation-checkpoint-anchor",
+        "rel-audit-foundation-tiered-stream",
+        "rel-audit-foundation-high-risk-tool-guard",
+        "rel-high-risk-tool-guard-audit-event",
+        "rel-uplink-manager-foundation",
+        "rel-uplink-manager-heartbeat-emitter",
+        "rel-heartbeat-emitter-audit-event",
+        "rel-uplink-manager-uplink-service",
+        "rel-heartbeat-emitter-security-center",
+        "rel-uplink-service-security-center",
+        "rel-platform-security-center",
+        "rel-security-center-lease-monitor",
+        "rel-security-center-cloud-stub",
+        "rel-lease-monitor-cloud-stub",
+        "rel-security-schema-contract-audit-event",
+        "rel-uplink-service-security-schema-contract",
+        "rel-security-center-security-schema-contract",
+        "rel-uplink-manager-platform",
+        "rel-uplink-manager-cloud-stub"
+      ]
+    },
+    {
+      "view_id": "view-cloud-edge-security-collaboration",
+      "view_name": "Cloud Edge Security Collaboration",
+      "browser_path": "Views/Cloud Edge Security Collaboration",
+      "description": "Cross-boundary view showing how edge-side audit capture, uplink transport, shared canonical schema rules, and cloud-side mirroring combine into one security collaboration loop.",
+      "included_elements": [
+        "intent-qwenpaw-platform",
+        "intent-backend-runtime",
+        "intent-local-security-audit-foundation",
+        "intent-security-schema-contract",
+        "intent-audit-event",
+        "intent-high-risk-tool-guard",
+        "intent-audit-uplink-manager",
+        "intent-heartbeat-emitter",
+        "intent-audit-uplink-service",
+        "intent-security-center",
+        "intent-audit-lease-monitor",
+        "intent-cloud-integrity-stub"
+      ],
+      "included_relationships": [
+        "rel-platform-backend",
+        "rel-backend-security-audit-foundation",
+        "rel-backend-security-schema-contract",
+        "rel-audit-foundation-audit-event",
+        "rel-audit-foundation-high-risk-tool-guard",
+        "rel-high-risk-tool-guard-audit-event",
+        "rel-uplink-manager-foundation",
+        "rel-uplink-manager-heartbeat-emitter",
+        "rel-heartbeat-emitter-audit-event",
+        "rel-uplink-manager-uplink-service",
+        "rel-heartbeat-emitter-security-center",
+        "rel-uplink-service-security-center",
+        "rel-platform-security-center",
+        "rel-security-center-lease-monitor",
+        "rel-security-center-cloud-stub",
+        "rel-lease-monitor-cloud-stub",
+        "rel-security-schema-contract-audit-event",
+        "rel-uplink-service-security-schema-contract",
+        "rel-security-center-security-schema-contract",
+        "rel-uplink-manager-cloud-stub"
       ]
     }
   ]
