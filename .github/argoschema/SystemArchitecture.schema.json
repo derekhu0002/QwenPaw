@@ -1,23 +1,29 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "./schema/SystemArchitecture.schema.json",
+  "$id": "./.github/argoschema/SystemArchitecture.schema.json",
   "title": "SystemArchitecture Knowledge Graph Schema",
-  "description": "Schema extracted from the EA ArchiMate JSON export structure for design/KG/SystemArchitecture.json.",
+  "description": "Schema for design/KG/SystemArchitecture.json. The repository keeps its existing knowledge-graph shape, while ArchiMate 3.2 terminology is enforced for element and relationship concepts.",
   "type": "object",
   "additionalProperties": false,
   "required": [
     "name",
     "description",
+    "standard",
     "elements",
     "relationships",
     "views"
   ],
   "properties": {
     "name": {
-      "type": "string"
+      "type": "string",
+      "minLength": 1
     },
     "description": {
-      "type": "string"
+      "type": "string",
+      "minLength": 1
+    },
+    "standard": {
+      "$ref": "#/$defs/standard"
     },
     "attributes": {
       "type": "array",
@@ -27,24 +33,174 @@
     },
     "elements": {
       "type": "array",
+      "minItems": 1,
       "items": {
         "$ref": "#/$defs/element"
       }
     },
     "relationships": {
       "type": "array",
+      "minItems": 1,
       "items": {
         "$ref": "#/$defs/relationship"
       }
     },
     "views": {
       "type": "array",
+      "minItems": 1,
       "items": {
         "$ref": "#/$defs/view"
       }
     }
   },
   "$defs": {
+    "identifier": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$"
+    },
+    "nonEmptyString": {
+      "type": "string",
+      "minLength": 1
+    },
+    "standard": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "name",
+        "version"
+      ],
+      "properties": {
+        "name": {
+          "const": "ArchiMate"
+        },
+        "version": {
+          "const": "3.2"
+        },
+        "profile": {
+          "$ref": "#/$defs/nonEmptyString"
+        }
+      }
+    },
+    "archimateElementType": {
+      "type": "string",
+      "enum": [
+        "Resource",
+        "Capability",
+        "Value Stream",
+        "Course of Action",
+        "Business Actor",
+        "Business Role",
+        "Business Collaboration",
+        "Business Interface",
+        "Business Process",
+        "Business Function",
+        "Business Interaction",
+        "Business Event",
+        "Business Service",
+        "Business Object",
+        "Contract",
+        "Representation",
+        "Product",
+        "Application Component",
+        "Application Collaboration",
+        "Application Interface",
+        "Application Process",
+        "Application Function",
+        "Application Interaction",
+        "Application Event",
+        "Application Service",
+        "Data Object",
+        "Node",
+        "Device",
+        "System Software",
+        "Technology Collaboration",
+        "Technology Interface",
+        "Path",
+        "Communication Network",
+        "Technology Process",
+        "Technology Function",
+        "Technology Interaction",
+        "Technology Event",
+        "Technology Service",
+        "Artifact",
+        "Equipment",
+        "Facility",
+        "Distribution Network",
+        "Material",
+        "Stakeholder",
+        "Driver",
+        "Assessment",
+        "Goal",
+        "Outcome",
+        "Principle",
+        "Requirement",
+        "Constraint",
+        "Meaning",
+        "Value",
+        "Work Package",
+        "Deliverable",
+        "Implementation Event",
+        "Plateau",
+        "Gap",
+        "Grouping",
+        "Location",
+        "Junction",
+        "And Junction",
+        "Or Junction"
+      ]
+    },
+    "archimateLayer": {
+      "type": "string",
+      "enum": [
+        "Strategy",
+        "Business",
+        "Application",
+        "Technology",
+        "Physical",
+        "Motivation",
+        "Implementation & Migration",
+        "Other"
+      ]
+    },
+    "archimateAspect": {
+      "type": "string",
+      "enum": [
+        "Strategy",
+        "Active Structure",
+        "Behavior",
+        "Passive Structure",
+        "Composite",
+        "Motivation",
+        "Implementation & Migration",
+        "Other"
+      ]
+    },
+    "archimateRelationshipType": {
+      "type": "string",
+      "enum": [
+        "Association",
+        "Composition",
+        "Aggregation",
+        "Assignment",
+        "Realization",
+        "Serving",
+        "Access",
+        "Influence",
+        "Triggering",
+        "Flow",
+        "Specialization"
+      ]
+    },
+    "archimateRelationshipCategory": {
+      "type": "string",
+      "enum": [
+        "Structural",
+        "Dependency",
+        "Dynamic",
+        "Other"
+      ]
+    },
     "task": {
       "type": "object",
       "additionalProperties": false,
@@ -53,7 +209,7 @@
       ],
       "properties": {
         "name": {
-          "type": "string"
+          "$ref": "#/$defs/nonEmptyString"
         },
         "type": {
           "type": "string"
@@ -100,10 +256,10 @@
       ],
       "properties": {
         "owner": {
-          "type": "string"
+          "$ref": "#/$defs/nonEmptyString"
         },
         "role": {
-          "type": "string"
+          "$ref": "#/$defs/nonEmptyString"
         },
         "description": {
           "type": "string"
@@ -176,11 +332,10 @@
       "required": [
         "name"
       ],
-      "description": "Generic EA-style attribute container. Use this for architecture annotations such as verification_focus, acceptance_outcomes, and design_risks instead of introducing dedicated top-level fields.",
+      "description": "Generic EA-style attribute container. Use this for architecture annotations such as verification_focus, external_scope, acceptance_outcomes, and design_risks instead of introducing dedicated top-level fields.",
       "properties": {
         "name": {
-          "type": "string",
-          "description": "Attribute name, for example verification_focus, acceptance_outcomes, design_risks, or a domain-specific property name."
+          "$ref": "#/$defs/nonEmptyString"
         },
         "description": {
           "type": "string"
@@ -202,10 +357,10 @@
       ],
       "properties": {
         "view_id": {
-          "type": "string"
+          "$ref": "#/$defs/identifier"
         },
         "view_name": {
-          "type": "string"
+          "$ref": "#/$defs/nonEmptyString"
         }
       }
     },
@@ -222,11 +377,11 @@
       ],
       "properties": {
         "name": {
-          "type": "string",
+          "$ref": "#/$defs/nonEmptyString",
           "description": "Stable testcase identifier. Use the testcase name itself as the long-lived identity; do not add a separate testcase id field."
         },
         "description": {
-          "type": "string",
+          "$ref": "#/$defs/nonEmptyString",
           "description": "Place the intent being verified here. Each testcase should normally be mounted under exactly one element rather than using extra verifies_elements or verifies_intents fields."
         },
         "type": {
@@ -241,14 +396,14 @@
           ]
         },
         "Input": {
-          "type": "string"
+          "$ref": "#/$defs/nonEmptyString"
         },
         "acceptanceCriteria": {
-          "type": "string",
+          "$ref": "#/$defs/nonEmptyString",
           "description": "By the end of implementation design, this must be the concrete workspace-relative executable testcase entrypoint for the testcase, optionally including a pytest node id selector such as tests/test_x.py::test_y, rather than descriptive prose."
         },
         "TestResults": {
-          "type": "string"
+          "$ref": "#/$defs/nonEmptyString"
         }
       }
     },
@@ -258,20 +413,28 @@
       "required": [
         "id",
         "name",
-        "type"
+        "type",
+        "archimate_layer",
+        "archimate_aspect"
       ],
       "properties": {
         "id": {
-          "type": "string"
+          "$ref": "#/$defs/identifier"
         },
         "name": {
-          "type": "string"
+          "$ref": "#/$defs/nonEmptyString"
         },
         "parent": {
-          "type": "string"
+          "$ref": "#/$defs/identifier"
         },
         "type": {
-          "type": "string"
+          "$ref": "#/$defs/archimateElementType"
+        },
+        "archimate_layer": {
+          "$ref": "#/$defs/archimateLayer"
+        },
+        "archimate_aspect": {
+          "$ref": "#/$defs/archimateAspect"
         },
         "alias": {
           "type": "string"
@@ -293,7 +456,7 @@
         },
         "attributes": {
           "type": "array",
-          "description": "Use attributes to store additional architecture intent metadata, including verification_focus, acceptance_outcomes, and design_risks.",
+          "description": "Use attributes to store additional architecture intent metadata, including verification_focus, external_scope, acceptance_outcomes, and design_risks.",
           "items": {
             "$ref": "#/$defs/attribute"
           }
@@ -333,10 +496,10 @@
       ],
       "properties": {
         "name": {
-          "type": "string"
+          "$ref": "#/$defs/nonEmptyString"
         },
         "description": {
-          "type": "string"
+          "$ref": "#/$defs/nonEmptyString"
         }
       }
     },
@@ -347,6 +510,7 @@
         "id",
         "statement",
         "name",
+        "archimate_category",
         "source_id",
         "target_id",
         "source_name",
@@ -354,13 +518,16 @@
       ],
       "properties": {
         "id": {
-          "type": "string"
+          "$ref": "#/$defs/identifier"
         },
         "statement": {
-          "type": "string"
+          "$ref": "#/$defs/nonEmptyString"
         },
         "name": {
-          "type": "string"
+          "$ref": "#/$defs/archimateRelationshipType"
+        },
+        "archimate_category": {
+          "$ref": "#/$defs/archimateRelationshipCategory"
         },
         "description": {
           "type": "string"
@@ -381,16 +548,16 @@
           }
         },
         "source_id": {
-          "type": "string"
+          "$ref": "#/$defs/identifier"
         },
         "target_id": {
-          "type": "string"
+          "$ref": "#/$defs/identifier"
         },
         "source_name": {
-          "type": "string"
+          "$ref": "#/$defs/nonEmptyString"
         },
         "target_name": {
-          "type": "string"
+          "$ref": "#/$defs/nonEmptyString"
         }
       }
     },
@@ -405,16 +572,16 @@
       ],
       "properties": {
         "view_id": {
-          "type": "string"
+          "$ref": "#/$defs/identifier"
         },
         "view_name": {
-          "type": "string"
+          "$ref": "#/$defs/nonEmptyString"
         },
         "browser_path": {
           "type": "string"
         },
         "parent_element_id": {
-          "type": "string"
+          "$ref": "#/$defs/identifier"
         },
         "parent_element_name": {
           "type": "string"
@@ -425,13 +592,13 @@
         "included_elements": {
           "type": "array",
           "items": {
-            "type": "string"
+            "$ref": "#/$defs/identifier"
           }
         },
         "included_relationships": {
           "type": "array",
           "items": {
-            "type": "string"
+            "$ref": "#/$defs/identifier"
           }
         }
       }

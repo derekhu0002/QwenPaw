@@ -1,6 +1,11 @@
 {
   "name": "QwenPaw System Architecture",
   "description": "Intent architecture for QwenPaw covering the current platform slices plus the strengthened P0 local security audit foundation required for implicit identity propagation, tamper-evident auditing, external checkpoint anchoring, out-of-band configuration tamper detection, and tiered audit durability. The security extension is scoped from the AgentScope security infrastructure PRD and is intentionally limited to the minimum closed loop needed for SEC-E2E-006, SEC-E2E-007, automatic user attribution across third-party agents, and bounded TTFT impact under full audit mode.",
+  "standard": {
+    "name": "ArchiMate",
+    "version": "3.2",
+    "profile": "QwenPaw repository intent knowledge graph"
+  },
   "attributes": [
     {
       "name": "evidence_policy",
@@ -12,6 +17,8 @@
       "id": "intent-qwenpaw-platform",
       "name": "QwenPaw Platform",
       "type": "Product",
+      "archimate_layer": "Business",
+      "archimate_aspect": "Composite",
       "browser_path": "QwenPaw Platform",
       "description": "Repository-backed personal AI assistant platform spanning backend runtime, local operator CLI, operator console, documentation website, architecture validation assets, and the P0 security audit foundation required for local safe operation.\n#file:README.md\n#file:pyproject.toml\n#file:prd/企业级个人助理平台安全基础设施设计方案 (基于 QwenPaw/AgentScope).md"
     },
@@ -19,7 +26,9 @@
       "id": "intent-backend-runtime",
       "parent": "intent-qwenpaw-platform",
       "name": "Backend Runtime",
-      "type": "ApplicationComponent",
+      "type": "Application Component",
+      "archimate_layer": "Application",
+      "archimate_aspect": "Active Structure",
       "browser_path": "QwenPaw Platform/Backend Runtime",
       "description": "Python runtime root that owns API routers, agent execution, channels, config, security, providers, and shared utilities.\n#file:src/qwenpaw\n#file:tests/unit/routers/test_settings.py\n#file:tests/unit/routers/test_git.py",
       "testcases": [
@@ -45,7 +54,9 @@
       "id": "intent-local-security-audit-foundation",
       "parent": "intent-backend-runtime",
       "name": "Local Security Audit Foundation",
-      "type": "ApplicationComponent",
+      "type": "Application Component",
+      "archimate_layer": "Application",
+      "archimate_aspect": "Active Structure",
       "browser_path": "QwenPaw Platform/Backend Runtime/Local Security Audit Foundation",
       "description": "Backend-owned P0 security foundation that standardizes implicit SecurityContext propagation, defines the canonical AuditEvent envelope, persists append-only local audit records with a hash chain, anchors continuity through a restricted checkpoint store, verifies startup consistency against configuration hashes, enforces security lock mode after integrity failures, supports human-in-the-loop confirmation for high-risk tool execution, and supports tiered audit durability for critical versus informational events. This element is intentionally limited to the minimum closure for SEC-E2E-006 and SEC-E2E-007 plus the required context-propagation, confirmation, and performance guardrails, rather than the full later audit pipeline.\n#file:prd/企业级个人助理平台安全基础设施设计方案 (基于 QwenPaw/AgentScope).md\n#file:src/qwenpaw/app/auth.py\n#file:src/qwenpaw/app/agent_context.py\n#file:src/qwenpaw/app/runner/utils.py\n#file:src/qwenpaw/app/routers/config.py\n#file:src/qwenpaw/app/routers/settings.py\n#file:src/qwenpaw/security",
       "attributes": [
@@ -149,7 +160,9 @@
       "id": "intent-implicit-security-context-manager",
       "parent": "intent-local-security-audit-foundation",
       "name": "Implicit Security Context Manager",
-      "type": "ApplicationComponent",
+      "type": "Application Component",
+      "archimate_layer": "Application",
+      "archimate_aspect": "Active Structure",
       "browser_path": "QwenPaw Platform/Backend Runtime/Local Security Audit Foundation/Implicit Security Context Manager",
       "description": "Runtime manager that captures SecurityContext in FastAPI middleware, stores it in Python contextvars, packages it into AgentScope message metadata when crossing asynchronous message boundaries, and restores it on the consumer side so lower-layer tools can resolve identity implicitly. Explicit SecurityContext parameter threading is forbidden by this intent element.\n#file:src/qwenpaw/app/auth.py\n#file:src/qwenpaw/app/agent_context.py\n#file:src/qwenpaw/app/runner/utils.py"
     },
@@ -157,7 +170,9 @@
       "id": "intent-security-context",
       "parent": "intent-local-security-audit-foundation",
       "name": "Security Context",
-      "type": "DataObject",
+      "type": "Data Object",
+      "archimate_layer": "Application",
+      "archimate_aspect": "Passive Structure",
       "browser_path": "QwenPaw Platform/Backend Runtime/Local Security Audit Foundation/Security Context",
       "description": "Canonical runtime context carried across request entry, agent execution, tool execution, and security-configuration mutation so that audit and policy decisions share one stable identity envelope. The minimum P0 payload includes trace_id, user_id, session_id, root_session_id, agent_id, channel, and the acted-on security scope when present.\n#file:prd/企业级个人助理平台安全基础设施设计方案 (基于 QwenPaw/AgentScope).md"
     },
@@ -165,7 +180,9 @@
       "id": "intent-audit-event",
       "parent": "intent-local-security-audit-foundation",
       "name": "Audit Event",
-      "type": "DataObject",
+      "type": "Data Object",
+      "archimate_layer": "Application",
+      "archimate_aspect": "Passive Structure",
       "browser_path": "QwenPaw Platform/Backend Runtime/Local Security Audit Foundation/Audit Event",
       "description": "Canonical append-only security audit record that captures event identity, event type, actor, session, agent, resource or configuration scope, decision or result metadata, prior_hash, current_hash, and sufficient fields to support integrity verification, remote integrity mirroring, and basic operator query.\n#file:prd/企业级个人助理平台安全基础设施设计方案 (基于 QwenPaw/AgentScope).md",
       "attributes": [
@@ -187,7 +204,9 @@
       "id": "intent-audit-checkpoint-anchor",
       "parent": "intent-local-security-audit-foundation",
       "name": "Audit Checkpoint Anchor",
-      "type": "DataObject",
+      "type": "Data Object",
+      "archimate_layer": "Application",
+      "archimate_aspect": "Passive Structure",
       "browser_path": "QwenPaw Platform/Backend Runtime/Local Security Audit Foundation/Audit Checkpoint Anchor",
       "description": "Restricted checkpoint record stored outside the primary audit-event log so tail truncation becomes detectable. The minimum P0 payload includes anchored_event_id, global_hash, checkpoint_reason, checkpoint_timestamp, and the protected storage location metadata used during startup integrity verification.\n#file:prd/企业级个人助理平台安全基础设施设计方案 (基于 QwenPaw/AgentScope).md"
     },
@@ -195,7 +214,9 @@
       "id": "intent-tiered-audit-stream",
       "parent": "intent-local-security-audit-foundation",
       "name": "Tiered Audit Stream",
-      "type": "ApplicationComponent",
+      "type": "Application Component",
+      "archimate_layer": "Application",
+      "archimate_aspect": "Active Structure",
       "browser_path": "QwenPaw Platform/Backend Runtime/Local Security Audit Foundation/Tiered Audit Stream",
       "description": "Audit write orchestration that separates L1 critical events from L2 informational reasoning events. L1 uses synchronous durable writes and checkpoint updates before sensitive actions continue, while L2 batches asynchronously and remains operator-visible as pending verification until anchored.\n#file:prd/企业级个人助理平台安全基础设施设计方案 (基于 QwenPaw/AgentScope).md"
     },
@@ -203,7 +224,9 @@
       "id": "intent-high-risk-tool-guard",
       "parent": "intent-local-security-audit-foundation",
       "name": "High Risk Tool Guard",
-      "type": "ApplicationComponent",
+      "type": "Application Component",
+      "archimate_layer": "Application",
+      "archimate_aspect": "Active Structure",
       "browser_path": "QwenPaw Platform/Backend Runtime/Local Security Audit Foundation/High Risk Tool Guard",
       "description": "Interceptor that pauses execution whenever an agent attempts to invoke a tool marked with High risk level. It waits for a user-provided confirmation token or signature, records the confirmation as a synchronous L1 USER_CONFIRMATION audit event, and only then releases the blocked tool execution path.\n#file:prd/企业级个人助理平台安全基础设施设计方案 (基于 QwenPaw/AgentScope).md"
     },
@@ -211,7 +234,9 @@
       "id": "intent-audit-uplink-manager",
       "parent": "intent-local-security-audit-foundation",
       "name": "Audit Uplink Manager",
-      "type": "ApplicationComponent",
+      "type": "Application Component",
+      "archimate_layer": "Application",
+      "archimate_aspect": "Active Structure",
       "browser_path": "QwenPaw Platform/Backend Runtime/Local Security Audit Foundation/Audit Uplink Manager",
       "description": "Manager responsible for asynchronously pushing the local ledger tail state, including last event id and global hash, plus L1 critical audit records to the cloud situational awareness platform. The DEMO path uses fire-and-forget with retries, supports resume after reconnect, and must perform a pre-upload handshake against the cloud mirror before sending new data.\n#file:prd/企业级个人助理平台安全基础设施设计方案 (基于 QwenPaw/AgentScope).md"
     },
@@ -219,7 +244,9 @@
       "id": "intent-heartbeat-emitter",
       "parent": "intent-audit-uplink-manager",
       "name": "Heartbeat Emitter",
-      "type": "ApplicationComponent",
+      "type": "Application Component",
+      "archimate_layer": "Application",
+      "archimate_aspect": "Active Structure",
       "browser_path": "QwenPaw Platform/Backend Runtime/Local Security Audit Foundation/Audit Uplink Manager/Heartbeat Emitter",
       "description": "Emitter that periodically reads the most recent EventID and GlobalHash from the local audit ledger and sends them, together with client identity proof, to the Security Center as a lease heartbeat. The DEMO cadence is periodic, for example every five minutes.\n#file:prd/企业级个人助理平台安全基础设施设计方案 (基于 QwenPaw/AgentScope).md"
     },
@@ -227,7 +254,9 @@
       "id": "intent-audit-uplink-service",
       "parent": "intent-local-security-audit-foundation",
       "name": "Audit Uplink Service",
-      "type": "ApplicationComponent",
+      "type": "Application Component",
+      "archimate_layer": "Application",
+      "archimate_aspect": "Active Structure",
       "browser_path": "QwenPaw Platform/Backend Runtime/Local Security Audit Foundation/Audit Uplink Service",
       "description": "Edge-side transport adapter that implements secure audit uplink. Whenever an L1 audit record or critical anchor is durably written, it triggers an asynchronous HTTPS or gRPC call that sends an encrypted audit summary toward the Security Center while preserving retry and resume semantics under intermittent connectivity.\n#file:prd/企业级个人助理平台安全基础设施设计方案 (基于 QwenPaw/AgentScope).md"
     },
@@ -236,6 +265,8 @@
       "parent": "intent-backend-runtime",
       "name": "Security Schema Contract",
       "type": "Constraint",
+      "archimate_layer": "Motivation",
+      "archimate_aspect": "Motivation",
       "browser_path": "QwenPaw Platform/Backend Runtime/Security Schema Contract",
       "description": "Shared contract that fixes the hash algorithm, canonical JSON field ordering, and serialization rules used by both edge-side uplink and cloud-side verification. Its purpose is to prevent false integrity failures caused by formatting drift rather than real tampering.\n#file:prd/企业级个人助理平台安全基础设施设计方案 (基于 QwenPaw/AgentScope).md"
     },
@@ -243,7 +274,9 @@
       "id": "intent-security-center",
       "parent": "intent-qwenpaw-platform",
       "name": "Security Center",
-      "type": "ApplicationComponent",
+      "type": "Application Component",
+      "archimate_layer": "Application",
+      "archimate_aspect": "Active Structure",
       "browser_path": "QwenPaw Platform/Security Center",
       "description": "Security hub deployed in a controlled environment such as cloud or server infrastructure. It aggregates audit uplinks from multiple QwenPaw nodes, maintains per-client shadow audit chains, triggers real-time Tamper_Detected alerts whenever incoming prior_hash diverges from the stored cloud hash, and exposes a visual console that aggregates live violations for SEC-E2E-006 and SEC-E2E-007.\n#file:prd/企业级个人助理平台安全基础设施设计方案 (基于 QwenPaw/AgentScope).md"
     },
@@ -251,7 +284,9 @@
       "id": "intent-audit-lease-monitor",
       "parent": "intent-security-center",
       "name": "Audit Lease Monitor",
-      "type": "ApplicationComponent",
+      "type": "Application Component",
+      "archimate_layer": "Application",
+      "archimate_aspect": "Active Structure",
       "browser_path": "QwenPaw Platform/Security Center/Audit Lease Monitor",
       "description": "Monitor that maintains the lease registry for all connected clients. It applies a TTL threshold, for example thirty minutes, marks devices UNTRUSTED when no valid heartbeat is received within the threshold, and drives dashboard state plus forced-recovery requirements on reconnect.\n#file:prd/企业级个人助理平台安全基础设施设计方案 (基于 QwenPaw/AgentScope).md"
     },
@@ -259,15 +294,25 @@
       "id": "intent-cloud-integrity-stub",
       "parent": "intent-security-center",
       "name": "Cloud Integrity Stub",
-      "type": "ExternalSystem",
+      "type": "Application Component",
+      "archimate_layer": "Application",
+      "archimate_aspect": "Active Structure",
       "browser_path": "QwenPaw Platform/Security Center/Cloud Integrity Stub",
-      "description": "Logical verification stub inside the Security Center used for the DEMO. It receives critical audit anchors and L1 events from one QwenPaw client, maintains a shadow hash chain for that client, and validates each uplink by comparing incoming prior_hash against the cloud-stored current_hash.\n#file:prd/企业级个人助理平台安全基础设施设计方案 (基于 QwenPaw/AgentScope).md"
+      "description": "Logical verification stub inside the Security Center used for the DEMO. It receives critical audit anchors and L1 events from one QwenPaw client, maintains a shadow hash chain for that client, and validates each uplink by comparing incoming prior_hash against the cloud-stored current_hash.\n#file:prd/企业级个人助理平台安全基础设施设计方案 (基于 QwenPaw/AgentScope).md",
+      "attributes": [
+        {
+          "name": "external_scope",
+          "value": "Cloud-side verifier modeled as an external application-side collaboration participant rather than a repository-owned runtime component."
+        }
+      ]
     },
     {
       "id": "intent-local-operator-cli",
       "parent": "intent-qwenpaw-platform",
       "name": "Local Operator CLI",
-      "type": "ApplicationInterface",
+      "type": "Application Interface",
+      "archimate_layer": "Application",
+      "archimate_aspect": "Active Structure",
       "browser_path": "QwenPaw Platform/Local Operator CLI",
       "description": "Click-based local operator surface exposed through the qwenpaw entrypoint.\n#file:src/qwenpaw/cli/main.py\n#file:tests/unit/cli/test_cli_version.py\n#file:tests/unit/cli/test_cli_agents.py\n#file:tests/unit/cli/test_cli_task.py",
       "testcases": [
@@ -301,7 +346,9 @@
       "id": "intent-console-frontend",
       "parent": "intent-qwenpaw-platform",
       "name": "Console Frontend",
-      "type": "ApplicationInterface",
+      "type": "Application Interface",
+      "archimate_layer": "Application",
+      "archimate_aspect": "Active Structure",
       "browser_path": "QwenPaw Platform/Console Frontend",
       "description": "Operator-facing console frontend built with React/Vite and desktop packaging assets.\n#file:console/package.json\n#file:console/src/App.tsx"
     },
@@ -309,7 +356,9 @@
       "id": "intent-docs-website",
       "parent": "intent-qwenpaw-platform",
       "name": "Docs Website",
-      "type": "ApplicationInterface",
+      "type": "Application Interface",
+      "archimate_layer": "Application",
+      "archimate_aspect": "Active Structure",
       "browser_path": "QwenPaw Platform/Docs Website",
       "description": "Public documentation and adoption website delivered from the website workspace.\n#file:website/package.json\n#file:website/src/App.tsx"
     },
@@ -318,6 +367,8 @@
       "parent": "intent-qwenpaw-platform",
       "name": "Architecture Validator Assets",
       "type": "Artifact",
+      "archimate_layer": "Technology",
+      "archimate_aspect": "Passive Structure",
       "browser_path": "QwenPaw Platform/Architecture Validator Assets",
       "description": "Bundled validator scripts and schemas that validate the graph, stage handoffs, and explicit testcase execution.\n#file:.github/validator/ARCHITECTURE.md\n#file:package.json"
     }
@@ -326,7 +377,8 @@
     {
       "id": "rel-platform-backend",
       "statement": "Backend Runtime is part of QwenPaw Platform.",
-      "name": "composition",
+      "name": "Composition",
+      "archimate_category": "Structural",
       "source_id": "intent-qwenpaw-platform",
       "target_id": "intent-backend-runtime",
       "source_name": "QwenPaw Platform",
@@ -335,7 +387,8 @@
     {
       "id": "rel-backend-security-audit-foundation",
       "statement": "Local Security Audit Foundation is part of Backend Runtime.",
-      "name": "composition",
+      "name": "Composition",
+      "archimate_category": "Structural",
       "source_id": "intent-backend-runtime",
       "target_id": "intent-local-security-audit-foundation",
       "source_name": "Backend Runtime",
@@ -344,7 +397,8 @@
     {
       "id": "rel-backend-security-schema-contract",
       "statement": "Security Schema Contract is part of Backend Runtime.",
-      "name": "composition",
+      "name": "Composition",
+      "archimate_category": "Structural",
       "source_id": "intent-backend-runtime",
       "target_id": "intent-security-schema-contract",
       "source_name": "Backend Runtime",
@@ -353,7 +407,8 @@
     {
       "id": "rel-audit-foundation-security-context",
       "statement": "Local Security Audit Foundation standardizes the Security Context carried across trust-sensitive runtime boundaries.",
-      "name": "association",
+      "name": "Association",
+      "archimate_category": "Other",
       "source_id": "intent-local-security-audit-foundation",
       "target_id": "intent-security-context",
       "source_name": "Local Security Audit Foundation",
@@ -362,7 +417,8 @@
     {
       "id": "rel-audit-foundation-implicit-context-manager",
       "statement": "Local Security Audit Foundation relies on the Implicit Security Context Manager to preserve identity across async and message-dispatch boundaries.",
-      "name": "association",
+      "name": "Association",
+      "archimate_category": "Other",
       "source_id": "intent-local-security-audit-foundation",
       "target_id": "intent-implicit-security-context-manager",
       "source_name": "Local Security Audit Foundation",
@@ -371,7 +427,8 @@
     {
       "id": "rel-audit-foundation-audit-event",
       "statement": "Local Security Audit Foundation persists and verifies Audit Event records as its canonical tamper-evident ledger payload.",
-      "name": "association",
+      "name": "Association",
+      "archimate_category": "Other",
       "source_id": "intent-local-security-audit-foundation",
       "target_id": "intent-audit-event",
       "source_name": "Local Security Audit Foundation",
@@ -380,7 +437,8 @@
     {
       "id": "rel-audit-foundation-checkpoint-anchor",
       "statement": "Local Security Audit Foundation anchors audit continuity through the Audit Checkpoint Anchor so tail truncation remains detectable after restart.",
-      "name": "association",
+      "name": "Association",
+      "archimate_category": "Other",
       "source_id": "intent-local-security-audit-foundation",
       "target_id": "intent-audit-checkpoint-anchor",
       "source_name": "Local Security Audit Foundation",
@@ -389,7 +447,8 @@
     {
       "id": "rel-audit-foundation-tiered-stream",
       "statement": "Local Security Audit Foundation uses the Tiered Audit Stream to separate synchronous critical durability from asynchronous informational batching.",
-      "name": "association",
+      "name": "Association",
+      "archimate_category": "Other",
       "source_id": "intent-local-security-audit-foundation",
       "target_id": "intent-tiered-audit-stream",
       "source_name": "Local Security Audit Foundation",
@@ -398,7 +457,8 @@
     {
       "id": "rel-audit-foundation-high-risk-tool-guard",
       "statement": "Local Security Audit Foundation uses High Risk Tool Guard to block high-risk tool execution until explicit user confirmation is durably recorded.",
-      "name": "association",
+      "name": "Association",
+      "archimate_category": "Other",
       "source_id": "intent-local-security-audit-foundation",
       "target_id": "intent-high-risk-tool-guard",
       "source_name": "Local Security Audit Foundation",
@@ -407,7 +467,8 @@
     {
       "id": "rel-high-risk-tool-guard-audit-event",
       "statement": "High Risk Tool Guard persists USER_CONFIRMATION audit events through the canonical Audit Event schema before releasing execution.",
-      "name": "association",
+      "name": "Association",
+      "archimate_category": "Other",
       "source_id": "intent-high-risk-tool-guard",
       "target_id": "intent-audit-event",
       "source_name": "High Risk Tool Guard",
@@ -415,26 +476,29 @@
     },
     {
       "id": "rel-uplink-manager-foundation",
-      "statement": "Audit Uplink Manager depends on Local Security Audit Foundation for reading the local tamper-evident ledger and anchored tail state.",
-      "name": "dependency",
-      "source_id": "intent-audit-uplink-manager",
-      "target_id": "intent-local-security-audit-foundation",
-      "source_name": "Audit Uplink Manager",
-      "target_name": "Local Security Audit Foundation"
+      "statement": "Local Security Audit Foundation serves Audit Uplink Manager by exposing the local tamper-evident ledger and anchored tail state needed for uplink coordination.",
+      "name": "Serving",
+      "archimate_category": "Dependency",
+      "source_id": "intent-local-security-audit-foundation",
+      "target_id": "intent-audit-uplink-manager",
+      "source_name": "Local Security Audit Foundation",
+      "target_name": "Audit Uplink Manager"
     },
     {
       "id": "rel-uplink-manager-heartbeat-emitter",
-      "statement": "Audit Uplink Manager depends on Heartbeat Emitter to publish periodic lease heartbeats based on the local audit tail state.",
-      "name": "dependency",
-      "source_id": "intent-audit-uplink-manager",
-      "target_id": "intent-heartbeat-emitter",
-      "source_name": "Audit Uplink Manager",
-      "target_name": "Heartbeat Emitter"
+      "statement": "Heartbeat Emitter serves Audit Uplink Manager by publishing periodic lease heartbeats derived from the local audit tail state.",
+      "name": "Serving",
+      "archimate_category": "Dependency",
+      "source_id": "intent-heartbeat-emitter",
+      "target_id": "intent-audit-uplink-manager",
+      "source_name": "Heartbeat Emitter",
+      "target_name": "Audit Uplink Manager"
     },
     {
       "id": "rel-heartbeat-emitter-audit-event",
       "statement": "Heartbeat Emitter reads the current Audit Event tail to publish EventID and GlobalHash as lease heartbeat state.",
-      "name": "association",
+      "name": "Association",
+      "archimate_category": "Other",
       "source_id": "intent-heartbeat-emitter",
       "target_id": "intent-audit-event",
       "source_name": "Heartbeat Emitter",
@@ -442,17 +506,19 @@
     },
     {
       "id": "rel-uplink-manager-uplink-service",
-      "statement": "Audit Uplink Manager depends on Audit Uplink Service to perform the actual secure transport toward the cloud-side security hub.",
-      "name": "dependency",
-      "source_id": "intent-audit-uplink-manager",
-      "target_id": "intent-audit-uplink-service",
-      "source_name": "Audit Uplink Manager",
-      "target_name": "Audit Uplink Service"
+      "statement": "Audit Uplink Service serves Audit Uplink Manager by performing the secure transport toward the cloud-side security hub.",
+      "name": "Serving",
+      "archimate_category": "Dependency",
+      "source_id": "intent-audit-uplink-service",
+      "target_id": "intent-audit-uplink-manager",
+      "source_name": "Audit Uplink Service",
+      "target_name": "Audit Uplink Manager"
     },
     {
       "id": "rel-uplink-manager-platform",
       "statement": "Audit Uplink Manager serves QwenPaw Platform by providing outward audit transparency and remote integrity mirroring status.",
-      "name": "serving",
+      "name": "Serving",
+      "archimate_category": "Dependency",
       "source_id": "intent-audit-uplink-manager",
       "target_id": "intent-qwenpaw-platform",
       "source_name": "Audit Uplink Manager",
@@ -461,7 +527,8 @@
     {
       "id": "rel-heartbeat-emitter-security-center",
       "statement": "Heartbeat Emitter serves Security Center by periodically sending client identity, latest EventID, and GlobalHash as a lease heartbeat.",
-      "name": "serving",
+      "name": "Serving",
+      "archimate_category": "Dependency",
       "source_id": "intent-heartbeat-emitter",
       "target_id": "intent-security-center",
       "source_name": "Heartbeat Emitter",
@@ -470,7 +537,8 @@
     {
       "id": "rel-uplink-service-security-center",
       "statement": "Audit Uplink Service serves Security Center by delivering encrypted L1 audit summaries and critical anchors from the edge node.",
-      "name": "serving",
+      "name": "Serving",
+      "archimate_category": "Dependency",
       "source_id": "intent-audit-uplink-service",
       "target_id": "intent-security-center",
       "source_name": "Audit Uplink Service",
@@ -479,7 +547,8 @@
     {
       "id": "rel-platform-security-center",
       "statement": "Security Center is part of the QwenPaw Platform's cloud-edge security collaboration model.",
-      "name": "composition",
+      "name": "Composition",
+      "archimate_category": "Structural",
       "source_id": "intent-qwenpaw-platform",
       "target_id": "intent-security-center",
       "source_name": "QwenPaw Platform",
@@ -488,7 +557,8 @@
     {
       "id": "rel-security-center-lease-monitor",
       "statement": "Audit Lease Monitor is part of Security Center as the component that tracks client TTL expiry and UNTRUSTED status.",
-      "name": "composition",
+      "name": "Composition",
+      "archimate_category": "Structural",
       "source_id": "intent-security-center",
       "target_id": "intent-audit-lease-monitor",
       "source_name": "Security Center",
@@ -497,7 +567,8 @@
     {
       "id": "rel-security-center-cloud-stub",
       "statement": "Cloud Integrity Stub is part of Security Center as the per-client shadow-chain verifier used in the DEMO.",
-      "name": "composition",
+      "name": "Composition",
+      "archimate_category": "Structural",
       "source_id": "intent-security-center",
       "target_id": "intent-cloud-integrity-stub",
       "source_name": "Security Center",
@@ -506,7 +577,8 @@
     {
       "id": "rel-lease-monitor-cloud-stub",
       "statement": "Audit Lease Monitor coordinates with Cloud Integrity Stub to require full-gap validation before an UNTRUSTED client can recover trusted status.",
-      "name": "association",
+      "name": "Association",
+      "archimate_category": "Other",
       "source_id": "intent-audit-lease-monitor",
       "target_id": "intent-cloud-integrity-stub",
       "source_name": "Audit Lease Monitor",
@@ -515,7 +587,8 @@
     {
       "id": "rel-security-schema-contract-audit-event",
       "statement": "Security Schema Contract fixes the canonical Audit Event hashing and serialization rules shared across edge and cloud verification.",
-      "name": "association",
+      "name": "Association",
+      "archimate_category": "Other",
       "source_id": "intent-security-schema-contract",
       "target_id": "intent-audit-event",
       "source_name": "Security Schema Contract",
@@ -523,8 +596,9 @@
     },
     {
       "id": "rel-uplink-service-security-schema-contract",
-      "statement": "Audit Uplink Service depends on Security Schema Contract so transport payloads use the exact canonical hashing and field-order semantics expected by verification.",
-      "name": "dependency",
+      "statement": "Audit Uplink Service is associated with Security Schema Contract so transport payloads use the exact canonical hashing and field-order semantics expected by verification.",
+      "name": "Association",
+      "archimate_category": "Other",
       "source_id": "intent-audit-uplink-service",
       "target_id": "intent-security-schema-contract",
       "source_name": "Audit Uplink Service",
@@ -532,8 +606,9 @@
     },
     {
       "id": "rel-security-center-security-schema-contract",
-      "statement": "Security Center depends on Security Schema Contract so cloud-side mirroring and alerting validate the same canonical payload semantics as the edge node.",
-      "name": "dependency",
+      "statement": "Security Center is associated with Security Schema Contract so cloud-side mirroring and alerting validate the same canonical payload semantics as the edge node.",
+      "name": "Association",
+      "archimate_category": "Other",
       "source_id": "intent-security-center",
       "target_id": "intent-security-schema-contract",
       "source_name": "Security Center",
@@ -542,7 +617,8 @@
     {
       "id": "rel-uplink-manager-cloud-stub",
       "statement": "Audit Uplink Manager associates with Cloud Integrity Stub over the cross-boundary uplink path used for hash alignment and critical-audit mirroring.",
-      "name": "association",
+      "name": "Association",
+      "archimate_category": "Other",
       "source_id": "intent-audit-uplink-manager",
       "target_id": "intent-cloud-integrity-stub",
       "source_name": "Audit Uplink Manager",
@@ -551,7 +627,8 @@
     {
       "id": "rel-platform-cli",
       "statement": "Local Operator CLI is part of QwenPaw Platform.",
-      "name": "composition",
+      "name": "Composition",
+      "archimate_category": "Structural",
       "source_id": "intent-qwenpaw-platform",
       "target_id": "intent-local-operator-cli",
       "source_name": "QwenPaw Platform",
@@ -560,7 +637,8 @@
     {
       "id": "rel-platform-console",
       "statement": "Console Frontend is part of QwenPaw Platform.",
-      "name": "composition",
+      "name": "Composition",
+      "archimate_category": "Structural",
       "source_id": "intent-qwenpaw-platform",
       "target_id": "intent-console-frontend",
       "source_name": "QwenPaw Platform",
@@ -569,7 +647,8 @@
     {
       "id": "rel-platform-website",
       "statement": "Docs Website is part of QwenPaw Platform.",
-      "name": "composition",
+      "name": "Composition",
+      "archimate_category": "Structural",
       "source_id": "intent-qwenpaw-platform",
       "target_id": "intent-docs-website",
       "source_name": "QwenPaw Platform",
@@ -578,7 +657,8 @@
     {
       "id": "rel-platform-validator",
       "statement": "Architecture Validator Assets support QwenPaw Platform governance.",
-      "name": "association",
+      "name": "Association",
+      "archimate_category": "Other",
       "source_id": "intent-architecture-validator",
       "target_id": "intent-qwenpaw-platform",
       "source_name": "Architecture Validator Assets",
@@ -586,26 +666,29 @@
     },
     {
       "id": "rel-cli-backend",
-      "statement": "Local Operator CLI depends on Backend Runtime services and helpers.",
-      "name": "serving",
-      "source_id": "intent-local-operator-cli",
-      "target_id": "intent-backend-runtime",
-      "source_name": "Local Operator CLI",
-      "target_name": "Backend Runtime"
+      "statement": "Backend Runtime serves Local Operator CLI through shared runtime services and helpers.",
+      "name": "Serving",
+      "archimate_category": "Dependency",
+      "source_id": "intent-backend-runtime",
+      "target_id": "intent-local-operator-cli",
+      "source_name": "Backend Runtime",
+      "target_name": "Local Operator CLI"
     },
     {
       "id": "rel-console-backend",
-      "statement": "Console Frontend consumes Backend Runtime APIs.",
-      "name": "serving",
-      "source_id": "intent-console-frontend",
-      "target_id": "intent-backend-runtime",
-      "source_name": "Console Frontend",
-      "target_name": "Backend Runtime"
+      "statement": "Backend Runtime serves Console Frontend through repository-owned APIs.",
+      "name": "Serving",
+      "archimate_category": "Dependency",
+      "source_id": "intent-backend-runtime",
+      "target_id": "intent-console-frontend",
+      "source_name": "Backend Runtime",
+      "target_name": "Console Frontend"
     },
     {
       "id": "rel-website-platform",
       "statement": "Docs Website describes and publishes QwenPaw Platform capabilities.",
-      "name": "association",
+      "name": "Association",
+      "archimate_category": "Other",
       "source_id": "intent-docs-website",
       "target_id": "intent-qwenpaw-platform",
       "source_name": "Docs Website",
