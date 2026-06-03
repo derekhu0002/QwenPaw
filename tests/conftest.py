@@ -19,7 +19,10 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from qwenpaw.providers import provider_manager as _provider_manager_module
+REPO_ROOT = Path(__file__).resolve().parent.parent
+SRC_ROOT = REPO_ROOT / "src"
+if str(SRC_ROOT) not in sys.path:
+    sys.path.insert(0, str(SRC_ROOT))
 
 # =============================================================================
 # Third-Party Library Mocks
@@ -27,7 +30,10 @@ from qwenpaw.providers import provider_manager as _provider_manager_module
 # Mock missing third-party libraries before any imports
 _MISSING_MODULES = {
     "aibot",  # WeCom AI Bot SDK
+    "agentscope",
+    "agentscope.model",
     "lark_oapi",  # Feishu Lark SDK
+    "shortuuid",
 }
 
 for _module in _MISSING_MODULES:
@@ -447,9 +453,14 @@ def isolated_secret_dir(monkeypatch, tmp_path):
     a fresh ProviderManager singleton.
     """
     secret_dir = tmp_path / ".qwenpaw.secret"
-    monkeypatch.setattr(_provider_manager_module, "SECRET_DIR", secret_dir)
+    try:
+        from qwenpaw.providers import provider_manager as provider_manager_module
+    except Exception:
+        return secret_dir
+
+    monkeypatch.setattr(provider_manager_module, "SECRET_DIR", secret_dir)
     monkeypatch.setattr(
-        _provider_manager_module.ProviderManager,
+        provider_manager_module.ProviderManager,
         "_instance",
         None,
     )

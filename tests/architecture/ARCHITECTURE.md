@@ -10,18 +10,58 @@ element_path: tests/architecture
 ## Implementation Architecture Contract
 
 ### Responsibility
-- Hold critical non-explicit tests that guard architecture-deliverable traceability and validator bootstrap integrity.
+- Hold critical non-explicit tests that guard architecture-deliverable traceability, validator bootstrap integrity, the new security audit boundary, and explicit-entrypoint traceability.
 
 ### Children
+- path: root-architecture-contracts.test.js
+  kind: critical-non-explicit-test
+  role: verifies that the root contract and required local contracts remain present and referenced
+- path: root-architecture-deliverables.test.js
+  kind: critical-non-explicit-test
+  role: verifies that the expected architecture deliverables exist at stable repository paths
 - path: validator-bootstrap-traceability.test.js
   kind: critical-non-explicit-test
   role: verifies the root npm validation scripts still point to the bundled validator assets and required schema files
-- path: root-architecture-deliverables.test.js
+- path: security-audit-contract-boundaries.test.js
   kind: critical-non-explicit-test
-  role: verifies the root architecture contracts and handoff assets exist at their declared stable paths
+  role: verifies the new security contract, explicit-entrypoint-zone contract, and protected harness files stay wired together
+- path: security-explicit-entrypoint-traceability.test.js
+  kind: critical-non-explicit-test
+  role: verifies `sec-e2e-024` remains mounted to the declared explicit entrypoint, keeps its runtime-inspection shape, and preserves failure-record traceability
 
 ### Test Guardrails
 #### critical_non_explicit_tests
+- test_id: root-architecture-contracts
+  critical_kind: implementation-traceability
+  test_path: root-architecture-contracts.test.js
+  execution_entry: root-architecture-contracts.test.js
+  guards_elements:
+    - ../../OVERALL_ARCHITECTURE.md
+    - ../../src/qwenpaw/ARCHITECTURE.md
+    - ../../src/qwenpaw/security/ARCHITECTURE.md
+    - ../../tests/ARCHITECTURE.md
+    - ../../tests/integration/security/ARCHITECTURE.md
+  protected_baselines:
+    - ARCHITECTURE.md
+    - ../../OVERALL_ARCHITECTURE.md
+    - ../../src/qwenpaw/security/ARCHITECTURE.md
+  rationale: keep root-to-local contract references aligned after the security audit boundary is frozen
+  frozen_by_stage: implementationdesign
+- test_id: root-architecture-deliverables-presence
+  critical_kind: implementation-traceability
+  test_path: root-architecture-deliverables.test.js
+  execution_entry: root-architecture-deliverables.test.js
+  guards_elements:
+    - ../../OVERALL_ARCHITECTURE.md
+    - ../../design/KG/SystemArchitecture.json
+    - ../../design/KG/IntentToImplementationHandoff.json
+    - ../../design/KG/ImplementationToCodingHandoff.json
+    - ../../design/KG/test-failure-records.json
+  protected_baselines:
+    - ARCHITECTURE.md
+    - ../../OVERALL_ARCHITECTURE.md
+  rationale: keep the root architecture delivery set present at stable repository paths once implementation design has materialized it
+  frozen_by_stage: implementationdesign
 - test_id: validator-bootstrap-traceability
   critical_kind: implementation-traceability
   test_path: validator-bootstrap-traceability.test.js
@@ -33,17 +73,32 @@ element_path: tests/architecture
     - ../../.github/validator/ARCHITECTURE.md
   rationale: keep validator bootstrap assets and root npm script wiring traceable to the declared architecture boundary
   frozen_by_stage: implementationdesign
-- test_id: root-architecture-deliverables-presence
-  critical_kind: implementation-traceability
-  test_path: root-architecture-deliverables.test.js
-  execution_entry: root-architecture-deliverables.test.js
+- test_id: security-audit-contract-boundaries
+  critical_kind: architecture-boundary
+  test_path: security-audit-contract-boundaries.test.js
+  execution_entry: security-audit-contract-boundaries.test.js
   guards_elements:
-    - ../../OVERALL_ARCHITECTURE.md
-    - ../../design/KG/SystemArchitecture.json
-    - ../../design/KG/IntentToImplementationHandoff.json
-    - ../../design/KG/ImplementationToCodingHandoff.json
+    - ../../src/qwenpaw/security/ARCHITECTURE.md
+    - ../../tests/integration/security/ARCHITECTURE.md
+    - ../../tests/integration/security/test_audit_foundation.py
   protected_baselines:
     - ARCHITECTURE.md
-    - ../../OVERALL_ARCHITECTURE.md
-  rationale: keep the root architecture delivery set present at stable repository paths once implementation design has materialized it
+    - ../../src/qwenpaw/security/ARCHITECTURE.md
+    - ../../tests/integration/security/harness.py
+    - ../../tests/integration/security/test_audit_foundation.py
+  rationale: keep the sec-e2e-024 owning security boundary and its explicit entrypoint zone stable while implementation moves underneath
+  frozen_by_stage: implementationdesign
+- test_id: security-explicit-entrypoint-traceability
+  critical_kind: explicit-entrypoint-correctness
+  test_path: security-explicit-entrypoint-traceability.test.js
+  execution_entry: security-explicit-entrypoint-traceability.test.js
+  guards_elements:
+    - ../../design/KG/SystemArchitecture.json
+    - ../../design/KG/ImplementationToCodingHandoff.json
+    - ../../design/KG/test-failure-records.json
+  protected_baselines:
+    - ARCHITECTURE.md
+    - ../../tests/integration/security/test_audit_foundation.py
+    - ../../tests/integration/security/harness.py
+  rationale: keep sec-e2e-024 pointed at one read-only entrypoint, freeze the runtime-inspection assertions that make the testcase harder to bypass, and preserve the first expected-failure signal handed to Coding/Repair
   frozen_by_stage: implementationdesign

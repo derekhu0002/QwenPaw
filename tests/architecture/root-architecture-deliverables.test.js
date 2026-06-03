@@ -7,13 +7,18 @@ const repoRoot = path.resolve(__dirname, '..', '..');
 const REQUIRED_PATHS = [
     'OVERALL_ARCHITECTURE.md',
     'src/qwenpaw/ARCHITECTURE.md',
+    'src/qwenpaw/security/ARCHITECTURE.md',
     'console/ARCHITECTURE.md',
     'website/ARCHITECTURE.md',
     'tests/ARCHITECTURE.md',
     'tests/architecture/ARCHITECTURE.md',
+    'tests/integration/security/ARCHITECTURE.md',
+    'tests/integration/security/test_audit_foundation.py',
+    'tests/integration/security/harness.py',
     'design/KG/SystemArchitecture.json',
     'design/KG/IntentToImplementationHandoff.json',
     'design/KG/ImplementationToCodingHandoff.json',
+    'design/KG/test-failure-records.json',
 ];
 
 function main() {

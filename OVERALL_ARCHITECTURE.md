@@ -1,9 +1,9 @@
 # Overall Implementation Architecture
 
 ## Scope
-- Define the stable implementation elements that currently realize QwenPaw in this repository.
-- Anchor current-state implementation boundaries for backend runtime, CLI, console, website, test ownership, and validator assets.
-- Materialize the current explicit testcase entrypoints already present in the repository without inventing new product scope.
+- Freeze the stable implementation boundaries that currently realize QwenPaw in this repository.
+- Materialize the `sec-e2e-024` explicit acceptance entrypoint as a repository-owned, read-only testcase file plus its harness abstractions.
+- Record where intent is already directly implemented, where current code only provides transitional evidence, and which gaps are intentionally handed to Coding/Repair.
 
 ## Stable Elements
 - path: src/qwenpaw
@@ -11,14 +11,22 @@
   implements:
     - intent-backend-runtime
   contract: src/qwenpaw/ARCHITECTURE.md
-  role: Python runtime root that owns API routers, agents, channels, config, security, providers, and shared utilities.
+  role: Python runtime root that owns backend orchestration, channel/runtime glue, packaged CLI surfaces, and the stable child security boundary.
+
+- path: src/qwenpaw/security
+  kind: SecurityAuditFoundation
+  implements:
+    - intent-local-security-audit-foundation
+    - intent-high-risk-tool-guard
+  contract: src/qwenpaw/security/ARCHITECTURE.md
+  role: Stable backend-owned boundary for trusted security context provenance, high-risk confirmation evidence, local audit-chain semantics, and the local projection/query seam consumed by `sec-e2e-024`.
 
 - path: src/qwenpaw/cli
   kind: OperatorCli
   implements:
     - intent-local-operator-cli
   contract: src/qwenpaw/cli/ARCHITECTURE.md
-  role: Local operator command surface mounted under the qwenpaw entrypoint.
+  role: Local operator command surface mounted under the `qwenpaw` entrypoint.
 
 - path: console
   kind: OperatorConsole
@@ -37,7 +45,12 @@
 - path: tests
   kind: VerificationSuite
   contract: tests/ARCHITECTURE.md
-  role: Physical owner of explicit testcase entrypoints and architecture guardrail tests.
+  role: Physical owner of explicit testcase entrypoints, business-readable security harnesses, and architecture guardrail tests.
+
+- path: tests/integration/security
+  kind: ExplicitSecurityEntrypointZone
+  contract: tests/integration/security/ARCHITECTURE.md
+  role: Read-only explicit security acceptance entrypoints and harness abstractions whose bodies are written for business readability rather than plumbing detail.
 
 - path: .github/validator
   kind: BootstrapAssetZone
@@ -47,10 +60,19 @@
   role: Schema and handoff validator scripts invoked by repository-native npm validation commands.
 
 ## Dependency Direction
-- src/qwenpaw/cli depends inward on stable runtime/config surfaces in src/qwenpaw and does not own backend orchestration state.
-- console and website consume runtime-facing APIs and static assets but runtime code does not depend on frontend implementation details.
-- tests depend on stable implementation interfaces and contracts; production code must not depend on tests.
-- .github/validator validates design assets and handoffs but does not own product behavior.
+- `src/qwenpaw/app`, channels, and runner glue may capture transport/session metadata, but `src/qwenpaw/security` owns the stable semantics for trusted provenance, confirmation evidence, and audit continuity. Transport layers must not redefine the acceptance boundary for `sec-e2e-024`.
+- `src/qwenpaw/security` must not depend on `console` or `website` implementation details.
+- `src/qwenpaw/cli` depends inward on stable runtime and config surfaces in `src/qwenpaw` and does not own backend orchestration state.
+- `tests` and `tests/integration/security` may observe all stable elements through declared seams; production code must not depend on test modules.
+- `.github/validator` validates design assets and testcase execution wiring but does not own product behavior.
+
+## Intent Realization Mapping
+- direct implementation: `src/qwenpaw` realizes `intent-backend-runtime`.
+- direct implementation: `src/qwenpaw/security` realizes `intent-local-security-audit-foundation` and its child `intent-high-risk-tool-guard`.
+- indirect implementation chain: `src/qwenpaw/app/agent_context.py` provides current contextvars evidence for `intent-implicit-security-context-manager` under the owning `src/qwenpaw/security` contract.
+- indirect implementation chain: `src/qwenpaw/app/approvals/service.py` provides current approval-routing evidence that must be converged into durable confirmation evidence under the owning `src/qwenpaw/security` contract.
+- indirect implementation chain: `src/qwenpaw/app/inbox_trace_store.py` provides append-only trace evidence that must be converged into canonical audit-chain projection under the owning `src/qwenpaw/security` contract.
+- direct testcase materialization: `tests/integration/security/test_audit_foundation.py::test_end_to_end_non_repudiation_evidence_chain` is the single read-only explicit entrypoint for `sec-e2e-024-end-to-end-non-repudiation-evidence-chain`.
 
 ## Explicit Testcase Materialization
 - testcase: cli-version-surface
@@ -73,65 +95,35 @@
   intent_element: intent-backend-runtime
   entrypoint: tests/unit/routers/test_git.py::test_git_helper_uses_shared_command_runner
 
+- testcase: sec-e2e-024-end-to-end-non-repudiation-evidence-chain
+  intent_element: intent-local-security-audit-foundation
+  entrypoint: tests/integration/security/test_audit_foundation.py::test_end_to_end_non_repudiation_evidence_chain
+
 ## Critical Non-Explicit Guardrails
-- tests/architecture/root-architecture-contracts.test.js guards the presence and traceability of the current root architecture deliverables.
-- tests/architecture/validator-bootstrap-traceability.test.js guards the wiring between package.json validation commands and bundled validator assets.
+- tests/architecture/root-architecture-contracts.test.js guards the presence and cross-reference integrity of the root contracts, including the new security contracts.
+- tests/architecture/root-architecture-deliverables.test.js guards that the expected architecture deliverables exist at stable repository paths.
+- tests/architecture/validator-bootstrap-traceability.test.js guards the wiring between `package.json` validation commands and bundled validator assets.
+- tests/architecture/security-audit-contract-boundaries.test.js guards the frozen boundary between `src/qwenpaw/security`, the explicit security entrypoint zone, and the root/runtime/test contracts that reference them.
+- tests/architecture/security-explicit-entrypoint-traceability.test.js guards that `sec-e2e-024` stays mounted to the read-only explicit entrypoint and that the implementation handoff keeps the same path plus initial failure traceability.
 
 ## Frozen Files For Downstream Coding
 - design/KG/SystemArchitecture.json
 - design/KG/IntentToImplementationHandoff.json
 - design/KG/ImplementationToCodingHandoff.json
+- design/KG/test-failure-records.json
 - OVERALL_ARCHITECTURE.md
 - src/qwenpaw/ARCHITECTURE.md
+- src/qwenpaw/security/ARCHITECTURE.md
 - src/qwenpaw/cli/ARCHITECTURE.md
 - console/ARCHITECTURE.md
 - website/ARCHITECTURE.md
 - tests/ARCHITECTURE.md
-- .github/validator/ARCHITECTURE.md# Overall Architecture
-
-## Scope
-
-This contract defines the stable implementation architecture elements that realize the current QwenPaw repository. It is derived from the present repository layout and existing executable entrypoints rather than from a separate external design source.
-
-## Stable Elements
-
-- `src/qwenpaw`
-  - Owns the Python product runtime, including API routers, agent runtime, channel orchestration, configuration, providers, security, and the packaged CLI surface.
-  - Implements intent elements `intent-backend-runtime` and `intent-operator-cli`.
-- `console`
-  - Owns the operator-facing web console and bundled Tauri shell assets.
-  - Implements intent element `intent-console-surface`.
-- `website`
-  - Owns the external documentation and adoption-facing website.
-  - Implements intent element `intent-adoption-website`.
-- `tests`
-  - Owns explicit testcase entrypoints and implementation-side verification assets.
-  - Implements repository verification ownership for the runtime, CLI surface, and architecture guardrails.
-- `.github/validator`
-  - Owns schema and stage-handoff validation shims exposed by the root npm scripts.
-  - Implements intent element `intent-architecture-validator`.
-
-## Dependency Direction
-
-- `console` and `website` may depend on backend contracts and assets, but backend runtime code must not depend on frontend implementation details.
-- `tests` may observe all stable elements but must not become a hidden execution dependency of product runtime modules.
-- `.github/validator` constrains architecture artifact validity and explicit testcase execution wiring; business runtime code does not depend on validator internals.
-
-## Test Ownership
-
-- Explicit acceptance entrypoints are currently mounted in existing lightweight pytest cases under `tests/unit/cli` and `tests/unit/routers`.
-- Critical non-explicit architecture guardrails live under `tests/architecture` and protect the presence and traceability of architecture deliverables and validator shims.
-- Stable local contracts are:
-  - `src/qwenpaw/ARCHITECTURE.md`
-  - `console/ARCHITECTURE.md`
-  - `website/ARCHITECTURE.md`
-  - `tests/ARCHITECTURE.md`
-  - `tests/architecture/ARCHITECTURE.md`
-  - `.github/validator/ARCHITECTURE.md`
-
-## Current Boundaries
-
-- The Python runtime in `src/qwenpaw` is the single stable backend execution surface for API, agent, channel, and CLI behavior.
-- `console` is the stable operator UI boundary.
-- `website` is the stable external-facing content boundary.
-- Architecture validation is routed through root npm scripts and implemented by `.github/validator/script`.
+- tests/architecture/ARCHITECTURE.md
+- tests/integration/security/ARCHITECTURE.md
+- tests/integration/security/harness.py
+- tests/integration/security/test_audit_foundation.py
+- tests/architecture/root-architecture-contracts.test.js
+- tests/architecture/root-architecture-deliverables.test.js
+- tests/architecture/security-audit-contract-boundaries.test.js
+- tests/architecture/security-explicit-entrypoint-traceability.test.js
+- .github/validator/ARCHITECTURE.md

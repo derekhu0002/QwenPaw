@@ -1,0 +1,1 @@
+"""Security acceptance entrypoint package."""

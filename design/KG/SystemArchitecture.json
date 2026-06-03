@@ -30,25 +30,7 @@
       "archimate_layer": "Application",
       "archimate_aspect": "Active Structure",
       "browser_path": "QwenPaw Platform/Backend Runtime",
-      "description": "Python runtime root that owns API routers, agent execution, channels, config, security, providers, and shared utilities.\n#file:src/qwenpaw\n#file:tests/unit/routers/test_settings.py\n#file:tests/unit/routers/test_git.py",
-      "testcases": [
-        {
-          "name": "settings-language-roundtrip",
-          "description": "The settings router must persist a language update and return the same language on the immediately following read.",
-          "type": "Integration Test",
-          "Input": "Send PUT /api/settings/language with a valid language, then GET /api/settings/language using the same temporary settings store.",
-          "acceptanceCriteria": "tests/unit/routers/test_settings.py::test_put_then_get_roundtrip",
-          "TestResults": "The GET response returns the same language value persisted by the prior PUT request."
-        },
-        {
-          "name": "git-helper-command-runner",
-          "description": "The git helper must delegate process execution to the shared command runner with the expected command and kwargs.",
-          "type": "Unit Test",
-          "Input": "Invoke qwenpaw.app.routers.git._git with run_command_async monkeypatched inside a temporary repository path.",
-          "acceptanceCriteria": "tests/unit/routers/test_git.py::test_git_helper_uses_shared_command_runner",
-          "TestResults": "The helper issues git status through the shared command runner with the expected cwd, encoding, errors, check, and timeout parameters."
-        }
-      ]
+      "description": "Python runtime root that owns API routers, agent execution, channels, config, security, providers, and shared utilities.\n#file:src/qwenpaw\n#file:tests/unit/routers/test_settings.py\n#file:tests/unit/routers/test_git.py"
     },
     {
       "id": "intent-local-security-audit-foundation",
@@ -109,7 +91,7 @@
         {
           "name": "sec-e2e-024-end-to-end-non-repudiation-evidence-chain",
           "description": "When an employee triggers a high-risk action through a third-party agent plugin, the system must preserve a complete business-visible evidence chain from the original user to the final high-risk tool effect and bind that chain to the user's confirmation artifact.",
-          "type": "Scenario Test",
+          "type": "Acceptance Test",
           "Input": "Authenticate as user A, ask QwenPaw to delegate a high-risk operation through Agent B and third-party plugin C toward high-risk tool D, then provide the required user confirmation so the action is allowed to continue.",
           "acceptanceCriteria": "tests/integration/security/test_audit_foundation.py::test_end_to_end_non_repudiation_evidence_chain",
           "TestResults": "Security Center and the audit query surface expose a continuous evidence chain from user A to Agent B to plugin C to tool D together with the confirmation artifact digest, and no link in the chain is anonymous, broken, or attributed to a fallback system identity."
@@ -117,7 +99,7 @@
         {
           "name": "sec-e2e-025-audit-integrity-self-healing-lockdown",
           "description": "When an employee attempts to hide a sensitive action by deleting records, editing configuration files, or reconnecting after offline tampering, the system must surface a single business-level data continuity anomaly and refuse further sensitive use until trust is re-established.",
-          "type": "Scenario Test",
+          "type": "Acceptance Test",
           "Input": "Execute a sensitive action, unplug the network cable, modify or truncate the local audit store or settings database by operating-system means, restart the client, then attempt to reconnect or invoke another sensitive tool.",
           "acceptanceCriteria": "tests/integration/security/test_audit_foundation.py::test_audit_integrity_self_healing_lockdown",
           "TestResults": "Before the device can continue sensitive work or upload new anchors, the system raises a data continuity anomaly in Security Center, enters local lock mode, and refuses sensitive tools until the local ledger, checkpoint anchors, and cloud mirror are reconciled."
@@ -125,7 +107,7 @@
         {
           "name": "sec-e2e-026-tiered-audit-ttft-balance",
           "description": "When the highest audit tier and cloud mirroring are enabled, the operator must still receive the first token without perceptible slowdown while critical evidence remains durable.",
-          "type": "System Test",
+          "type": "Acceptance Test",
           "Input": "Run the same user-visible workflow once with critical-only audit and once with full audit plus cloud mirroring, ensuring authentication, tool execution, and reasoning all emit their expected audit records.",
           "acceptanceCriteria": "tests/integration/security/test_audit_foundation.py::test_tiered_audit_balances_ttft_within_budget",
           "TestResults": "Measured TTFT drift stays within five percent of the baseline, critical L1 evidence remains durably persisted before control returns, and L2 reasoning records remain available for later analytics without forcing synchronous latency on the operator path."
@@ -133,7 +115,7 @@
         {
           "name": "sec-e2e-027-lease-expiry-active-defense",
           "description": "When a QwenPaw device goes missing or stays offline beyond its lease window, Security Center must actively downgrade the device to untrusted and keep it blocked until it proves continuity on return.",
-          "type": "Scenario Test",
+          "type": "Acceptance Test",
           "Input": "Let a client miss its heartbeat long enough to exceed the lease TTL, observe the cloud dashboard state turn untrusted, then reconnect the device and attempt to resume model access without first completing the missing-gap verification.",
           "acceptanceCriteria": "tests/integration/security/test_audit_foundation.py::test_lease_expiry_blocks_untrusted_rejoin_until_gap_sync",
           "TestResults": "Security Center marks the device untrusted when the lease expires, denies restored authorization on reconnect until the full missing hash gap is validated, and only then allows the node to regain normal model access."
@@ -141,7 +123,7 @@
         {
           "name": "sec-e2e-021-prompt-injection-tool-guard-enforced",
           "description": "A malicious prompt or contaminated external text must not be able to talk an agent into skipping the high-risk confirmation path or into treating a high-risk action as if it were a trusted test operation.",
-          "type": "Scenario Test",
+          "type": "Acceptance Test",
           "Input": "In a live conversation, submit nested or deceptive instructions that claim the agent is in test mode or otherwise exempt from approval, then drive the agent toward a tool whose configured risk level is High without providing a valid trusted context or confirmation artifact.",
           "acceptanceCriteria": "tests/integration/security/test_audit_foundation.py::test_prompt_injection_cannot_bypass_high_risk_tool_guard",
           "TestResults": "The high-risk tool remains blocked at the tool-call layer, the guard rejects execution because the required trusted context and confirmation are absent, and the attempted bypass is recorded as a rejected security-relevant event rather than silently executing."
@@ -149,7 +131,7 @@
         {
           "name": "sec-e2e-022-session-hijack-replay-blocked",
           "description": "If an attacker steals a still-valid session context and replays it from an unaudited process, Security Center must detect that the session lineage no longer matches the next expected sequence and stop the session before it can continue operating.",
-          "type": "Scenario Test",
+          "type": "Acceptance Test",
           "Input": "Capture a valid session context after an authenticated operation, inject it into a second process that is not participating in the audited runtime, and attempt to emit additional operations under the same trace or session identity.",
           "acceptanceCriteria": "tests/integration/security/test_audit_foundation.py::test_stolen_session_replay_is_blocked_by_cloud_sequence_validation",
           "TestResults": "Security Center or its cloud verifier detects that the replayed trace or session does not match the next expected sequence and hash continuity, blocks further authorization for that session, and surfaces the attempted hijack as a business-visible alert."
@@ -157,7 +139,7 @@
         {
           "name": "sec-e2e-023-silent-exfiltration-pattern-alerted",
           "description": "Even when every single low-risk tool call is individually allowed, Security Center must still recognize the business pattern of a covert local data sweep and alert on the aggregate behavior.",
-          "type": "Scenario Test",
+          "type": "Acceptance Test",
           "Input": "Run an agent workflow that repeatedly reads many small local files, searches across them, and summarizes the results without calling any tool currently classified as High risk.",
           "acceptanceCriteria": "tests/integration/security/test_audit_foundation.py::test_silent_exfiltration_pattern_triggers_behavior_alert",
           "TestResults": "Security Center analyzes the emitted L2 reasoning and access evidence, flags the high-frequency local resource sweep as an abnormal behavior pattern, and raises an operator-visible alert even though no single tool invocation violated the point-in-time allow policy."
@@ -336,33 +318,7 @@
       "archimate_layer": "Application",
       "archimate_aspect": "Active Structure",
       "browser_path": "QwenPaw Platform/Local Operator CLI",
-      "description": "Click-based local operator surface exposed through the qwenpaw entrypoint.\n#file:src/qwenpaw/cli/main.py\n#file:tests/unit/cli/test_cli_version.py\n#file:tests/unit/cli/test_cli_agents.py\n#file:tests/unit/cli/test_cli_task.py",
-      "testcases": [
-        {
-          "name": "cli-version-surface",
-          "description": "The root CLI surface must expose the current package version via --version.",
-          "type": "Acceptance Test",
-          "Input": "Invoke qwenpaw --version through the click entrypoint.",
-          "acceptanceCriteria": "tests/unit/cli/test_cli_version.py::test_cli_version_option_outputs_current_version",
-          "TestResults": "The command exits successfully and includes the current package version in stdout."
-        },
-        {
-          "name": "agents-list-surface",
-          "description": "The agents list subcommand must stay wired to the shared agent tools helper and render its output through the CLI surface.",
-          "type": "Acceptance Test",
-          "Input": "Invoke qwenpaw agents list with the shared helper monkeypatched to return one agent record.",
-          "acceptanceCriteria": "tests/unit/cli/test_cli_agents.py::test_agents_list_uses_shared_tool_helper",
-          "TestResults": "The command exits successfully and prints the serialized helper-provided agent record."
-        },
-        {
-          "name": "task-help-surface",
-          "description": "The headless task command must remain registered on the root CLI and advertise its stable flag surface.",
-          "type": "Acceptance Test",
-          "Input": "Invoke qwenpaw task --help through the click entrypoint.",
-          "acceptanceCriteria": "tests/unit/cli/test_cli_task.py::test_task_command_registered_in_cli",
-          "TestResults": "The command exits successfully and its help output contains the expected stable flags for instruction, model, guard, skills, output, iteration, timeout, and agent selection."
-        }
-      ]
+      "description": "Click-based local operator surface exposed through the qwenpaw entrypoint.\n#file:src/qwenpaw/cli/main.py\n#file:tests/unit/cli/test_cli_version.py\n#file:tests/unit/cli/test_cli_agents.py\n#file:tests/unit/cli/test_cli_task.py"
     },
     {
       "id": "intent-console-frontend",

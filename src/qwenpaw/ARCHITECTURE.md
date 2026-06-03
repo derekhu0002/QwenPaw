@@ -13,6 +13,7 @@ element_path: src/qwenpaw
 - Own the Python runtime root for QwenPaw.
 - Contain the stable backend slices that realize routing, agents, channels, config, security, providers, and shared utilities.
 - Expose stable sub-elements rather than forcing callers to reason from individual files.
+- Keep the `src/qwenpaw/security` child contract as the owner of the `sec-e2e-024` audit-foundation acceptance boundary while transport/orchestration remains in `app/`.
 
 ### Out Of Scope
 - Owning the browser console bundle under console/.
@@ -33,16 +34,18 @@ element_path: src/qwenpaw
   kind: ConfigurationModel
   role: configuration schemas, loaders, persistence helpers, and working-dir bound config logic
 - path: security
-  kind: SecurityRuntime
-  role: tool guard, file guard, and security policy enforcement assets
+  kind: SecurityAuditFoundation
+  role: stable security boundary for high-risk tool guard enforcement, trusted context provenance, local audit-chain semantics, and Security Center projection/query seams
 
 ### Dependency Direction
 - app may orchestrate agents, config, providers, security, and channels, but those lower slices should not depend on console/ or website/ implementation details.
+- app captures request, session, and channel metadata, but `security/` owns the stable acceptance semantics for trusted provenance, durable confirmation evidence, and evidence-chain reconstruction.
 - cli remains a child stable element and should consume runtime services through explicit surfaces instead of re-owning backend state.
 
 ### Explicit Testcase Entrypoints
 - tests/unit/routers/test_settings.py::test_put_then_get_roundtrip
 - tests/unit/routers/test_git.py::test_git_helper_uses_shared_command_runner
+- tests/integration/security/test_audit_foundation.py::test_end_to_end_non_repudiation_evidence_chain
 
 ### Supporting Non-Explicit Tests
 - tests/unit/cli/test_cli_agents.py
@@ -103,3 +106,4 @@ element_path: src/qwenpaw
 
 ### Notes
 - The CLI and backend runtime are kept in one stable element because both surfaces ship from the Python package and share config, orchestration, and runtime support modules.
+- Current evidence for `sec-e2e-024` is intentionally split across `app/agent_context.py`, `app/approvals/service.py`, `app/inbox_trace_store.py`, `agents/tools/delegate_external_agent.py`, and `security/tool_guard/`; Coding/Repair must converge those seams behind `src/qwenpaw/security/ARCHITECTURE.md` without moving the explicit entrypoint.

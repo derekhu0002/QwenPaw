@@ -8,12 +8,16 @@ const requiredFiles = [
     'design/KG/SystemArchitecture.json',
     'design/KG/IntentToImplementationHandoff.json',
     'design/KG/ImplementationToCodingHandoff.json',
+    'design/KG/test-failure-records.json',
     'OVERALL_ARCHITECTURE.md',
     'src/qwenpaw/ARCHITECTURE.md',
+    'src/qwenpaw/security/ARCHITECTURE.md',
     'src/qwenpaw/cli/ARCHITECTURE.md',
     'console/ARCHITECTURE.md',
     'website/ARCHITECTURE.md',
     'tests/ARCHITECTURE.md',
+    'tests/integration/security/ARCHITECTURE.md',
+    'tests/integration/security/test_audit_foundation.py',
     '.github/validator/ARCHITECTURE.md'
 ];
 
@@ -29,10 +33,12 @@ const overallArchitecture = fs.readFileSync(
 
 for (const contractPath of [
     'src/qwenpaw/ARCHITECTURE.md',
+    'src/qwenpaw/security/ARCHITECTURE.md',
     'src/qwenpaw/cli/ARCHITECTURE.md',
     'console/ARCHITECTURE.md',
     'website/ARCHITECTURE.md',
     'tests/ARCHITECTURE.md',
+    'tests/integration/security/ARCHITECTURE.md',
     '.github/validator/ARCHITECTURE.md'
 ]) {
     assert.ok(

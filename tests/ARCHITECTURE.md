@@ -11,47 +11,23 @@ element_path: tests
 
 ### Responsibility
 - Own the physical repository entrypoints for explicit and non-explicit verification assets.
-- Keep architecture guardrails under tests/architecture and product behavior tests under unit/, integration/, contract/, and e2e/.
+- Keep architecture guardrails under `tests/architecture` and product behavior tests under `unit/`, `integration/`, `contract/`, and `e2e/`.
+- Keep explicit security acceptance bodies business-readable by routing low-level inspection through harness helpers inside `tests/integration/security`.
 
 ### Out Of Scope
-- Defining acceptance scope independently from design/KG/SystemArchitecture.json.
+- Defining acceptance scope independently from `design/KG/SystemArchitecture.json`.
 - Owning production code or runtime bootstrap logic.
-
-### Explicit Testcase Entrypoints
-- unit/cli/test_cli_version.py::test_cli_version_option_outputs_current_version
-- unit/cli/test_cli_agents.py::test_agents_list_uses_shared_tool_helper
-- unit/cli/test_cli_task.py::test_task_command_registered_in_cli
-- unit/routers/test_settings.py::test_put_then_get_roundtrip
-- unit/routers/test_git.py::test_git_helper_uses_shared_command_runner
-
-### Critical Non-Explicit Tests
-- architecture/root-architecture-contracts.test.js
-- architecture/validator-bootstrap-traceability.test.js---
-contract_type: implementation-architecture-element
-contract_version: 1
-scope: stable-element
-element_name: qwenpaw-tests
-element_kind: VerificationAssets
-element_path: tests
----
-
-## Implementation Architecture Contract
-
-### Responsibility
-- Own executable verification assets for runtime, CLI, and architecture guardrails.
-- Provide the physical single-entry testcase paths referenced by the intent graph and handoff artifacts.
-
-### Out Of Scope
-- Defining business behavior independently from stable runtime contracts.
-- Serving as a product runtime dependency.
 
 ### Children
 - path: unit
   kind: explicit-entrypoint-zone
-  role: current lightweight pytest entrypoints used as explicit testcase baselines
+  role: lightweight pytest entrypoints used as the current CLI and backend explicit testcase baselines
 - path: architecture
   kind: architecture-guard-zone
-  role: critical non-explicit tests protecting validator and architecture-deliverable traceability
+  role: critical non-explicit tests protecting architecture deliverables, validator wiring, and security-entrypoint traceability
+- path: integration/security
+  kind: explicit-entrypoint-zone
+  role: business-readable security acceptance entrypoints and protected harness helpers
 - path: integration
   kind: supporting-verification-zone
   role: integration-level regression coverage owned by implementation
@@ -59,5 +35,27 @@ element_path: tests
   kind: supporting-verification-zone
   role: end-to-end behavior coverage beyond the current explicit baseline
 
+### Explicit Testcase Entrypoints
+- unit/cli/test_cli_version.py::test_cli_version_option_outputs_current_version
+- unit/cli/test_cli_agents.py::test_agents_list_uses_shared_tool_helper
+- unit/cli/test_cli_task.py::test_task_command_registered_in_cli
+- unit/routers/test_settings.py::test_put_then_get_roundtrip
+- unit/routers/test_git.py::test_git_helper_uses_shared_command_runner
+- integration/security/test_audit_foundation.py::test_end_to_end_non_repudiation_evidence_chain
+
+### Critical Non-Explicit Tests
+- architecture/root-architecture-contracts.test.js
+- architecture/root-architecture-deliverables.test.js
+- architecture/validator-bootstrap-traceability.test.js
+- architecture/security-audit-contract-boundaries.test.js
+- architecture/security-explicit-entrypoint-traceability.test.js
+
+### Supporting Non-Explicit Tests
+- integration/test_security_config.py
+
+### Protected Fixtures
+- integration/security/harness.py
+
 ### Notes
-- The current explicit testcases are intentionally anchored to existing lightweight unit/integration-style entrypoints so the architecture baseline stays executable in this repository state.
+- The current explicit testcases are intentionally anchored to repository-owned pytest entrypoints so the architecture baseline stays executable in the current workspace state.
+- `tests/integration/security/harness.py` is a protected fixture for explicit security acceptance bodies. Coding/Repair may realize the runtime behind it, but should not rewrite its business-facing vocabulary, runtime-inspection method names, or the read-only testcase entrypoint without an upstream architecture change.

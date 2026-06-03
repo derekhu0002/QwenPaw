@@ -1,67 +1,15 @@
 [
   {
-    "testcasename": "settings-language-roundtrip",
-    "testdescription": "The settings router must persist a language update and return the same language on the immediately following read.",
-    "acceptanceCriteria": "tests/unit/routers/test_settings.py::test_put_then_get_roundtrip",
-    "relatedIntentElementId": "intent-backend-runtime",
+    "testcasename": "sec-e2e-024-end-to-end-non-repudiation-evidence-chain",
+    "testdescription": "When an employee triggers a high-risk action through a third-party agent plugin, the system must preserve a complete business-visible evidence chain from the original user to the final high-risk tool effect and bind that chain to the user's confirmation artifact.",
+    "acceptanceCriteria": "tests/integration/security/test_audit_foundation.py::test_end_to_end_non_repudiation_evidence_chain",
+    "relatedIntentElementId": "intent-local-security-audit-foundation",
     "status": "failed",
-    "resolvedScriptPath": "tests/unit/routers/test_settings.py::test_put_then_get_roundtrip",
-    "executionCommand": "python -m pytest tests/unit/routers/test_settings.py::test_put_then_get_roundtrip",
-    "exitCode": 4,
-    "failureError": "ImportError while loading conftest 'D:\\Projects\\QwenPaw\\tests\\conftest.py'.\r\ntests\\conftest.py:22: in <module>\r\n    from qwenpaw.providers import provider_manager as _provider_manager_module\r\nE   ModuleNotFoundError: No module named 'qwenpaw'",
+    "resolvedScriptPath": "tests/integration/security/test_audit_foundation.py::test_end_to_end_non_repudiation_evidence_chain",
+    "executionCommand": "python -m pytest tests/integration/security/test_audit_foundation.py::test_end_to_end_non_repudiation_evidence_chain -q",
+    "exitCode": 1,
+    "failureError": "AssertionError: category=\"Non_Repudiation_Gap\" - Runtime_Context_Spy_Missing - Tamper_Evident_Audit_Ledger_Missing - Confirmation_Artifact_Missing - Security_Center_Query_Missing - Evidence_Projection_Missing - Physical_Audit_Record_Missing - Confirmation_Record_Type_Missing - Confirmation_Payload_Hash_Missing - Prior_Hash_Link_Missing - Hash_Fields_Missing - Hash_Chain_Verifier_Missing - Continuity_Anchor_Missing - Pre_Execution_Evidence_Write_Missing - Pre_Execution_Order_Assertion_Missing",
     "stdout": "",
-    "stderr": "ImportError while loading conftest 'D:\\Projects\\QwenPaw\\tests\\conftest.py'.\r\ntests\\conftest.py:22: in <module>\r\n    from qwenpaw.providers import provider_manager as _provider_manager_module\r\nE   ModuleNotFoundError: No module named 'qwenpaw'"
-  },
-  {
-    "testcasename": "git-helper-command-runner",
-    "testdescription": "The git helper must delegate process execution to the shared command runner with the expected command and kwargs.",
-    "acceptanceCriteria": "tests/unit/routers/test_git.py::test_git_helper_uses_shared_command_runner",
-    "relatedIntentElementId": "intent-backend-runtime",
-    "status": "failed",
-    "resolvedScriptPath": "tests/unit/routers/test_git.py::test_git_helper_uses_shared_command_runner",
-    "executionCommand": "python -m pytest tests/unit/routers/test_git.py::test_git_helper_uses_shared_command_runner",
-    "exitCode": 4,
-    "failureError": "ImportError while loading conftest 'D:\\Projects\\QwenPaw\\tests\\conftest.py'.\r\ntests\\conftest.py:22: in <module>\r\n    from qwenpaw.providers import provider_manager as _provider_manager_module\r\nE   ModuleNotFoundError: No module named 'qwenpaw'",
-    "stdout": "",
-    "stderr": "ImportError while loading conftest 'D:\\Projects\\QwenPaw\\tests\\conftest.py'.\r\ntests\\conftest.py:22: in <module>\r\n    from qwenpaw.providers import provider_manager as _provider_manager_module\r\nE   ModuleNotFoundError: No module named 'qwenpaw'"
-  },
-  {
-    "testcasename": "cli-version-surface",
-    "testdescription": "The root CLI surface must expose the current package version via --version.",
-    "acceptanceCriteria": "tests/unit/cli/test_cli_version.py::test_cli_version_option_outputs_current_version",
-    "relatedIntentElementId": "intent-local-operator-cli",
-    "status": "failed",
-    "resolvedScriptPath": "tests/unit/cli/test_cli_version.py::test_cli_version_option_outputs_current_version",
-    "executionCommand": "python -m pytest tests/unit/cli/test_cli_version.py::test_cli_version_option_outputs_current_version",
-    "exitCode": 4,
-    "failureError": "ImportError while loading conftest 'D:\\Projects\\QwenPaw\\tests\\conftest.py'.\r\ntests\\conftest.py:22: in <module>\r\n    from qwenpaw.providers import provider_manager as _provider_manager_module\r\nE   ModuleNotFoundError: No module named 'qwenpaw'",
-    "stdout": "",
-    "stderr": "ImportError while loading conftest 'D:\\Projects\\QwenPaw\\tests\\conftest.py'.\r\ntests\\conftest.py:22: in <module>\r\n    from qwenpaw.providers import provider_manager as _provider_manager_module\r\nE   ModuleNotFoundError: No module named 'qwenpaw'"
-  },
-  {
-    "testcasename": "agents-list-surface",
-    "testdescription": "The agents list subcommand must stay wired to the shared agent tools helper and render its output through the CLI surface.",
-    "acceptanceCriteria": "tests/unit/cli/test_cli_agents.py::test_agents_list_uses_shared_tool_helper",
-    "relatedIntentElementId": "intent-local-operator-cli",
-    "status": "failed",
-    "resolvedScriptPath": "tests/unit/cli/test_cli_agents.py::test_agents_list_uses_shared_tool_helper",
-    "executionCommand": "python -m pytest tests/unit/cli/test_cli_agents.py::test_agents_list_uses_shared_tool_helper",
-    "exitCode": 4,
-    "failureError": "ImportError while loading conftest 'D:\\Projects\\QwenPaw\\tests\\conftest.py'.\r\ntests\\conftest.py:22: in <module>\r\n    from qwenpaw.providers import provider_manager as _provider_manager_module\r\nE   ModuleNotFoundError: No module named 'qwenpaw'",
-    "stdout": "",
-    "stderr": "ImportError while loading conftest 'D:\\Projects\\QwenPaw\\tests\\conftest.py'.\r\ntests\\conftest.py:22: in <module>\r\n    from qwenpaw.providers import provider_manager as _provider_manager_module\r\nE   ModuleNotFoundError: No module named 'qwenpaw'"
-  },
-  {
-    "testcasename": "task-help-surface",
-    "testdescription": "The headless task command must remain registered on the root CLI and advertise its stable flag surface.",
-    "acceptanceCriteria": "tests/unit/cli/test_cli_task.py::test_task_command_registered_in_cli",
-    "relatedIntentElementId": "intent-local-operator-cli",
-    "status": "failed",
-    "resolvedScriptPath": "tests/unit/cli/test_cli_task.py::test_task_command_registered_in_cli",
-    "executionCommand": "python -m pytest tests/unit/cli/test_cli_task.py::test_task_command_registered_in_cli",
-    "exitCode": 4,
-    "failureError": "ImportError while loading conftest 'D:\\Projects\\QwenPaw\\tests\\conftest.py'.\r\ntests\\conftest.py:22: in <module>\r\n    from qwenpaw.providers import provider_manager as _provider_manager_module\r\nE   ModuleNotFoundError: No module named 'qwenpaw'",
-    "stdout": "",
-    "stderr": "ImportError while loading conftest 'D:\\Projects\\QwenPaw\\tests\\conftest.py'.\r\ntests\\conftest.py:22: in <module>\r\n    from qwenpaw.providers import provider_manager as _provider_manager_module\r\nE   ModuleNotFoundError: No module named 'qwenpaw'"
+    "stderr": "AssertionError: category=\"Non_Repudiation_Gap\"\n- Runtime_Context_Spy_Missing: no repository evidence shows the high-risk tool boundary reading user identity directly from contextvars at execution time.\n- Confirmation_Artifact_Missing: the approval flow does not yet persist a durable confirmation digest that can be bound to the final high-risk action.\n- Security_Center_Query_Missing: no repository-owned query seam currently exposes the complete evidence chain for operator review.\n- Evidence_Projection_Missing: current repository evidence still lacks a reconstructed end-to-end chain that can be queried as one business record.\n- Physical_Audit_Record_Missing: no repository-owned disk audit ledger seam is currently available for the explicit testcase to inspect.\n- Confirmation_Record_Type_Missing: the physical ledger seam does not yet expose a USER_CONFIRMATION record type for direct inspection.\n- Confirmation_Payload_Hash_Missing: the physical ledger seam does not yet persist the confirmation artifact digest to disk.\n- Prior_Hash_Link_Missing: the physical ledger seam does not yet expose a prior-hash anchor for chain verification.\n- Hash_Fields_Missing: the local ledger does not yet expose both prior_hash and current_hash for integrity verification.\n- Hash_Chain_Verifier_Missing: the implementation does not yet expose a repository-owned verifier for ledger continuity checks.\n- Continuity_Anchor_Missing: the owning security contract does not yet expose a checkpoint or anchor seam for integrity verification.\n- Pre_Execution_Evidence_Write_Missing: no repository evidence shows a durable confirmation record being written before the tool effect.\n- Pre_Execution_Order_Assertion_Missing: the current implementation does not yet declare or enforce the atomic order 'store evidence, then release the high-risk tool'.\nobserved_actor_chain=employee_a -> agent_b -> plugin_c -> tool_d\nobserved_tool_boundary_identity=<missing>\nexpected_confirmation_digest=8200d14e4275ee9894528c3ca3cfc47b2dd5f40dbb1da660a23ee5e6421d66fd\npersisted_confirmation_digest=<missing>\nphysical_ledger_path=src/qwenpaw/app/inbox_trace_store.py"
   }
 ]
