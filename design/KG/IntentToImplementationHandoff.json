@@ -1,0 +1,83 @@
+{
+  "stage": "intent-to-implementation",
+  "generatedAt": "2026-06-04",
+  "sourceIntentGraphPath": "design/KG/SystemArchitecture.json",
+  "summary": "Iteration scope for the second security-foundation slice is limited to materializing sec-e2e-025-audit-integrity-self-healing-lockdown and sec-e2e-021-prompt-injection-tool-guard-enforced without changing the frozen intent semantics already declared in the intent graph, while preserving Security Center as an independent fact source reached only through the uplink path.",
+  "intentElementIds": [
+    "intent-local-security-audit-foundation",
+    "intent-high-risk-tool-guard",
+    "intent-audit-event",
+    "intent-audit-checkpoint-anchor",
+    "intent-heartbeat-emitter",
+    "intent-audit-uplink-service",
+    "intent-audit-uplink-manager",
+    "intent-security-center",
+    "intent-cloud-integrity-stub"
+  ],
+  "relationshipIds": [
+    "rel-backend-security-audit-foundation",
+    "rel-audit-foundation-audit-event",
+    "rel-audit-foundation-checkpoint-anchor",
+    "rel-audit-foundation-high-risk-tool-guard",
+    "rel-high-risk-tool-guard-audit-event",
+    "rel-uplink-manager-foundation",
+    "rel-uplink-manager-heartbeat-emitter",
+    "rel-uplink-service-security-center",
+    "rel-heartbeat-emitter-security-center",
+    "rel-platform-security-center",
+    "rel-uplink-manager-cloud-stub"
+  ],
+  "explicitTestcases": [
+    {
+      "name": "sec-e2e-025-audit-integrity-self-healing-lockdown",
+      "mountedElementId": "intent-local-security-audit-foundation",
+      "mountedElementName": "Local Security Audit Foundation",
+      "type": "Acceptance Test",
+      "controlPoint": "Drive one sensitive action through the repository-owned runtime, disconnect network reachability, tamper with the local audit store or security settings by operating-system means, restart the client, then attempt reconnect or another sensitive action.",
+      "observationPoint": "The resulting repository-owned entrypoint must show one business-level continuity anomaly, local security lock mode, refusal of further sensitive tooling, and blocked upload or recovery until the local ledger, checkpoint anchors, and cloud mirror state are reconciled. Showcase observation must include an independently running cloud-side console or service surfacing the anomaly without reading local storage directly.",
+      "acceptanceBoundary": "Implementation must preserve the current intent baseline that startup consistency verification and reconnect both enforce trust recovery from tamper evidence rather than allowing silent continued operation. Observation outcomes are invalid if they rely only on return values, booleans, or in-process test doubles; acceptance requires independent verification against persisted AuditEvent and checkpoint evidence in the local durable store and against the Security Center style mirror projection when recovery or upload state is asserted. The cloud-side verifier must remain asymmetric: it may validate only against uplinked summaries and its own shadow hash state, not by opening or sharing the local SQLite store, local verification helpers, or in-process memory from the edge runtime.",
+      "requiredEntryKind": "explicit-testcase-entry",
+      "implementationNotes": "Implementation Design must materialize a read-only pytest entrypoint plus owning contracts that make the control point and observation point executable against a real runtime, with checkpoint-anchor inspection, startup consistency verification, local lock-mode surfacing, and a Security Center style anomaly projection seam. All tamper and outage stimuli must follow an out-of-process interference rule: database edits, configuration edits, and network cuts are executed by external scripts or physical operator actions rather than monkeypatch, MagicMock, or in-process replacement of Python os, sqlite, network, or requests behavior. The implementation contract must preserve a showcase step where an operator can directly edit a persisted hash value on disk, relaunch the packaged runtime, and observe the real runtime reaction such as lock-mode refusal or error surfacing without hidden test-only shortcuts. Security Center must be materialized as a physically separate process with its own durable store, and the showcase must support side-by-side edge and cloud consoles where edge tamper causes cloud alerting through the uplink path rather than through shared code or manual refresh. Resume logic must enforce a first-ask-then-upload handshake in which the edge node queries the cloud-held last trusted hash, compares locally, and enters lock mode plus tamper alert if divergence is found before any new upload is accepted."
+    },
+    {
+      "name": "sec-e2e-021-prompt-injection-tool-guard-enforced",
+      "mountedElementId": "intent-high-risk-tool-guard",
+      "mountedElementName": "High Risk Tool Guard",
+      "type": "Acceptance Test",
+      "controlPoint": "Submit deceptive or nested instructions that claim test mode, maintenance mode, or other approval bypass narratives and drive the runtime toward a configured High risk tool without a trusted context or confirmation artifact.",
+      "observationPoint": "The repository-owned entrypoint must prove the High risk tool remains blocked at the tool-call layer, execution is rejected because trusted context provenance and confirmation are absent, and the bypass attempt is durably recorded as a rejected security-relevant event. Passing evidence must include persisted L1 or equivalent durable AuditEvent records plus the corresponding Security Center style mirror evidence rather than only a function return or boolean denial result.",
+      "acceptanceBoundary": "Implementation must keep enforcement at the tool invocation boundary instead of conversational intent classification and must not allow prompt narratives to suppress risk evaluation for High risk tools. Acceptance is invalid if a tool execution outcome is asserted without independent evidence verification from durable audit records and mirror-visible rejected-event evidence, and implementation must not rely on debug flags, environment switches, or test-only bypass paths that weaken the guard during acceptance runs. Security Center evidence for the rejected action must arrive through the explicit uplink channel and independent cloud-side storage rather than through an in-process branch, shared database, or shared verifier shortcut.",
+      "requiredEntryKind": "explicit-testcase-entry",
+      "implementationNotes": "Implementation Design must materialize a read-only pytest entrypoint plus owning contracts that expose tool-boundary enforcement, missing-trust rejection, and durable rejected-event evidence through the security harness without relocating the guard into conversation-layer policy code. The iteration contract must include an adversarial prompting requirement: showcase prompts used for acceptance are not pre-disclosed to implementation authors, and the observation seam must prove interception occurs immediately before Tool.call style execution rather than earlier in LLM.chat style text filtering. The demonstration path must remain valid even when the model output appears socially compliant or hallucinated, as long as the tool-boundary guard still emits an access-denied style result and durable rejection evidence. Any cloud-visible rejected-event confirmation must be produced by a separate Security Center process consuming uplinked summaries only; cloud-side verification is not allowed to inspect local files or call back into the edge guard as a library shortcut."
+    }
+  ],
+  "frozenBaselines": [
+    "design/KG/SystemArchitecture.json",
+    "sec-e2e-025-audit-integrity-self-healing-lockdown acceptance text in intent-local-security-audit-foundation",
+    "sec-e2e-021-prompt-injection-tool-guard-enforced acceptance text in intent-local-security-audit-foundation",
+    "design/delivery/iteration-plan.md second-iteration scope for sec-e2e-025 and sec-e2e-021",
+    "design/delivery/scenarios.md business stories, control points, and observation points for sec-e2e-025 and sec-e2e-021"
+  ],
+  "requiredImplementationArtifacts": [
+    "OVERALL_ARCHITECTURE.md",
+    "src/qwenpaw/security/ARCHITECTURE.md",
+    "tests/ARCHITECTURE.md",
+    "tests/integration/security/ARCHITECTURE.md",
+    "tests/integration/security/harness.py",
+    "tests/integration/security/test_audit_foundation.py",
+    "tests/architecture/security-audit-contract-boundaries.test.js",
+    "tests/architecture/security-explicit-entrypoint-traceability.test.js",
+    "design/KG/ImplementationToCodingHandoff.json",
+    "design/KG/test-failure-records.json"
+  ],
+  "notes": [
+    "Scope for this iteration was confirmed as handoff-only for sec-e2e-025 and sec-e2e-021; no intent-graph rewrite is required.",
+    "sec-e2e-024 remains the already-materialized explicit baseline and should not be reopened while downstream contracts absorb sec-e2e-025 and sec-e2e-021.",
+    "Implementation Design must keep control point and observation point explicit for both new entrypoints when it materializes repository-owned tests and contracts.",
+    "Acceptance for both testcases is black-box and evidence-led: durable local records and mirror-visible evidence outrank function return values or in-process assertions.",
+    "Showcase readiness requires real-world authenticity, including out-of-process interference for sec-e2e-025 and tool-boundary denial evidence for sec-e2e-021 even when prompt text or model output appears to authorize the action.",
+    "Security Center is a required independent fact source for this slice: Implementation Design must not collapse it into an in-process branch of QwenPaw and must introduce a stable contract for a physically separate cloud-side process before handoff to Coding/Repair.",
+    "Uplink is the only allowed edge-to-cloud communication path for acceptance evidence in this slice; cloud verification must use only uplinked summaries plus cloud-held shadow state, not local file access or shared durable storage.",
+    "Resume and recovery semantics are asymmetric by design: the edge asks the cloud for the last trusted hash first, the cloud returns its view, and the edge may not unilaterally declare a new trusted head for the cloud to accept."
+  ]
+}
