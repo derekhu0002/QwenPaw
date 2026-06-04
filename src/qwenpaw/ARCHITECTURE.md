@@ -46,6 +46,8 @@ element_path: src/qwenpaw
 - tests/unit/routers/test_settings.py::test_put_then_get_roundtrip
 - tests/unit/routers/test_git.py::test_git_helper_uses_shared_command_runner
 - tests/integration/security/test_audit_foundation.py::test_end_to_end_non_repudiation_evidence_chain
+- tests/integration/security/test_audit_foundation.py::test_audit_integrity_self_healing_lockdown
+- tests/integration/security/test_audit_foundation.py::test_prompt_injection_cannot_bypass_high_risk_tool_guard
 
 ### Supporting Non-Explicit Tests
 - tests/unit/cli/test_cli_agents.py
@@ -106,4 +108,4 @@ element_path: src/qwenpaw
 
 ### Notes
 - The CLI and backend runtime are kept in one stable element because both surfaces ship from the Python package and share config, orchestration, and runtime support modules.
-- Current evidence for `sec-e2e-024` is intentionally split across `app/agent_context.py`, `app/approvals/service.py`, `app/inbox_trace_store.py`, `agents/tools/delegate_external_agent.py`, and `security/tool_guard/`; Coding/Repair must converge those seams behind `src/qwenpaw/security/ARCHITECTURE.md` without moving the explicit entrypoint.
+- Current evidence for `sec-e2e-024`, `sec-e2e-025`, and `sec-e2e-021` is intentionally split across `app/agent_context.py`, `app/approvals/service.py`, `app/inbox_trace_store.py`, `agents/tools/delegate_external_agent.py`, `security/tool_guard/`, and deployment bootstrap assets under `deploy/`; Coding/Repair must converge those seams behind `src/qwenpaw/security/ARCHITECTURE.md` and `deploy/ARCHITECTURE.md` without moving the explicit entrypoints.

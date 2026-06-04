@@ -2,8 +2,8 @@
 
 ## Scope
 - Freeze the stable implementation boundaries that currently realize QwenPaw in this repository.
-- Materialize the `sec-e2e-024` explicit acceptance entrypoint as a repository-owned, read-only testcase file plus its harness abstractions.
-- Constrain `sec-e2e-024` to a real-environment acceptance baseline that uses the live app subprocess, real HTTP surfaces, and an isolated working directory.
+- Materialize the `sec-e2e-024`, `sec-e2e-025`, and `sec-e2e-021` explicit acceptance entrypoints as repository-owned, read-only testcase bodies plus their harness abstractions.
+- Constrain the explicit security slice to a real-environment acceptance baseline that uses the live app subprocess, real HTTP surfaces, isolated working directories, and a separately contracted cloud-side Security Center boundary.
 - Record where intent is already directly implemented, where current code only provides transitional evidence, and which gaps are intentionally handed to Coding/Repair.
 
 ## Stable Elements
@@ -53,6 +53,14 @@
   contract: tests/integration/security/ARCHITECTURE.md
   role: Read-only explicit security acceptance entrypoints and harness abstractions whose bodies are written for business readability rather than plumbing detail.
 
+- path: deploy
+  kind: SecurityCenterDeploymentBoundary
+  implements:
+    - intent-security-center
+    - intent-cloud-integrity-stub
+  contract: deploy/ARCHITECTURE.md
+  role: Stable repository-owned contract boundary for the physically separate Security Center service, including a cloud-side HTTP API backend, an operator-facing web frontend, SSE or WebSocket alert delivery to operators, and the integrity mirror seam consumed only through edge-to-cloud HTTP.
+
 - path: .github/validator
   kind: BootstrapAssetZone
   implements:
@@ -63,6 +71,8 @@
 ## Dependency Direction
 - `src/qwenpaw/app`, channels, and runner glue may capture transport/session metadata, but `src/qwenpaw/security` owns the stable semantics for trusted provenance, confirmation evidence, and audit continuity. Transport layers must not redefine the acceptance boundary for `sec-e2e-024`.
 - `src/qwenpaw/security` must not depend on `console` or `website` implementation details.
+- `src/qwenpaw/security` may uplink summaries toward the `deploy` boundary, but the cloud-side Security Center must remain a separate process and independent durable store rather than an in-process branch of the edge runtime.
+- Edge runtime communication with `deploy` is frozen to repository-owned HTTP APIs only. Coding/Repair must not switch this slice to shared storage, direct database access, or a different transport without a new implementation-architecture change.
 - `src/qwenpaw/cli` depends inward on stable runtime and config surfaces in `src/qwenpaw` and does not own backend orchestration state.
 - `tests` and `tests/integration/security` may observe all stable elements through declared seams; production code must not depend on test modules.
 - `.github/validator` validates design assets and testcase execution wiring but does not own product behavior.
@@ -73,7 +83,12 @@
 - indirect implementation chain: `src/qwenpaw/app/agent_context.py` provides current contextvars evidence for `intent-implicit-security-context-manager` under the owning `src/qwenpaw/security` contract.
 - indirect implementation chain: `src/qwenpaw/app/approvals/service.py` provides current approval-routing evidence that must be converged into durable confirmation evidence under the owning `src/qwenpaw/security` contract.
 - indirect implementation chain: `src/qwenpaw/app/inbox_trace_store.py` provides append-only trace evidence that must be converged into canonical audit-chain projection under the owning `src/qwenpaw/security` contract.
-- direct testcase materialization: `tests/integration/security/test_audit_foundation.py::test_end_to_end_non_repudiation_evidence_chain` is the single read-only explicit entrypoint for `sec-e2e-024-end-to-end-non-repudiation-evidence-chain`, and it must run through the real `app_server` fixture rather than repository source inspection.
+- direct architecture boundary materialization: `deploy/ARCHITECTURE.md` realizes the stable repository-owned collaboration contract for `intent-security-center` and `intent-cloud-integrity-stub` while preserving cloud-side process separation from the edge runtime.
+- direct sub-boundary materialization: `deploy/api/ARCHITECTURE.md` freezes the Security Center backend HTTP API service consumed by the edge runtime and operator web, including SSE or WebSocket alert publication, nonce voucher APIs, and shadow-hash divergence timeline delivery.
+- direct sub-boundary materialization: `deploy/web/ARCHITECTURE.md` freezes the operator-facing Security Center web frontend that visualizes anomalies, rejected events, recovery state, hash-break curve forks, and nonce-driven red alerts.
+- direct testcase materialization: `tests/integration/security/test_audit_foundation.py::test_end_to_end_non_repudiation_evidence_chain` is the read-only explicit entrypoint for `sec-e2e-024-end-to-end-non-repudiation-evidence-chain`, and it must run through the real `app_server` fixture rather than repository source inspection.
+- direct testcase materialization: `tests/integration/security/test_audit_foundation.py::test_audit_integrity_self_healing_lockdown` is the read-only explicit entrypoint for `sec-e2e-025-audit-integrity-self-healing-lockdown`.
+- direct testcase materialization: `tests/integration/security/test_audit_foundation.py::test_prompt_injection_cannot_bypass_high_risk_tool_guard` is the read-only explicit entrypoint for `sec-e2e-021-prompt-injection-tool-guard-enforced`.
 
 ## Explicit Testcase Materialization
 - testcase: cli-version-surface
@@ -101,12 +116,22 @@
   entrypoint: tests/integration/security/test_audit_foundation.py::test_end_to_end_non_repudiation_evidence_chain
   runtime_mode: real-app-subprocess
 
+- testcase: sec-e2e-025-audit-integrity-self-healing-lockdown
+  intent_element: intent-local-security-audit-foundation
+  entrypoint: tests/integration/security/test_audit_foundation.py::test_audit_integrity_self_healing_lockdown
+  runtime_mode: real-app-subprocess
+
+- testcase: sec-e2e-021-prompt-injection-tool-guard-enforced
+  intent_element: intent-high-risk-tool-guard
+  entrypoint: tests/integration/security/test_audit_foundation.py::test_prompt_injection_cannot_bypass_high_risk_tool_guard
+  runtime_mode: real-app-subprocess
+
 ## Critical Non-Explicit Guardrails
 - tests/architecture/root-architecture-contracts.test.js guards the presence and cross-reference integrity of the root contracts, including the new security contracts.
 - tests/architecture/root-architecture-deliverables.test.js guards that the expected architecture deliverables exist at stable repository paths.
 - tests/architecture/validator-bootstrap-traceability.test.js guards the wiring between `package.json` validation commands and bundled validator assets.
-- tests/architecture/security-audit-contract-boundaries.test.js guards the frozen boundary between `src/qwenpaw/security`, the explicit security entrypoint zone, and the root/runtime/test contracts that reference them.
-- tests/architecture/security-explicit-entrypoint-traceability.test.js guards that `sec-e2e-024` stays mounted to the read-only explicit entrypoint and that the implementation handoff keeps the same path plus initial failure traceability.
+- tests/architecture/security-audit-contract-boundaries.test.js guards the frozen boundary between `src/qwenpaw/security`, the explicit security entrypoint zone, the separate Security Center deployment boundary, and the root/runtime/test contracts that reference them.
+- tests/architecture/security-explicit-entrypoint-traceability.test.js guards that `sec-e2e-024`, `sec-e2e-025`, and `sec-e2e-021` stay mounted to the read-only explicit entrypoints and that the implementation handoff keeps the same paths plus initial failure traceability.
 
 ## Frozen Files For Downstream Coding
 - design/KG/SystemArchitecture.json
@@ -119,6 +144,9 @@
 - src/qwenpaw/cli/ARCHITECTURE.md
 - console/ARCHITECTURE.md
 - website/ARCHITECTURE.md
+- deploy/ARCHITECTURE.md
+- deploy/api/ARCHITECTURE.md
+- deploy/web/ARCHITECTURE.md
 - tests/ARCHITECTURE.md
 - tests/architecture/ARCHITECTURE.md
 - tests/integration/security/ARCHITECTURE.md

@@ -115,12 +115,13 @@ When repository evidence conflicts, resolve it in this order:
 - This stage converts intent-side explicit testcases into physical read-only entrypoints plus critical and supporting non-explicit test guardrails in the repository.
 - This stage must generate executable testcase assets that are intentionally allowed and, when implementation is still missing, expected to fail for the right reason; these expected-failing results are a required handoff input to the Coding/Repair stage rather than a sign that implementation design is incomplete.
 - When designing any testcase in this stage, explicitly record the testcase control point and observation point alongside its ownership, entrypoint, and guardrail role.
-- Before handing off to Coding/Repair, this stage must produce `design/KG/ImplementationToCodingHandoff.json` that satisfies `.github/argoschema/ImplementationToCodingHandoff.schema.json`; that artifact must reference the concrete contracts, testcase entrypoints, frozen files, and expected failure signals that Coding/Repair is required to consume.
+- Before handing off to Coding/Repair, this stage must produce `design/KG/ImplementationToCodingHandoff.json` that satisfies `.github/argoschema/ImplementationToCodingHandoff.schema.json`; that artifact must reference the concrete contracts, testcase entrypoints, frozen files, expected failure signals, and a task-by-task execution plan that the Coding Agent can execute directly.
 
 ### Coding And Repair Stage
 
 - Respect the frozen and evolvable test assets defined in Test Semantics and in the implementation contracts.
 - Treat expected-failing testcase assets produced during implementation architecture design as the primary repair queue: coding work should make those existing tests pass by completing or repairing implementation, not by weakening or redesigning the tests.
+- Do not bypass testcase intent by changing mocks, stubs, fixtures, fake adapters, or other test-facing seams inside business code solely to force expected-failing or acceptance tests to pass. Repair the real implementation path that the testcase is meant to validate.
 - Read `design/KG/ImplementationToCodingHandoff.json` before changing code and treat it, together with the frozen test assets it names, as the primary execution queue for the stage.
 - During coding, validate by invoking existing testcase entrypoints rather than rewriting them.
 - When adding or refining supporting non-explicit tests in coding mode, keep the control point and observation point explicit in the test design and in any task summary.
@@ -131,6 +132,7 @@ When repository evidence conflicts, resolve it in this order:
 
 - Explicit testcases are the stable acceptance or scenario baseline declared by intent architecture.
 - Their target, scope, assertion boundary, and physical single entrypoint are not to be rewritten during ordinary coding.
+- Business-code mock behavior must not be edited as a shortcut to satisfy explicit testcases when that edit avoids implementing the production behavior the testcase is designed to observe.
 - During implementation architecture design, the physical entry for each explicit testcase must be executable and should fail when the required implementation is still absent or incorrect; that expected failure is the intended signal handed to Coding/Repair.
 - Every explicit testcase design must explicitly describe its control point and observation point. The control point is the trigger, input, setup, or executable entry that drives the behavior under test. The observation point is the externally observable output, state, artifact, log, error, or effect that the testcase asserts.
 - If an explicit testcase is missing a physical entrypoint, report it as an implementation architecture design gap rather than patching around it silently in coding mode.

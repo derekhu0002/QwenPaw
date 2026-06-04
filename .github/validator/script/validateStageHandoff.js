@@ -178,6 +178,56 @@ function validateImplementationToCoding(document, errors, filePath) {
         });
     }
 
+    const taskExecutionPlan = document.taskExecutionPlan;
+    if (!taskExecutionPlan || typeof taskExecutionPlan !== 'object' || Array.isArray(taskExecutionPlan)) {
+        errors.push(`${filePath}.taskExecutionPlan must be an object`);
+    } else {
+        requireString(taskExecutionPlan, 'executionStrategy', errors, `${filePath}.taskExecutionPlan`);
+        const tasks = requireArray(taskExecutionPlan, 'tasks', true, errors, `${filePath}.taskExecutionPlan`);
+        if (Array.isArray(tasks)) {
+            const taskIds = new Set();
+            tasks.forEach((task, index) => {
+                const prefix = `${filePath}.taskExecutionPlan.tasks[${index}]`;
+                const taskId = requireString(task, 'taskId', errors, prefix);
+                requireString(task, 'title', errors, prefix);
+                requireString(task, 'objective', errors, prefix);
+                requireString(task, 'completionSignal', errors, prefix);
+
+                const steps = requireArray(task, 'steps', true, errors, prefix);
+                if (Array.isArray(steps)) {
+                    steps.forEach((step, stepIndex) => {
+                        if (typeof step !== 'string' || step.trim() === '') {
+                            errors.push(`${prefix}.steps[${stepIndex}] must be a non-empty string`);
+                        }
+                    });
+                }
+
+                if (taskId) {
+                    if (taskIds.has(taskId)) {
+                        errors.push(`${prefix}.taskId '${taskId}' must be unique within taskExecutionPlan.tasks`);
+                    }
+                    taskIds.add(taskId);
+                }
+            });
+
+            tasks.forEach((task, index) => {
+                const dependsOn = Array.isArray(task.dependsOn) ? task.dependsOn : [];
+                dependsOn.forEach((dependencyId, dependencyIndex) => {
+                    if (typeof dependencyId !== 'string' || dependencyId.trim() === '') {
+                        errors.push(`${filePath}.taskExecutionPlan.tasks[${index}].dependsOn[${dependencyIndex}] must be a non-empty string`);
+                        return;
+                    }
+                    if (!taskIds.has(dependencyId)) {
+                        errors.push(`${filePath}.taskExecutionPlan.tasks[${index}].dependsOn[${dependencyIndex}] references unknown taskId '${dependencyId}'`);
+                    }
+                });
+
+                validateOptionalStringArray(task, 'relatedTestcases', `${filePath}.taskExecutionPlan.tasks[${index}]`, errors);
+                validateOptionalStringArray(task, 'targetPaths', `${filePath}.taskExecutionPlan.tasks[${index}]`, errors);
+            });
+        }
+    }
+
     const frozenFiles = requireStringArray(document, 'frozenFiles', true, errors, filePath);
     if (Array.isArray(frozenFiles)) {
         frozenFiles.forEach((frozenFile, index) => {
@@ -308,6 +358,23 @@ function requireStringArray(object, key, mustHaveItems, errors, prefix) {
         }
     });
     return value;
+}
+
+function validateOptionalStringArray(object, key, prefix, errors) {
+    if (object[key] === undefined) {
+        return;
+    }
+
+    if (!Array.isArray(object[key])) {
+        errors.push(`${prefix}.${key} must be an array`);
+        return;
+    }
+
+    object[key].forEach((entry, index) => {
+        if (typeof entry !== 'string' || entry.trim() === '') {
+            errors.push(`${prefix}.${key}[${index}] must be a non-empty string`);
+        }
+    });
 }
 
 function ensureRepoPathExists(relativePath, label, errors) {

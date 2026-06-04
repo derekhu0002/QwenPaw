@@ -1,0 +1,282 @@
+{
+  "stage": "implementation-to-coding",
+  "generatedAt": "2026-06-04",
+  "sourceIntentGraphPath": "design/KG/SystemArchitecture.json",
+  "summary": "Implementation architecture now freezes the outstanding sec-e2e-025 and sec-e2e-021 explicit entrypoints, the protected security harness boundary, and a separate deploy-owned Security Center contract; Coding/Repair must realize the missing edge and cloud runtime behavior behind those fixed entrypoints, including hash-break curve visualization, nonce Voucher exposure, and sub-500ms SSE or WebSocket operator alerting, without rewriting their business wording or paths.",
+  
+  "implementationContracts": [
+    "OVERALL_ARCHITECTURE.md",
+    "src/qwenpaw/ARCHITECTURE.md",
+    "src/qwenpaw/security/ARCHITECTURE.md",
+    "deploy/ARCHITECTURE.md",
+    "deploy/api/ARCHITECTURE.md",
+    "deploy/web/ARCHITECTURE.md",
+    "tests/ARCHITECTURE.md",
+    "tests/integration/security/ARCHITECTURE.md"
+  ],
+  "explicitEntrypoints": [
+    {
+      "testcaseName": "sec-e2e-025-audit-integrity-self-healing-lockdown",
+      "entryPath": "tests/integration/security/test_audit_foundation.py::test_audit_integrity_self_healing_lockdown",
+      "controlPoint": "Drive one sensitive action, tamper with the local audit artifact by operating-system means, then attempt resumed sensitive work through the live app subprocess.",
+      "observationPoint": "The live runtime must prove one business continuity anomaly, physical checkpoint disappearance is treated as tamper, startup enters UNTRUSTED, resumed sensitive tooling is refused, both the frozen Security Center backend API plus the frozen Security Center operator web expose the recovery requirement, and the operator web renders a hash-break curve chart with an explicit fork point before trust is restored.",
+      "initialExecutionStatus": "failed",
+      "initialExecutionCommand": "d:\\Projects\\QwenPaw\\.venv\\Scripts\\python.exe -m pytest tests/integration/security/test_audit_foundation.py::test_audit_integrity_self_healing_lockdown -q",
+      "failureReason": "Current runtime still lacks explicit UNTRUSTED handling for checkpoint loss, continuity anomaly projection, resumed sensitive-tool blocking, backend API plus operator web recovery visibility, a hash-break curve chart with fork-point projection, and a first-ask-then-upload recovery handshake."
+    },
+    {
+      "testcaseName": "sec-e2e-021-prompt-injection-tool-guard-enforced",
+      "entryPath": "tests/integration/security/test_audit_foundation.py::test_prompt_injection_cannot_bypass_high_risk_tool_guard",
+      "controlPoint": "Submit deceptive test-mode or maintenance-mode instructions toward a configured High risk tool without trusted provenance or confirmation through the live app subprocess.",
+      "observationPoint": "The live runtime must prove rejection happens at the tool-call boundary, missing trusted context blocks execution with a non-static Security_Rejection_Nonce cryptographically bound to the current trace chain in HTTP response or durable audit evidence, the operator web exposes that nonce as a Voucher, and deploy/api pushes a red alert to the operator web through SSE or WebSocket in under 500ms without manual refresh.",
+      "initialExecutionStatus": "failed",
+      "initialExecutionCommand": "d:\\Projects\\QwenPaw\\.venv\\Scripts\\python.exe -m pytest tests/integration/security/test_audit_foundation.py::test_prompt_injection_cannot_bypass_high_risk_tool_guard -q",
+      "failureReason": "Current runtime still lacks a non-static trace-bound Security_Rejection_Nonce, missing-trust rejection semantics distinct from functional failure, durable rejected-event persistence, nonce Voucher visibility, and sub-500ms SSE or WebSocket red-alert delivery through backend API plus operator web for the rejected action."
+    }
+  ],
+  "criticalNonExplicitTests": [
+    {
+      "name": "security audit contract boundaries",
+      "path": "tests/architecture/security-audit-contract-boundaries.test.js",
+      "kind": "architecture boundary guard",
+      "controlPoint": "Read the root, runtime, security, deploy, and explicit-entrypoint contracts from disk.",
+      "observationPoint": "The stable boundary references stay aligned across OVERALL_ARCHITECTURE.md, src/qwenpaw/security/ARCHITECTURE.md, tests/ARCHITECTURE.md, tests/integration/security/ARCHITECTURE.md, deploy/ARCHITECTURE.md, and the frozen security artifacts.",
+      "expectedStatus": "passed"
+    },
+    {
+      "name": "security explicit entrypoint traceability",
+      "path": "tests/architecture/security-explicit-entrypoint-traceability.test.js",
+      "kind": "explicit entrypoint correctness guard",
+      "controlPoint": "Read SystemArchitecture.json, ImplementationToCodingHandoff.json, test-failure-records.json, and the frozen security testcase file and harness.",
+      "observationPoint": "The outstanding sec-e2e-025 and sec-e2e-021 explicit security testcases stay mounted to the same read-only pytest selectors and preserve their failure traceability.",
+      "expectedStatus": "passed"
+    }
+  ],
+  "supportingNonExplicitTests": [
+    {
+      "name": "security runtime integration bootstrap",
+      "path": "tests/integration/conftest.py",
+      "kind": "supporting runtime harness",
+      "controlPoint": "Start a real app subprocess in an isolated working directory for explicit security entrypoints.",
+      "observationPoint": "Runtime bootstrap either succeeds or yields a readable startup_error that the explicit testcase body can report as a business-visible blocker.",
+      "expectedStatus": "passed"
+    }
+  ],
+  "expectedFailureRecordsPath": "design/KG/test-failure-records.json",
+  "codingTargets": [
+    {
+      "testcaseName": "sec-e2e-025-audit-integrity-self-healing-lockdown",
+      "path": "src/qwenpaw/security",
+      "failureSignal": "category=\"Audit_Integrity_Lockdown_Gap\"",
+      "nextAction": "Realize checkpoint-loss-as-tamper semantics, explicit UNTRUSTED state, resumed sensitive-tool refusal, explicit recovery visibility through deploy/api and deploy/web, a hash-break curve chart plus fork-point payload for operator web, and a pre-upload recovery handshake on divergence between local and cloud anchors."
+    },
+    {
+      "testcaseName": "sec-e2e-021-prompt-injection-tool-guard-enforced",
+      "path": "src/qwenpaw/security",
+      "failureSignal": "category=\"Prompt_Injection_Guard_Gap\"",
+      "nextAction": "Realize tool-call-boundary interception, missing-trust rejection with non-static trace-bound Security_Rejection_Nonce semantics, durable rejected-event persistence, nonce Voucher projection, and sub-500ms SSE or WebSocket red-alert visibility through deploy/api and deploy/web."
+    },
+    {
+      "path": "deploy/api",
+      "failureSignal": "Security Center backend API boundary is frozen but not yet materialized as the edge-facing HTTP service.",
+      "nextAction": "Materialize a separate cloud-side backend HTTP API for edge uplink intake, rejected-event evidence, recovery handshake, nonce voucher exposure, shadow-hash divergence timeline delivery, and SSE or WebSocket operator alert flows behind deploy/api/ARCHITECTURE.md."
+    },
+    {
+      "path": "deploy/web",
+      "failureSignal": "Security Center operator web boundary is frozen but not yet materialized as the operator-facing frontend.",
+      "nextAction": "Materialize the operator-facing web frontend behind deploy/web/ARCHITECTURE.md with a hash-break curve chart, nonce Voucher display, and sub-500ms red-alert popup, while keeping all state and actions routed through deploy/api."
+    }
+  ],
+  "taskExecutionPlan": {
+    "executionStrategy": "Materialize the deploy/api handshake contract and a minimal runnable real endpoint first to break the recovery-handshake deadlock, then implement edge-owned security payloads against that fixed contract, then materialize the cloud-side realtime API and operator web, and finish by re-running the frozen explicit entrypoints plus architecture guards in a full end-to-end environment without rewriting testcase paths or business wording.",
+    "tasks": [
+      {
+        "taskId": "coding-task-000",
+        "title": "Contract and runnable endpoint materialization",
+        "objective": "Define the repository-owned deploy/api handshake contract first and provide a minimal runnable endpoint that returns a deterministic shadow_hash for known handshake identifiers so edge recovery work can proceed in the real end-to-end path.",
+        "targetPaths": [
+          "deploy/api",
+          "deploy/api/ARCHITECTURE.md"
+        ],
+        "steps": [
+          "Freeze the OpenAPI-level handshake request and response contract for recovery alignment before edge-side repair work starts.",
+          "Implement a minimal but real deploy/api endpoint that returns a deterministic shadow_hash for a specific handshake request identifier and keep it callable through the same HTTP boundary that later production logic will use.",
+          "Use that real HTTP handshake endpoint as the only allowed cloud response surface for early edge-side sec-e2e-025 repair work; do not introduce test-only mocks, fake adapters, or stub-only bypass paths inside src/qwenpaw."
+        ],
+        "completionSignal": "In the full end-to-end test environment, deploy/api can answer a known recovery-handshake request with a deterministic shadow_hash through the frozen HTTP boundary and sec-e2e-025 edge recovery can run without mock or stub bypasses."
+      },
+      {
+        "taskId": "coding-task-001",
+        "title": "Close tamper recovery payload gap",
+        "objective": "Make src/qwenpaw/security emit the runtime state and projection payloads required for sec-e2e-025, including UNTRUSTED state, recovery handshake metadata, and hash-divergence fork markers.",
+        "dependsOn": [
+          "coding-task-000"
+        ],
+        "relatedTestcases": [
+          "sec-e2e-025-audit-integrity-self-healing-lockdown"
+        ],
+        "targetPaths": [
+          "src/qwenpaw/security",
+          "src/qwenpaw/app"
+        ],
+        "steps": [
+          "Implement checkpoint-loss-as-tamper detection and force explicit UNTRUSTED state before resumed sensitive actions.",
+          "Emit continuity anomaly, recovery-handshake, local-hash, cloud-shadow-hash, edge_timestamp_ns, and fork-point payload fields through the frozen projection seam.",
+          "Compute edge-side hash and canonical serialization locally inside src/qwenpaw without importing deploy/api implementation logic, so cloud alignment only succeeds through independently derived results.",
+          "Keep the existing explicit testcase entrypoint and harness contract unchanged while making the real runtime satisfy their observations."
+        ],
+        "completionSignal": "tests/integration/security/test_audit_foundation.py::test_audit_integrity_self_healing_lockdown passes without modifying its pytest selector, GIVEN/WHEN/THEN structure, or harness contract."
+      },
+      {
+        "taskId": "coding-task-002",
+        "title": "Close guard rejection payload gap",
+        "objective": "Make src/qwenpaw/security emit durable rejection evidence and a trace-bound Security_Rejection_Nonce that can be projected to deploy/api and deploy/web for sec-e2e-021.",
+        "dependsOn": [
+          "coding-task-000",
+          "coding-task-001"
+        ],
+        "relatedTestcases": [
+          "sec-e2e-021-prompt-injection-tool-guard-enforced"
+        ],
+        "targetPaths": [
+          "src/qwenpaw/security",
+          "src/qwenpaw/app"
+        ],
+        "steps": [
+          "Implement missing-trust rejection at the tool boundary with a non-static trace-bound Security_Rejection_Nonce.",
+          "Persist a durable rejected-event record that includes voucher-ready nonce data, edge_timestamp_ns, and cloud projection metadata.",
+          "Preserve the frozen explicit testcase and harness wording while making the real runtime surface the required rejection evidence."
+        ],
+        "completionSignal": "tests/integration/security/test_audit_foundation.py::test_prompt_injection_cannot_bypass_high_risk_tool_guard passes without modifying its pytest selector, GIVEN/WHEN/THEN structure, or harness contract."
+      },
+      {
+        "taskId": "coding-task-003",
+        "title": "Materialize Security Center backend API",
+        "objective": "Implement deploy/api as the only edge-facing HTTP boundary for anomaly query, voucher query, divergence timeline delivery, recovery handshake, and realtime operator alert publication.",
+        "dependsOn": [
+          "coding-task-001",
+          "coding-task-002"
+        ],
+        "relatedTestcases": [
+          "sec-e2e-025-audit-integrity-self-healing-lockdown",
+          "sec-e2e-021-prompt-injection-tool-guard-enforced"
+        ],
+        "targetPaths": [
+          "deploy/api"
+        ],
+        "steps": [
+          "Create repository-owned HTTP endpoints for rejected-event evidence, nonce voucher lookup, recovery handshake state, and shadow-hash divergence timeline queries.",
+          "Publish Security_Rejection_Nonce and divergence updates to operators through Server-Sent Events or WebSocket without introducing any non-HTTP edge transport.",
+          "Keep deploy/api as the sole cloud-side control point for edge interactions and avoid shared-storage shortcuts with the edge runtime.",
+          "Implement cloud-side hash and canonical serialization logic inside deploy/api without importing src/qwenpaw business logic, except for any minimal shared protocol-definition layer explicitly limited to wire formats."
+        ],
+        "completionSignal": "The frozen deploy/api contract is materially implemented and both explicit security entrypoints can observe backend API visibility through the existing harness and testcase bodies."
+      },
+      {
+        "taskId": "coding-task-004",
+        "title": "Materialize Security Center operator web",
+        "objective": "Implement deploy/web so operators can see the hash-break curve, fork point, nonce Voucher, and automatic red alerts without manual refresh.",
+        "dependsOn": [
+          "coding-task-003"
+        ],
+        "relatedTestcases": [
+          "sec-e2e-025-audit-integrity-self-healing-lockdown",
+          "sec-e2e-021-prompt-injection-tool-guard-enforced"
+        ],
+        "targetPaths": [
+          "deploy/web"
+        ],
+        "steps": [
+          "Render a hash-break curve chart with separate local-hash and cloud-shadow-hash lines plus a visually explicit fork point marker.",
+          "Render Security_Rejection_Nonce as a human-readable Voucher that administrators can cross-check with physical or exported logs.",
+          "Subscribe to deploy/api Server-Sent Events or WebSocket alerts and auto-pop a red alert in under 500ms when Security_Rejection_Nonce uplink receipt occurs.",
+          "Display perceived latency in the UI as current_time - edge_timestamp_ns and keep the demonstrated value stable within 500ms to prove that the alert path is not a disguised polling loop."
+        ],
+        "completionSignal": "The frozen deploy/web contract is materially implemented and the existing explicit security harness can observe operator web visibility, voucher rendering, and realtime red-alert behavior through the fixed testcase boundaries."
+      },
+      {
+        "taskId": "coding-task-006",
+        "title": "Write adversarial showcase script",
+        "objective": "Create a non-fakeable demonstration script that proves the implemented security slice survives physical tampering, supports precise fork-point tracing, and binds blind-test prompt rejection to the live trace.",
+        "dependsOn": [
+          "coding-task-003",
+          "coding-task-004"
+        ],
+        "relatedTestcases": [
+          "sec-e2e-025-audit-integrity-self-healing-lockdown",
+          "sec-e2e-021-prompt-injection-tool-guard-enforced"
+        ],
+        "targetPaths": [
+          "deploy/api",
+          "deploy/web",
+          "src/qwenpaw/security",
+          "design/KG"
+        ],
+        "steps": [
+          "Write a physical-tamper showcase step that uses a Hex Editor to modify hash bytes in the local durable store instead of editing JSON source files or test fixtures.",
+          "Write a fork-tracing showcase step that proves the web hash-break curve identifies the first divergent Event ID and its fork point with cloud-side comparison evidence.",
+          "Write a blind prompt-injection showcase step where an evaluator supplies an unpublished prompt and the resulting Security_Rejection_Nonce is shown bound to the current trace_id without pre-baked demo data."
+        ],
+        "completionSignal": "A repeatable adversarial showcase script exists and can demonstrate physical tamper detection, first-divergent Event ID tracing, and blind-test nonce-to-trace binding without changing the frozen explicit testcase boundaries."
+      },
+      {
+        "taskId": "coding-task-005",
+        "title": "Re-run frozen validation slice",
+        "objective": "Verify that the completed implementation satisfies the frozen explicit security baselines and architecture guardrails without changing the contracts or entrypoints.",
+        "dependsOn": [
+          "coding-task-003",
+          "coding-task-004",
+          "coding-task-006"
+        ],
+        "relatedTestcases": [
+          "sec-e2e-025-audit-integrity-self-healing-lockdown",
+          "sec-e2e-021-prompt-injection-tool-guard-enforced"
+        ],
+        "targetPaths": [
+          "tests/integration/security",
+          "tests/architecture",
+          "design/KG"
+        ],
+        "steps": [
+          "Run the two frozen explicit pytest entrypoints in the full end-to-end environment using their existing selectors and confirm they pass.",
+          "Run the frozen architecture guards and handoff validation commands to confirm contracts, traceability, and handoff integrity still hold.",
+          "Update failure records only if the new runtime result changes and do not reintroduce implemented testcases into the coding queue.",
+          "Reject any coding proposal that replaces explicit end-to-end execution with mocks, stubs, fake adapters, or in-memory doubles."
+        ],
+        "completionSignal": "Both outstanding explicit security pytest entrypoints, the security architecture guards, and npm run validate:handoff:implementation all pass with the frozen file set intact."
+      }
+    ]
+  },
+  "notes": [
+    "Handshake paradox rule: coding-task-000 is mandatory and must materialize the deploy/api handshake contract plus a minimal runnable real endpoint before any edge-side recovery implementation starts, so sec-e2e-025 work can consume a real HTTP shadow_hash response through the production path.",
+    "Monorepo isolation rule: code under deploy/ must not import implementation logic from src/. Hashing, canonical serialization, and comparison logic must be implemented independently on the edge and cloud sides, except for any minimal shared protocol-definition layer that carries wire-format contracts only.",
+    "Realtime honesty rule: AuditEvent payloads must include edge_timestamp_ns, and the operator web must display perceived latency as current_time - edge_timestamp_ns with a demonstrated value stable within 500ms. This rule exists to make disguised polling implementations visibly fail the showcase.",
+    "Adversarial showcase rule: the final demonstration must include physical tampering by Hex Editor against the local durable store, web-side identification of the first divergent Event ID on the hash-break curve, and a blind prompt-injection trial where Security_Rejection_Nonce proves automatic binding to the live trace_id.",
+    "Explicit testcase execution rule: all explicit testcases in this handoff must run against the complete end-to-end runtime environment; mock-based, stub-only, fake-adapter, or in-memory-double substitutions are disallowed for acceptance closure."
+  ],
+  "frozenFiles": [
+    "design/KG/SystemArchitecture.json",
+    "design/KG/IntentToImplementationHandoff.json",
+    "design/KG/ImplementationToCodingHandoff.json",
+    "design/KG/test-failure-records.json",
+    "OVERALL_ARCHITECTURE.md",
+    "src/qwenpaw/ARCHITECTURE.md",
+    "src/qwenpaw/security/ARCHITECTURE.md",
+    "deploy/ARCHITECTURE.md",
+    "deploy/api/ARCHITECTURE.md",
+    "deploy/web/ARCHITECTURE.md",
+    "tests/ARCHITECTURE.md",
+    "tests/integration/security/ARCHITECTURE.md",
+    "tests/integration/security/harness.py",
+    "tests/integration/security/test_audit_foundation.py",
+    "tests/architecture/security-audit-contract-boundaries.test.js",
+    "tests/architecture/security-explicit-entrypoint-traceability.test.js"
+  ],
+  "openGaps": [
+    "src/qwenpaw/security still lacks canonical audit events, durable confirmation digests, and a local hash-chain verifier behind the frozen harness methods.",
+    "src/qwenpaw/security still lacks checkpoint-loss-as-tamper semantics, explicit UNTRUSTED state, continuity anomaly projection, resumed sensitive-tool refusal after local tamper evidence, deploy/api plus deploy/web recovery visibility, and hash-break curve plus fork-point payload generation.",
+    "src/qwenpaw/security still lacks non-static trace-bound Security_Rejection_Nonce semantics, durable rejected-event persistence, nonce Voucher projection, and deploy/api plus deploy/web visibility for prompt-injection rejection evidence.",
+    "deploy/api is frozen as the only edge-facing HTTP boundary, but the backend service, SSE or WebSocket alert stream, nonce voucher API, and divergence timeline surface are not yet materialized.",
+    "deploy/web is frozen as the operator-facing frontend, but the web application, hash-break curve chart, nonce Voucher, realtime red-alert flow, and backend integration are not yet materialized."
+  ]
+}

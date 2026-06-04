@@ -1,1 +1,28 @@
-[]
+[
+	{
+		"testcasename": "sec-e2e-025-audit-integrity-self-healing-lockdown",
+		"testdescription": "When an employee attempts to hide a sensitive action by deleting records, editing configuration files, or reconnecting after offline tampering, the system must surface a single business-level data continuity anomaly and refuse further sensitive use until trust is re-established.",
+		"acceptanceCriteria": "tests/integration/security/test_audit_foundation.py::test_audit_integrity_self_healing_lockdown",
+		"relatedIntentElementId": "intent-local-security-audit-foundation",
+		"status": "failed",
+		"resolvedScriptPath": "tests/integration/security/test_audit_foundation.py::test_audit_integrity_self_healing_lockdown",
+		"executionCommand": "d:\\Projects\\QwenPaw\\.venv\\Scripts\\python.exe -m pytest tests/integration/security/test_audit_foundation.py::test_audit_integrity_self_healing_lockdown -q",
+		"exitCode": 1,
+		"failureError": "category=\"Audit_Integrity_Lockdown_Gap\"\n- Checkpoint_Loss_Not_Treated_As_Tamper: physical checkpoint loss was not surfaced as tamper evidence during startup or resume.\n- UNTRUSTED_State_Missing: the live runtime did not enter explicit UNTRUSTED state after checkpoint loss or tamper evidence.\n- Sensitive_Tool_Not_Blocked: the resumed high-risk action was not refused at the business boundary after tamper evidence.\n- Security_Center_Backend_Api_Missing: the live runtime did not surface the cloud-side recovery state through the frozen backend API service boundary.\n- Security_Center_Operator_Web_Missing: the live runtime did not surface the anomaly and recovery state through the frozen operator web boundary.\n- Hash_Break_Curve_Chart_Missing: the operator web did not surface a hash-break curve chart for the local and cloud shadow hashes.\n- Hash_Break_Fork_Point_Missing: the operator web did not mark the exact fork point where local and cloud shadow hashes diverged.\n- Cloud_Recovery_Projection_Missing: the edge runtime did not emit any cloud-facing anomaly or recovery projection artifact.\n- Recovery_Handshake_Missing: the live runtime does not yet prove a first-ask-then-upload recovery handshake before resume.",
+		"stdout": "",
+		"stderr": "category=\"Audit_Integrity_Lockdown_Gap\""
+	},
+	{
+		"testcasename": "sec-e2e-021-prompt-injection-tool-guard-enforced",
+		"testdescription": "A malicious prompt or contaminated external text must not be able to talk an agent into skipping the high-risk confirmation path or into treating a high-risk action as if it were a trusted test operation.",
+		"acceptanceCriteria": "tests/integration/security/test_audit_foundation.py::test_prompt_injection_cannot_bypass_high_risk_tool_guard",
+		"relatedIntentElementId": "intent-high-risk-tool-guard",
+		"status": "failed",
+		"resolvedScriptPath": "tests/integration/security/test_audit_foundation.py::test_prompt_injection_cannot_bypass_high_risk_tool_guard",
+		"executionCommand": "d:\\Projects\\QwenPaw\\.venv\\Scripts\\python.exe -m pytest tests/integration/security/test_audit_foundation.py::test_prompt_injection_cannot_bypass_high_risk_tool_guard -q",
+		"exitCode": 1,
+		"failureError": "category=\"Prompt_Injection_Guard_Gap\"\n- Security_Rejection_Nonce_Missing: the live runtime did not emit a Security_Rejection_Nonce in the HTTP response or durable audit evidence, so the harness cannot distinguish guard rejection from a generic functional failure.\n- Security_Rejection_Nonce_Not_Trace_Bound: the observed Security_Rejection_Nonce does not prove a cryptographic binding to the current trace chain and may be static or replayable.\n- Missing_Trust_Rejection_Missing: the live runtime did not reject the deceptive request because trusted provenance and confirmation were absent with a verifiable guard-issued nonce.\n- Rejected_Event_Missing: the live runtime did not persist a durable rejected security event for the bypass attempt.\n- Security_Center_Backend_Api_Missing: the live runtime did not surface rejected-event evidence through the frozen backend API service boundary.\n- Security_Center_Operator_Web_Missing: the live runtime did not surface the rejected action through the frozen operator web boundary.\n- Nonce_Voucher_Missing: the operator web did not expose the Security_Rejection_Nonce as a human-readable voucher for administrator log verification.\n- Realtime_Push_Channel_Missing: deploy/api did not expose a Server-Sent Events or WebSocket channel for operator alerting.\n- Realtime_Red_Alert_Missing: the operator web did not surface a red alert within 500ms of Security_Rejection_Nonce uplink receipt without manual refresh.\n- Security_Center_Mirror_Missing: the live runtime did not project rejected-event evidence through the cloud-facing seam.",
+		"stdout": "",
+		"stderr": "category=\"Prompt_Injection_Guard_Gap\""
+	}
+]

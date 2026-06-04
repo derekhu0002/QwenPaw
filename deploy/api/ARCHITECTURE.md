@@ -1,0 +1,40 @@
+---
+contract_type: implementation-architecture-element
+contract_version: 1
+scope: stable-element
+element_name: security-center-backend-api
+element_kind: SecurityCenterBackendApi
+element_path: deploy/api
+---
+
+## Implementation Architecture Contract
+
+### Responsibility
+- Own the backend HTTP API service for Security Center.
+- Receive edge-side uplinks from src/qwenpaw/security through repository-owned HTTP endpoints only.
+- Expose operator-facing query APIs for anomaly state, rejected-event evidence, recovery-handshake status, and shadow-hash continuity.
+- Expose a realtime operator push channel over Server-Sent Events (SSE) or WebSocket for Security_Rejection_Nonce receipt, hash-divergence updates, and trust-state escalation.
+- Own cloud-side shadow-state comparison, rejected-event intake, and recovery-handshake orchestration.
+
+### Out Of Scope
+- Owning edge runtime behavior or local audit files.
+- Rendering operator UI directly.
+- Exposing non-HTTP transports to the edge runtime for this slice.
+
+### Dependency Direction
+- src/qwenpaw/security may call this boundary only through HTTP.
+- deploy/web may consume this boundary's APIs for visualization and operator workflows.
+- deploy/web may consume this boundary's SSE or WebSocket push stream for red-alert popups and shadow-hash divergence updates.
+- This boundary must not read edge-local files, share edge durable storage, or be imported into the edge runtime as a library.
+
+### Required API Roles
+- audit uplink intake API
+- rejected-event evidence API
+- recovery-handshake API
+- operator query API for anomaly and trust state
+- shadow-hash divergence timeline API that returns local-hash and cloud-shadow-hash curve series plus the fork point marker
+- nonce voucher API surface that exposes Security_Rejection_Nonce as a human-verifiable operator artifact
+- realtime operator alert stream over Server-Sent Events (SSE) or WebSocket
+
+### Notes
+- Coding/Repair may choose concrete framework and route layout, but must preserve HTTP as the edge transport, keep this backend as the only cloud-side control point for edge interactions, and publish Security_Rejection_Nonce-triggered operator alerts to deploy/web in under 500ms from uplink receipt without requiring manual refresh.

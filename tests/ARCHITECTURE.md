@@ -42,6 +42,8 @@ element_path: tests
 - unit/routers/test_settings.py::test_put_then_get_roundtrip
 - unit/routers/test_git.py::test_git_helper_uses_shared_command_runner
 - integration/security/test_audit_foundation.py::test_end_to_end_non_repudiation_evidence_chain
+- integration/security/test_audit_foundation.py::test_audit_integrity_self_healing_lockdown
+- integration/security/test_audit_foundation.py::test_prompt_injection_cannot_bypass_high_risk_tool_guard
 
 ### Critical Non-Explicit Tests
 - architecture/root-architecture-contracts.test.js
@@ -58,5 +60,5 @@ element_path: tests
 
 ### Notes
 - The current explicit testcases are intentionally anchored to repository-owned pytest entrypoints so the architecture baseline stays executable in the current workspace state.
-- `tests/integration/security/harness.py` is a protected fixture for explicit security acceptance bodies. Coding/Repair may realize the runtime behind it, but should not rewrite its business-facing vocabulary, runtime-inspection method names, the required `app_server` real-environment binding, or the read-only testcase entrypoint without an upstream architecture change.
+- `tests/integration/security/harness.py` is a protected fixture for explicit security acceptance bodies. Coding/Repair may realize the runtime behind it, but should not rewrite its business-facing vocabulary, runtime-inspection method names, the required `app_server` real-environment binding, or the read-only testcase entrypoints without an upstream architecture change.
 - `tests/integration/conftest.py` now carries the shared real-app subprocess bootstrap baseline for integration entrypoints; when runtime startup fails, it must surface a readable `startup_error` to test bodies instead of terminating those entrypoints during fixture setup.
