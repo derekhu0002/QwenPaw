@@ -51,3 +51,15 @@ python scripts/run_tests.py -p
 # Show help
 python scripts/run_tests.py -h
 ```
+
+## Reset showcase demo state
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\scripts\reset-showcase-demo-state.ps1
+```
+
+- Stops processes listening on the default showcase ports `18088`, `8091`, and `8092`.
+- Also stops the default `qwenpaw app` web port `8088`.
+- Recreates clean working, secret, and backup directories using the same default resolution as QwenPaw itself: `QWENPAW_WORKING_DIR` or `COPAW_WORKING_DIR`, else `~/.copaw`, else `~/.qwenpaw`.
+- Clears the default Security Center store file and optionally the directory from `QWENPAW_SECURITY_CENTER_DATA_DIR`.
+- Prints the environment variables you should export before restarting the demo services.

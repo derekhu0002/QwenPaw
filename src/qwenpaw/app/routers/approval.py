@@ -6,9 +6,11 @@ import logging
 from typing import Optional
 
 from fastapi import APIRouter, HTTPException, Request
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 
 from ..approvals import get_approval_service
+from ...security.audit_foundation import lock_mode_required, write_lockdown_record
 from ...security.tool_guard.approval import ApprovalDecision
 
 logger = logging.getLogger(__name__)
@@ -91,6 +93,39 @@ async def post_approval_approve(
         raise HTTPException(
             status_code=403,
             detail="Root session mismatch: cannot approve other session trees",
+        )
+
+    if lock_mode_required() and pending.tool_name:
+        prompt_text = str(pending.extra.get("request_prompt") or "")
+        await write_lockdown_record(
+            session_id=pending.session_id,
+            user_id=pending.user_id,
+            channel=pending.channel,
+            agent_id=pending.agent_id,
+            tool_name=pending.tool_name,
+            prompt_text=prompt_text,
+        )
+        await svc.resolve_request(
+            body.request_id,
+            ApprovalDecision.DENIED,
+        )
+        logger.warning(
+            "Approval blocked by audit lock mode: request_id=%s session=%s tool=%s",
+            body.request_id[:16],
+            pending.session_id,
+            pending.tool_name,
+        )
+        return JSONResponse(
+            status_code=423,
+            content={
+                "success": False,
+                "message": (
+                    "Audit continuity is untrusted; restore trust before "
+                    "approving high-risk execution."
+                ),
+                "tool_name": pending.tool_name,
+                "request_id": body.request_id,
+            },
         )
 
     # Resolve the Future

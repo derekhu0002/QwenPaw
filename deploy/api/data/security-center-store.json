@@ -1,0 +1,366 @@
+{
+  "alerts": [
+    {
+      "alert_latency_ms": 331,
+      "client_id": "1780590146849",
+      "edge_timestamp_ns": 1780590282756629600,
+      "fork_point_event_id": "8117170d-fb24-4f35-9486-2f735ed34ff7",
+      "message": "UNTRUSTED recovery required for 1780590146849",
+      "received_at_ns": 1780590283088390400,
+      "severity": "critical",
+      "trace_id": "8117170d-fb24-4f35-9486-2f735ed34ff7",
+      "type": "AUDIT_LOCKDOWN"
+    },
+    {
+      "alert_latency_ms": 339,
+      "client_id": "1780590146849",
+      "edge_timestamp_ns": 1780590301003155800,
+      "fork_point_event_id": "8117170d-fb24-4f35-9486-2f735ed34ff7",
+      "message": "UNTRUSTED recovery required for 1780590146849",
+      "received_at_ns": 1780590301342448900,
+      "severity": "critical",
+      "trace_id": "95b0847a-8884-48ad-8df3-7f16d7660389",
+      "type": "AUDIT_LOCKDOWN"
+    },
+    {
+      "alert_latency_ms": 303,
+      "client_id": "1780590146849",
+      "edge_timestamp_ns": 1780590303571223700,
+      "fork_point_event_id": "95b0847a-8884-48ad-8df3-7f16d7660389",
+      "message": "UNTRUSTED recovery required for 1780590146849",
+      "received_at_ns": 1780590303874380300,
+      "severity": "critical",
+      "trace_id": "3a8180ad-07fe-4281-bdb8-2d5f57532fa2",
+      "type": "AUDIT_LOCKDOWN"
+    },
+    {
+      "alert_latency_ms": 297,
+      "client_id": "1780590146849",
+      "edge_timestamp_ns": 1780590382578279900,
+      "fork_point_event_id": "3a8180ad-07fe-4281-bdb8-2d5f57532fa2",
+      "message": "UNTRUSTED recovery required for 1780590146849",
+      "received_at_ns": 1780590382876231700,
+      "severity": "critical",
+      "trace_id": "4cddc3ed-e6b4-433a-a312-2233cdb77c4b",
+      "type": "AUDIT_LOCKDOWN"
+    },
+    {
+      "alert_latency_ms": 308,
+      "client_id": "1780590146849",
+      "edge_timestamp_ns": 1780590384694136100,
+      "fork_point_event_id": "4cddc3ed-e6b4-433a-a312-2233cdb77c4b",
+      "message": "UNTRUSTED recovery required for 1780590146849",
+      "received_at_ns": 1780590385002460400,
+      "severity": "critical",
+      "trace_id": "a8b6e25a-90fd-467d-aadb-d586196dc323",
+      "type": "AUDIT_LOCKDOWN"
+    },
+    {
+      "alert_latency_ms": 424,
+      "client_id": "1780590146849",
+      "edge_timestamp_ns": 1780591964554257000,
+      "fork_point_event_id": "a8b6e25a-90fd-467d-aadb-d586196dc323",
+      "message": "UNTRUSTED recovery required for 1780590146849",
+      "received_at_ns": 1780591964978310300,
+      "severity": "critical",
+      "trace_id": "ef27bfde-e143-4c64-812f-9e3979470af4",
+      "type": "AUDIT_LOCKDOWN"
+    }
+  ],
+  "clients": {
+    "1780590146849": {
+      "last_fork_point_event_id": "a8b6e25a-90fd-467d-aadb-d586196dc323",
+      "last_handshake_trace_id": "ef27bfde-e143-4c64-812f-9e3979470af4",
+      "last_trace_id": "ef27bfde-e143-4c64-812f-9e3979470af4",
+      "shadow_hash": "e6e1192f66e322217a7f5d52a5d49c446916fafdc77d58af7901cf70def8b8e0",
+      "trust_state": "UNTRUSTED",
+      "updated_at_ns": 1780591964978310300
+    }
+  },
+  "lockdowns": {
+    "3a8180ad-07fe-4281-bdb8-2d5f57532fa2": {
+      "client_id": "1780590146849",
+      "cloud_shadow_hash": "fe7e08d46147c8bee31530af37887d48c81c36fb7530a4c1ca6fe29457b60ae5",
+      "edge_timestamp_ns": 1780590303571223700,
+      "handshake_status": "required",
+      "local_hash": "28c23eeb2e4730a04f2b8c1f412c0186cabbddafa14bca1666855cf5b37aa73a",
+      "prior_hash": "28c23eeb2e4730a04f2b8c1f412c0186cabbddafa14bca1666855cf5b37aa73a",
+      "received_at_ns": 1780590303874380300,
+      "recovery_required": true,
+      "timeline": {
+        "client_id": "1780590146849",
+        "cloud_shadow_curve": [
+          {
+            "hash": "effedff8cdc7679147e35fb82b5b339605d3696494c01d0024f776c7dc295b83",
+            "label": "shadow-anchor",
+            "sequence": 0
+          },
+          {
+            "hash": "fe7e08d46147c8bee31530af37887d48c81c36fb7530a4c1ca6fe29457b60ae5",
+            "label": "shadow-head",
+            "sequence": 1
+          }
+        ],
+        "fork_point": {
+          "cloud_shadow_hash": "fe7e08d46147c8bee31530af37887d48c81c36fb7530a4c1ca6fe29457b60ae5",
+          "event_id": "95b0847a-8884-48ad-8df3-7f16d7660389",
+          "local_hash": "28c23eeb2e4730a04f2b8c1f412c0186cabbddafa14bca1666855cf5b37aa73a",
+          "sequence": 0
+        },
+        "local_hash_curve": [
+          {
+            "hash": "28c23eeb2e4730a04f2b8c1f412c0186cabbddafa14bca1666855cf5b37aa73a",
+            "label": "anchor",
+            "sequence": 0
+          },
+          {
+            "hash": "28c23eeb2e4730a04f2b8c1f412c0186cabbddafa14bca1666855cf5b37aa73a",
+            "label": "tampered-head",
+            "sequence": 1
+          }
+        ]
+      },
+      "tool_name": "glob_search",
+      "trace_id": "3a8180ad-07fe-4281-bdb8-2d5f57532fa2",
+      "trust_state": "UNTRUSTED",
+      "user_id": "default"
+    },
+    "4cddc3ed-e6b4-433a-a312-2233cdb77c4b": {
+      "client_id": "1780590146849",
+      "cloud_shadow_hash": "62668aea9944468b394101f1978f05a68257f74f97b67824caca1802d5fc95fe",
+      "edge_timestamp_ns": 1780590382578279900,
+      "handshake_status": "required",
+      "local_hash": "04ef0e2730c481c08b0f0eeeca1f0cd41566b59246972c72022d170dc02ef6c2",
+      "prior_hash": "04ef0e2730c481c08b0f0eeeca1f0cd41566b59246972c72022d170dc02ef6c2",
+      "received_at_ns": 1780590382876231700,
+      "recovery_required": true,
+      "timeline": {
+        "client_id": "1780590146849",
+        "cloud_shadow_curve": [
+          {
+            "hash": "fe7e08d46147c8bee31530af37887d48c81c36fb7530a4c1ca6fe29457b60ae5",
+            "label": "shadow-anchor",
+            "sequence": 0
+          },
+          {
+            "hash": "62668aea9944468b394101f1978f05a68257f74f97b67824caca1802d5fc95fe",
+            "label": "shadow-head",
+            "sequence": 1
+          }
+        ],
+        "fork_point": {
+          "cloud_shadow_hash": "62668aea9944468b394101f1978f05a68257f74f97b67824caca1802d5fc95fe",
+          "event_id": "3a8180ad-07fe-4281-bdb8-2d5f57532fa2",
+          "local_hash": "04ef0e2730c481c08b0f0eeeca1f0cd41566b59246972c72022d170dc02ef6c2",
+          "sequence": 0
+        },
+        "local_hash_curve": [
+          {
+            "hash": "04ef0e2730c481c08b0f0eeeca1f0cd41566b59246972c72022d170dc02ef6c2",
+            "label": "anchor",
+            "sequence": 0
+          },
+          {
+            "hash": "04ef0e2730c481c08b0f0eeeca1f0cd41566b59246972c72022d170dc02ef6c2",
+            "label": "tampered-head",
+            "sequence": 1
+          }
+        ]
+      },
+      "tool_name": "execute_shell_command",
+      "trace_id": "4cddc3ed-e6b4-433a-a312-2233cdb77c4b",
+      "trust_state": "UNTRUSTED",
+      "user_id": "default"
+    },
+    "8117170d-fb24-4f35-9486-2f735ed34ff7": {
+      "client_id": "1780590146849",
+      "cloud_shadow_hash": "56173e937144fdc607aff3d3c0ffc68cd7ceba9e1cb408cc9bb94a706c69fcc2",
+      "edge_timestamp_ns": 1780590282756629600,
+      "handshake_status": "required",
+      "local_hash": "5d73963380cb3ae87ec600a0072c68e77d5470e172db157251dab751f65139ba",
+      "prior_hash": "5d73963380cb3ae87ec600a0072c68e77d5470e172db157251dab751f65139ba",
+      "received_at_ns": 1780590283088390400,
+      "recovery_required": true,
+      "timeline": {
+        "client_id": "1780590146849",
+        "cloud_shadow_curve": [
+          {
+            "hash": "240bd4a215eea6e652ea9de1261a97f8f25ea826bbdd31f0d2b86e3389e2b688",
+            "label": "shadow-anchor",
+            "sequence": 0
+          },
+          {
+            "hash": "56173e937144fdc607aff3d3c0ffc68cd7ceba9e1cb408cc9bb94a706c69fcc2",
+            "label": "shadow-head",
+            "sequence": 1
+          }
+        ],
+        "fork_point": {
+          "cloud_shadow_hash": "56173e937144fdc607aff3d3c0ffc68cd7ceba9e1cb408cc9bb94a706c69fcc2",
+          "event_id": "8117170d-fb24-4f35-9486-2f735ed34ff7",
+          "local_hash": "5d73963380cb3ae87ec600a0072c68e77d5470e172db157251dab751f65139ba",
+          "sequence": 0
+        },
+        "local_hash_curve": [
+          {
+            "hash": "5d73963380cb3ae87ec600a0072c68e77d5470e172db157251dab751f65139ba",
+            "label": "anchor",
+            "sequence": 0
+          },
+          {
+            "hash": "5d73963380cb3ae87ec600a0072c68e77d5470e172db157251dab751f65139ba",
+            "label": "tampered-head",
+            "sequence": 1
+          }
+        ]
+      },
+      "tool_name": "execute_shell_command",
+      "trace_id": "8117170d-fb24-4f35-9486-2f735ed34ff7",
+      "trust_state": "UNTRUSTED",
+      "user_id": "default"
+    },
+    "95b0847a-8884-48ad-8df3-7f16d7660389": {
+      "client_id": "1780590146849",
+      "cloud_shadow_hash": "effedff8cdc7679147e35fb82b5b339605d3696494c01d0024f776c7dc295b83",
+      "edge_timestamp_ns": 1780590301003155800,
+      "handshake_status": "required",
+      "local_hash": "dda1039d630b151dfdca969dbdbb0063d1fe26a19499c9e50ca650fb9d1fbf1b",
+      "prior_hash": "dda1039d630b151dfdca969dbdbb0063d1fe26a19499c9e50ca650fb9d1fbf1b",
+      "received_at_ns": 1780590301342448900,
+      "recovery_required": true,
+      "timeline": {
+        "client_id": "1780590146849",
+        "cloud_shadow_curve": [
+          {
+            "hash": "56173e937144fdc607aff3d3c0ffc68cd7ceba9e1cb408cc9bb94a706c69fcc2",
+            "label": "shadow-anchor",
+            "sequence": 0
+          },
+          {
+            "hash": "effedff8cdc7679147e35fb82b5b339605d3696494c01d0024f776c7dc295b83",
+            "label": "shadow-head",
+            "sequence": 1
+          }
+        ],
+        "fork_point": {
+          "cloud_shadow_hash": "effedff8cdc7679147e35fb82b5b339605d3696494c01d0024f776c7dc295b83",
+          "event_id": "8117170d-fb24-4f35-9486-2f735ed34ff7",
+          "local_hash": "dda1039d630b151dfdca969dbdbb0063d1fe26a19499c9e50ca650fb9d1fbf1b",
+          "sequence": 0
+        },
+        "local_hash_curve": [
+          {
+            "hash": "dda1039d630b151dfdca969dbdbb0063d1fe26a19499c9e50ca650fb9d1fbf1b",
+            "label": "anchor",
+            "sequence": 0
+          },
+          {
+            "hash": "dda1039d630b151dfdca969dbdbb0063d1fe26a19499c9e50ca650fb9d1fbf1b",
+            "label": "tampered-head",
+            "sequence": 1
+          }
+        ]
+      },
+      "tool_name": "execute_shell_command",
+      "trace_id": "95b0847a-8884-48ad-8df3-7f16d7660389",
+      "trust_state": "UNTRUSTED",
+      "user_id": "default"
+    },
+    "a8b6e25a-90fd-467d-aadb-d586196dc323": {
+      "client_id": "1780590146849",
+      "cloud_shadow_hash": "c95c27d3bbd7957554e80d541d2c88c1e651195366a38a02db48a2f8bf35e394",
+      "edge_timestamp_ns": 1780590384694136100,
+      "handshake_status": "required",
+      "local_hash": "5d76257c2113a44f751ec0aa5010cde63141d0172b40ed96b834fa50a9913b72",
+      "prior_hash": "5d76257c2113a44f751ec0aa5010cde63141d0172b40ed96b834fa50a9913b72",
+      "received_at_ns": 1780590385002460400,
+      "recovery_required": true,
+      "timeline": {
+        "client_id": "1780590146849",
+        "cloud_shadow_curve": [
+          {
+            "hash": "62668aea9944468b394101f1978f05a68257f74f97b67824caca1802d5fc95fe",
+            "label": "shadow-anchor",
+            "sequence": 0
+          },
+          {
+            "hash": "c95c27d3bbd7957554e80d541d2c88c1e651195366a38a02db48a2f8bf35e394",
+            "label": "shadow-head",
+            "sequence": 1
+          }
+        ],
+        "fork_point": {
+          "cloud_shadow_hash": "c95c27d3bbd7957554e80d541d2c88c1e651195366a38a02db48a2f8bf35e394",
+          "event_id": "4cddc3ed-e6b4-433a-a312-2233cdb77c4b",
+          "local_hash": "5d76257c2113a44f751ec0aa5010cde63141d0172b40ed96b834fa50a9913b72",
+          "sequence": 0
+        },
+        "local_hash_curve": [
+          {
+            "hash": "5d76257c2113a44f751ec0aa5010cde63141d0172b40ed96b834fa50a9913b72",
+            "label": "anchor",
+            "sequence": 0
+          },
+          {
+            "hash": "5d76257c2113a44f751ec0aa5010cde63141d0172b40ed96b834fa50a9913b72",
+            "label": "tampered-head",
+            "sequence": 1
+          }
+        ]
+      },
+      "tool_name": "read_file",
+      "trace_id": "a8b6e25a-90fd-467d-aadb-d586196dc323",
+      "trust_state": "UNTRUSTED",
+      "user_id": "default"
+    },
+    "ef27bfde-e143-4c64-812f-9e3979470af4": {
+      "client_id": "1780590146849",
+      "cloud_shadow_hash": "e6e1192f66e322217a7f5d52a5d49c446916fafdc77d58af7901cf70def8b8e0",
+      "edge_timestamp_ns": 1780591964554257000,
+      "handshake_status": "required",
+      "local_hash": "0290d8618d601a76db63457011903aad9d823854da98988972245354afdd23bd",
+      "prior_hash": "0290d8618d601a76db63457011903aad9d823854da98988972245354afdd23bd",
+      "received_at_ns": 1780591964978310300,
+      "recovery_required": true,
+      "timeline": {
+        "client_id": "1780590146849",
+        "cloud_shadow_curve": [
+          {
+            "hash": "c95c27d3bbd7957554e80d541d2c88c1e651195366a38a02db48a2f8bf35e394",
+            "label": "shadow-anchor",
+            "sequence": 0
+          },
+          {
+            "hash": "e6e1192f66e322217a7f5d52a5d49c446916fafdc77d58af7901cf70def8b8e0",
+            "label": "shadow-head",
+            "sequence": 1
+          }
+        ],
+        "fork_point": {
+          "cloud_shadow_hash": "e6e1192f66e322217a7f5d52a5d49c446916fafdc77d58af7901cf70def8b8e0",
+          "event_id": "a8b6e25a-90fd-467d-aadb-d586196dc323",
+          "local_hash": "0290d8618d601a76db63457011903aad9d823854da98988972245354afdd23bd",
+          "sequence": 0
+        },
+        "local_hash_curve": [
+          {
+            "hash": "0290d8618d601a76db63457011903aad9d823854da98988972245354afdd23bd",
+            "label": "anchor",
+            "sequence": 0
+          },
+          {
+            "hash": "0290d8618d601a76db63457011903aad9d823854da98988972245354afdd23bd",
+            "label": "tampered-head",
+            "sequence": 1
+          }
+        ]
+      },
+      "tool_name": "execute_shell_command",
+      "trace_id": "ef27bfde-e143-4c64-812f-9e3979470af4",
+      "trust_state": "UNTRUSTED",
+      "user_id": "default"
+    }
+  },
+  "rejections": {},
+  "version": 1
+}

@@ -24,6 +24,7 @@ from typing import Any
 from ...constant import EnvVarLoader
 from .guardians import BaseToolGuardian
 from .guardians.file_guardian import FilePathToolGuardian
+from .guardians.high_risk_tool_guardian import HighRiskToolGuardian
 from .guardians.rule_guardian import RuleBasedToolGuardian
 from .guardians.shell_evasion_guardian import ShellEvasionGuardian
 from .models import ToolGuardResult
@@ -86,6 +87,13 @@ class ToolGuardEngine:
     def _default_guardians() -> list[BaseToolGuardian]:
         """Return the default set of guardians."""
         guardians: list[BaseToolGuardian] = []
+        try:
+            guardians.append(HighRiskToolGuardian())
+        except Exception as exc:  # pragma: no cover
+            logger.warning(
+                "Failed to initialise HighRiskToolGuardian: %s",
+                exc,
+            )
         try:
             guardians.append(FilePathToolGuardian())
         except Exception as exc:  # pragma: no cover

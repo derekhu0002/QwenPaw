@@ -6,6 +6,9 @@
     "validate:handoff": "node .github/validator/script/validateStageHandoff.js",
     "validate:handoff:intent": "node .github/validator/script/validateStageHandoff.js intent-to-implementation",
     "validate:handoff:implementation": "node .github/validator/script/validateStageHandoff.js implementation-to-coding",
-    "test:argo": "node .github/validator/script/runArchitectureTests.js"
+    "test:argo": "node .github/validator/script/runArchitectureTests.js",
+    "security-center:api": "python -m deploy.api.app",
+    "security-center:web": "python -m deploy.web.server",
+    "security-center:showcase": "python -m deploy.api.showcase show-plan"
   }
 }

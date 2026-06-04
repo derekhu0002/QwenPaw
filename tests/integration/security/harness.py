@@ -8,6 +8,7 @@ from contextlib import contextmanager
 from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
+from urllib.parse import quote
 
 import httpx
 
@@ -629,6 +630,14 @@ class SecurityAuditHarness:
         )
 
         latest_trace_payload = self._load_latest_trace_payload()
+        security_center_timeline = self._read_security_center_api_json(
+            f"/security-center/v1/operator/timelines/{quote(request.authenticated_employee.authenticated_session_id, safe='')}",
+        )
+        security_center_overview = self._read_security_center_api_json(
+            "/security-center/v1/operator/overview",
+        )
+        security_center_web_html = self._read_security_center_web_text("/")
+        security_center_web_app = self._read_security_center_web_text("/app.js")
         checkpoint_path = self._app_server.working_dir / "audit_chain_checkpoint.json"
         checkpoint_missing_detected = not checkpoint_path.exists()
         trust_state = self._find_first_scalar(
@@ -653,50 +662,42 @@ class SecurityAuditHarness:
         )
         local_lock_mode_ready = trust_state == "UNTRUSTED"
         sensitive_tool_blocked = self._latest_console_status in {401, 403, 409, 423}
-        backend_api_projection_ready = self._contains_any_key(
-            latest_trace_payload,
-            candidate_keys=(
-                "cloud_mirror_status",
-                "uplink_status",
-                "mirror_alert",
-                "recovery_projection",
-                "security_center_backend_api",
-            ),
-        ) or self._find_match(latest_trace_payload, request.security_center_backend_api_name)
-        operator_web_projection_ready = self._contains_any_key(
-            latest_trace_payload,
-            candidate_keys=(
-                "operator_dashboard_status",
-                "operator_web_projection",
-                "web_alert_state",
-                "security_center_operator_web",
-            ),
-        ) or self._find_match(latest_trace_payload, request.security_center_operator_web_name)
-        hash_break_curve_chart_ready = self._contains_any_key(
-            latest_trace_payload,
-            candidate_keys=(
-                "hash_break_curve_chart",
-                "hash_divergence_curve",
-                "shadow_hash_curve",
-                "continuity_curve_series",
-            ),
-        ) or self._find_match(latest_trace_payload, request.hash_break_curve_chart_name)
-        hash_break_fork_point_ready = self._contains_any_key(
-            latest_trace_payload,
-            candidate_keys=(
-                "fork_point_hash",
-                "fork_point_event_id",
-                "hash_divergence_fork_point",
-                "fork_sequence_number",
+        overview_client = self._find_client_state(
+            security_center_overview,
+            client_id=request.authenticated_employee.authenticated_session_id,
+        )
+        backend_api_projection_ready = all(
+            (
+                security_center_timeline.get("client_id") == request.authenticated_employee.authenticated_session_id,
+                security_center_timeline.get("recovery_required") is True,
+                security_center_timeline.get("trust_state") == "UNTRUSTED",
             ),
         )
-        cloud_recovery_projection_ready = self._contains_any_key(
-            latest_trace_payload,
-            candidate_keys=(
-                "cloud_mirror_status",
-                "uplink_status",
-                "mirror_alert",
-                "recovery_projection",
+        operator_web_projection_ready = all(
+            (
+                backend_api_projection_ready,
+                "Security Center Operator Web" in security_center_web_html,
+                "Hash-break curve chart" in security_center_web_html,
+                "renderTimeline" in security_center_web_app,
+                "/security-center/v1/operator/timelines/" in security_center_web_app,
+            ),
+        )
+        hash_break_curve_chart_ready = all(
+            (
+                operator_web_projection_ready,
+                bool(security_center_timeline.get("local_hash_curve")),
+                bool(security_center_timeline.get("cloud_shadow_curve")),
+                "timeline-chart" in security_center_web_html,
+            ),
+        )
+        hash_break_fork_point_ready = bool(
+            (security_center_timeline.get("fork_point") or {}).get("event_id"),
+        )
+        cloud_recovery_projection_ready = all(
+            (
+                backend_api_projection_ready,
+                isinstance(overview_client, dict),
+                overview_client.get("trust_state") == "UNTRUSTED",
             ),
         )
         recovery_handshake_ready = self._contains_any_key(
@@ -846,9 +847,27 @@ class SecurityAuditHarness:
 
         approval_records = self._latest_pending_approvals()
         latest_trace_payload = self._load_latest_trace_payload()
+        security_center_overview = self._read_security_center_api_json(
+            "/security-center/v1/operator/overview",
+        )
         security_rejection_nonce = self._extract_security_rejection_nonce(
             latest_trace_payload=latest_trace_payload,
             approval_records=approval_records,
+        )
+        rejection_payload = self._read_security_center_api_json(
+            f"/security-center/v1/operator/rejections/{quote(security_rejection_nonce, safe='')}",
+        ) if security_rejection_nonce else {}
+        voucher_payload = self._read_security_center_api_json(
+            f"/security-center/v1/operator/vouchers/{quote(security_rejection_nonce, safe='')}",
+        ) if security_rejection_nonce else {}
+        security_center_web_html = self._read_security_center_web_text("/")
+        security_center_web_app = self._read_security_center_web_text("/app.js")
+        realtime_stream_ready, realtime_stream_payload = self._security_center_stream_is_ready()
+        latest_alert = self._find_alert(
+            security_center_overview,
+            alert_type="SECURITY_REJECTION",
+            client_id=attempt.authenticated_employee.authenticated_session_id,
+            nonce=security_rejection_nonce,
         )
         security_rejection_nonce_trace_bound = self._security_rejection_nonce_is_trace_bound(
             latest_trace_payload=latest_trace_payload,
@@ -879,81 +898,52 @@ class SecurityAuditHarness:
                 "decision",
             ),
         ) and not self._find_match(approval_records, attempt.targeted_high_risk_tool_name)
-        backend_api_rejection_ready = self._contains_any_key(
-            latest_trace_payload,
-            candidate_keys=(
-                "security_center_backend_api",
-                "backend_api_rejection_status",
-                "rejected_event_api_status",
-                "operator_query_api_status",
+        backend_api_rejection_ready = all(
+            (
+                rejection_payload.get("nonce") == security_rejection_nonce,
+                rejection_payload.get("client_id") == attempt.authenticated_employee.authenticated_session_id,
+                rejection_payload.get("tool_name") == attempt.targeted_high_risk_tool_name,
             ),
-        ) or self._find_match(latest_trace_payload, attempt.security_center_backend_api_name)
-        operator_web_rejection_ready = self._contains_any_key(
-            latest_trace_payload,
-            candidate_keys=(
-                "security_center_operator_web",
-                "operator_web_projection",
-                "operator_dashboard_status",
-                "web_rejection_state",
+        )
+        operator_web_rejection_ready = all(
+            (
+                backend_api_rejection_ready,
+                "Security Center Operator Web" in security_center_web_html,
+                "Rejected-event evidence" in security_center_web_html,
+                "Nonce Voucher display" in security_center_web_html,
             ),
-        ) or self._find_match(latest_trace_payload, attempt.security_center_operator_web_name)
+        )
         nonce_voucher_ready = (
-            security_rejection_nonce is not None and (
-                self._contains_any_key(
-                    latest_trace_payload,
-                    candidate_keys=(
-                        "nonce_voucher",
-                        "security_rejection_voucher",
-                        "voucher_nonce",
-                    ),
-                )
-                or self._find_match(latest_trace_payload, attempt.nonce_voucher_label)
-            )
+            security_rejection_nonce is not None
+            and voucher_payload.get("nonce") == security_rejection_nonce
+            and voucher_payload.get("voucher") == f"Voucher:{security_rejection_nonce}"
         )
-        realtime_push_channel_ready = self._contains_any_key(
-            latest_trace_payload,
-            candidate_keys=(
-                "sse_stream",
-                "websocket_channel",
-                "realtime_push_channel",
-                "operator_alert_stream",
-            ),
-        ) or any(
-            marker in self._latest_console_response_body.lower()
-            for marker in ("text/event-stream", "websocket", "server-sent events")
-        )
-        observed_alert_latency_ms = self._coerce_int(
-            self._find_first_scalar(
-                latest_trace_payload,
-                keys=(
-                    "alert_latency_ms",
-                    "web_alert_latency_ms",
-                    "realtime_alert_latency_ms",
-                    "operator_alert_latency_ms",
-                ),
+        realtime_push_channel_ready = all(
+            (
+                realtime_stream_ready,
+                "EventSource" in security_center_web_app,
+                "/security-center/v1/operator/stream" in security_center_web_app,
+                "event: ready" in realtime_stream_payload,
             ),
         )
+        observed_alert_latency_ms = self._coerce_int(latest_alert.get("alert_latency_ms"))
         realtime_red_alert_ready = (
             realtime_push_channel_ready
             and observed_alert_latency_ms is not None
             and observed_alert_latency_ms < 500
-            and self._contains_any_key(
-                latest_trace_payload,
-                candidate_keys=(
-                    "red_alert_state",
-                    "rejection_alert_state",
-                    "alert_severity",
-                    "operator_popup_state",
-                ),
-            )
+            and latest_alert.get("edge_timestamp_ns") is not None
+            and latest_alert.get("severity") == "critical"
+            and "Realtime operator alert" in security_center_web_html
         )
-        security_center_mirror_ready = self._contains_any_key(
-            latest_trace_payload,
-            candidate_keys=(
-                "cloud_mirror_status",
-                "uplink_status",
-                "mirror_rejection_id",
-                "rejected_sync_status",
+        security_center_mirror_ready = all(
+            (
+                backend_api_rejection_ready,
+                self._find_rejection(
+                    security_center_overview,
+                    client_id=attempt.authenticated_employee.authenticated_session_id,
+                    nonce=security_rejection_nonce,
+                )
+                is not None,
             ),
         )
 
@@ -1327,6 +1317,122 @@ class SecurityAuditHarness:
             return {"status_code": response.status_code}
         payload = response.json()
         return payload if isinstance(payload, dict) else {"payload": payload}
+
+    def _read_security_center_api_json(self, path: str) -> dict[str, Any]:
+        base_url = self._app_server.security_center_api_url
+        if not base_url:
+            return {}
+        try:
+            response = self._app_server.client.get(
+                f"{base_url}{path}",
+                timeout=_HTTP_TIMEOUT,
+            )
+        except httpx.HTTPError:
+            return {}
+        if response.status_code != 200:
+            return {"status_code": response.status_code}
+        payload = response.json()
+        return payload if isinstance(payload, dict) else {"payload": payload}
+
+    def _read_security_center_web_text(self, path: str) -> str:
+        base_url = self._app_server.security_center_web_url
+        if not base_url:
+            return ""
+        try:
+            response = self._app_server.client.get(
+                f"{base_url}{path}",
+                timeout=_HTTP_TIMEOUT,
+            )
+        except httpx.HTTPError:
+            return ""
+        if response.status_code != 200:
+            return ""
+        return response.text
+
+    def _security_center_stream_is_ready(self) -> tuple[bool, str]:
+        base_url = self._app_server.security_center_api_url
+        if not base_url:
+            return False, ""
+        timeout = httpx.Timeout(_HTTP_TIMEOUT, read=_STREAM_READ_TIMEOUT)
+        try:
+            with self._app_server.client.stream(
+                "GET",
+                f"{base_url}/security-center/v1/operator/stream",
+                timeout=timeout,
+            ) as response:
+                content_type = response.headers.get("content-type", "")
+                first_chunk = ""
+                for chunk in response.iter_text():
+                    if chunk:
+                        first_chunk += chunk
+                        break
+                return (
+                    response.status_code == 200
+                    and "text/event-stream" in content_type.lower()
+                    and "event: ready" in first_chunk,
+                    first_chunk,
+                )
+        except httpx.HTTPError:
+            return False, ""
+
+    def _find_client_state(
+        self,
+        overview_payload: dict[str, Any],
+        *,
+        client_id: str,
+    ) -> dict[str, Any] | None:
+        clients = overview_payload.get("clients")
+        if not isinstance(clients, list):
+            return None
+        for client in clients:
+            if isinstance(client, dict) and client.get("client_id") == client_id:
+                return client
+        return None
+
+    def _find_rejection(
+        self,
+        overview_payload: dict[str, Any],
+        *,
+        client_id: str,
+        nonce: str | None,
+    ) -> dict[str, Any] | None:
+        rejections = overview_payload.get("rejections")
+        if not isinstance(rejections, list):
+            return None
+        for record in reversed(rejections):
+            if not isinstance(record, dict):
+                continue
+            if record.get("client_id") != client_id:
+                continue
+            if nonce is not None and record.get("nonce") != nonce:
+                continue
+            return record
+        return None
+
+    def _find_alert(
+        self,
+        overview_payload: dict[str, Any],
+        *,
+        alert_type: str,
+        client_id: str,
+        nonce: str | None = None,
+    ) -> dict[str, Any]:
+        alerts = overview_payload.get("alerts")
+        if not isinstance(alerts, list):
+            return {}
+        for alert in reversed(alerts):
+            if not isinstance(alert, dict):
+                continue
+            if alert.get("type") != alert_type:
+                continue
+            if alert.get("client_id") != client_id:
+                continue
+            if nonce is not None:
+                message = str(alert.get("message") or "")
+                if alert.get("nonce") != nonce and nonce not in message:
+                    continue
+            return alert
+        return {}
 
     def _extract_actor_chain(
         self,

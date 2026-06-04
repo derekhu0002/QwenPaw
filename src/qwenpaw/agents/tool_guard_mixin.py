@@ -153,6 +153,37 @@ class ToolGuardMixin:
         true parallelism.
         """
         ctx = getattr(self, "_request_context", None) or {}
+        tool_name = str((tool_call or {}).get("name", ""))
+
+        if tool_name:
+            from qwenpaw.security.audit_foundation import (
+                lock_mode_required,
+                write_lockdown_record,
+            )
+
+            if lock_mode_required():
+                tool_input = tool_call.get("input", {}) if isinstance(tool_call, dict) else {}
+                prompt_text = str(
+                    tool_input.get("prompt_text")
+                    or tool_input.get("prompt")
+                    or tool_input.get("command")
+                    or tool_input.get("raw_input")
+                    or ""
+                )
+                await write_lockdown_record(
+                    session_id=str(ctx.get("session_id") or ""),
+                    user_id=str(ctx.get("user_id") or ""),
+                    channel=str(ctx.get("channel") or ""),
+                    agent_id=str(ctx.get("agent_id") or getattr(self, "name", "unknown")),
+                    tool_name=tool_name,
+                    prompt_text=prompt_text,
+                )
+                return await self._acting_auto_denied(
+                    tool_call,
+                    tool_name,
+                    self._create_lockdown_guard_result(tool_name, tool_input),
+                )
+
         # TODO: remove this
         if ctx.get("_headless_tool_guard", "true").lower() == "false":
             return await super()._acting(tool_call)  # type: ignore[misc]
@@ -334,6 +365,42 @@ class ToolGuardMixin:
             params=tool_input,
             findings=[finding],
             guardians_used=["strict_mode"],
+        )
+
+    def _create_lockdown_guard_result(
+        self,
+        tool_name: str,
+        tool_input: dict[str, Any],
+    ) -> ToolGuardResult:
+        """Create HIGH-severity guard result for UNTRUSTED audit lock mode."""
+        finding = GuardFinding(
+            id=str(_uuid.uuid4())[:8],
+            rule_id="audit_lock_mode",
+            category=GuardThreatCategory.RESOURCE_ABUSE,
+            severity=GuardSeverity.HIGH,
+            title="Audit lock mode active",
+            description=(
+                "Tool execution is blocked because local audit continuity is "
+                "untrusted and trust must be restored before retrying."
+            ),
+            tool_name=tool_name,
+            param_name=None,
+            matched_value=None,
+            matched_pattern=None,
+            snippet=None,
+            remediation="Restore audit trust before retrying any tool call",
+            guardian="audit_lock_mode",
+            metadata={
+                "boundary_action": "auto_deny",
+                "lock_mode": "UNTRUSTED",
+            },
+        )
+
+        return ToolGuardResult(
+            tool_name=tool_name,
+            params=tool_input,
+            findings=[finding],
+            guardians_used=["audit_lock_mode"],
         )
 
     async def _execute_guard_action(

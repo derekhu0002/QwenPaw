@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>安全中心运营看板</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <div class="background-grid"></div>
+    <div class="background-halo halo-a"></div>
+    <div class="background-halo halo-b"></div>
+    <div class="app-frame">
+      <aside class="sidebar">
+        <div class="brand-block">
+          <p class="brand-kicker">QwenPaw Security Center</p>
+          <h1 class="brand-title">安全运营监控台</h1>
+          <p class="brand-copy">聚合信任态、恢复握手、告警推送与哈希分叉观测，供运营与审计角色实时研判。</p>
+        </div>
+        <nav class="nav-stack" aria-label="安全中心导航">
+          <a class="nav-item active" href="#overview-panel">总览态势</a>
+          <a class="nav-item" href="#trust-panel">信任恢复</a>
+          <a class="nav-item" href="#rejection-panel">拒绝取证</a>
+          <a class="nav-item" href="#chart-panel">分叉曲线</a>
+          <a class="nav-item" href="#event-panel">事件日志</a>
+        </nav>
+        <div class="sidebar-footnote">
+          <span class="footnote-label">运行模式</span>
+          <strong>独立云侧运营界面</strong>
+          <p>所有状态均通过 deploy/api 拉取与订阅，不直接读取边缘运行目录。</p>
+        </div>
+      </aside>
+
+      <main class="shell">
+        <header class="topbar">
+          <div class="topbar-title-block">
+            <span class="eyebrow">Security Center Operator Web</span>
+            <h2 class="hero-title">实时信任态、凭证与哈希断点可视化</h2>
+          </div>
+          <div class="topbar-actions">
+            <span class="status-pill">云侧运营模式</span>
+            <span class="status-pill muted-pill">中文界面</span>
+            <span class="status-pill warning-pill">主题: 深色</span>
+          </div>
+        </header>
+
+        <section class="hero-banner">
+          <div class="hero-copy-block">
+            <p class="hero-copy">
+              面向值班运营与审计人员的中文监控界面。页面自动消费 deploy/api，展示异常数量、
+              UNTRUSTED 客户端、拒绝事件、恢复握手进度以及本地哈希与云侧影子哈希的分叉点。
+            </p>
+          </div>
+          <form id="api-config" class="api-config compact-api-config">
+            <label for="api-base">后端 API 地址</label>
+            <div class="api-row">
+              <input id="api-base" name="api-base" type="url" />
+              <button type="submit">连接</button>
+            </div>
+            <p id="api-status" class="api-status">等待连接安全中心后端。</p>
+          </form>
+        </section>
+
+        <section class="alert-strip" id="alert-strip">
+          <div>
+            <span class="alert-label">实时运营告警</span>
+            <strong id="alert-title">当前无激活红色告警</strong>
+          </div>
+          <div class="latency-badge">
+            <span>感知延迟</span>
+            <strong id="alert-latency">-- ms</strong>
+          </div>
+        </section>
+
+        <section class="panel metric-panel" id="overview-panel">
+          <div class="panel-heading summary-heading">
+            <div>
+              <span class="section-kicker">监控总览</span>
+              <h2>态势摘要</h2>
+            </div>
+            <p>用一眼可读的指标卡快速判断客户端规模、恢复压力与实时告警活跃度。</p>
+          </div>
+          <div class="metric-grid" id="metric-grid"></div>
+        </section>
+
+        <section class="analytics-grid">
+          <article class="panel analysis-panel" id="trust-panel">
+            <div class="panel-heading compact">
+              <div>
+                <span class="section-kicker">Trust State</span>
+                <h2>信任态与恢复视图</h2>
+              </div>
+            </div>
+            <div id="trust-view" class="stack"></div>
+          </article>
+
+          <article class="panel analysis-panel" id="rejection-panel">
+            <div class="panel-heading compact">
+              <div>
+                <span class="section-kicker">Evidence</span>
+                <h2>拒绝事件证据</h2>
+              </div>
+            </div>
+            <div id="rejection-view" class="stack"></div>
+          </article>
+
+          <article class="panel analysis-panel voucher-panel">
+            <div class="panel-heading compact">
+              <div>
+                <span class="section-kicker">Voucher</span>
+                <h2>Nonce 凭证展示</h2>
+              </div>
+            </div>
+            <div id="voucher-view" class="voucher-card">尚未捕获拒绝凭证。</div>
+          </article>
+
+          <article class="panel analysis-panel event-preview-panel">
+            <div class="panel-heading compact">
+              <div>
+                <span class="section-kicker">Realtime Feed</span>
+                <h2>告警速览</h2>
+              </div>
+            </div>
+            <div id="event-log" class="event-log compact-event-log"></div>
+          </article>
+        </section>
+
+        <section class="chart-grid">
+          <article class="panel chart-panel" id="chart-panel">
+            <div class="chart-header">
+              <div>
+                <span class="section-kicker">Hash Divergence</span>
+                <h2>哈希分叉曲线</h2>
+                <p>同时显示本地哈希与云侧影子哈希曲线，并显式标记 fork point。</p>
+              </div>
+              <select id="client-select" aria-label="选择客户端"></select>
+            </div>
+            <svg id="timeline-chart" viewBox="0 0 640 260" aria-label="哈希分叉曲线图"></svg>
+            <div id="handshake-progress" class="handshake-progress"></div>
+          </article>
+
+          <section class="panel footer-panel" id="event-panel">
+            <div class="panel-heading compact">
+              <div>
+                <span class="section-kicker">Event Stream</span>
+                <h2>运营事件日志</h2>
+              </div>
+            </div>
+            <div class="log-frame">
+              <div class="log-frame-head">
+                <span>时间顺序</span>
+                <span>最近 12 条事件</span>
+              </div>
+              <div id="event-log-mirror" class="event-log"></div>
+            </div>
+          </section>
+        </section>
+      </main>
+    </div>
+
+    <div id="toast" class="toast hidden"></div>
+    <script src="./config.js"></script>
+    <script type="module" src="./app.js"></script>
+  </body>
+</html>

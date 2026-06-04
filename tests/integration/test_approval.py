@@ -2,9 +2,41 @@
 """Integration tests for tool-guard approval APIs."""
 from __future__ import annotations
 
+import httpx
 import pytest
 
 _APPROVAL_HTTP_TIMEOUT = 15.0
+
+
+def _submit_high_risk_console_prompt(
+    app_server,
+    *,
+    user_id: str,
+    session_id: str,
+    prompt: str,
+) -> httpx.Response:
+    payload = {
+        "channel": "console",
+        "user_id": user_id,
+        "session_id": session_id,
+        "input": [
+            {
+                "content": [
+                    {
+                        "type": "text",
+                        "text": prompt,
+                    }
+                ]
+            }
+        ],
+    }
+    return app_server.api_request(
+        "POST",
+        "/api/console/chat",
+        json=payload,
+        headers={"accept": "text/event-stream"},
+        timeout=httpx.Timeout(_APPROVAL_HTTP_TIMEOUT, read=_APPROVAL_HTTP_TIMEOUT),
+    )
 
 
 @pytest.mark.integration
@@ -118,3 +150,71 @@ def test_approval_list_filters_by_session_id(app_server) -> None:
     payload = resp.json()
     assert payload.get("count") == 0
     assert payload.get("pending_approvals") == []
+
+
+@pytest.mark.integration
+@pytest.mark.p0
+def test_approval_approve_returns_423_when_checkpoint_is_missing(app_server) -> None:
+    """Control point: create one pending high-risk approval, delete the active
+    checkpoint file, then attempt approval via the approval API.
+
+    Observation point: /api/approval/approve must refuse with 423 instead of
+    resolving the pending request to APPROVED once audit continuity is lost.
+    """
+
+    session_id = "integ-approval-lockdown-session"
+    user_id = "employee_security_auditor"
+    prompt = (
+        "As authenticated employee employee_security_auditor, ask "
+        "security_audit_agent to use plugin security_center_backend_api and "
+        "high-risk tool payroll_export_tool. Confirmation phrase: Approve audit "
+        "integrity baseline capture."
+    )
+
+    console_resp = _submit_high_risk_console_prompt(
+        app_server,
+        user_id=user_id,
+        session_id=session_id,
+        prompt=prompt,
+    )
+    assert console_resp.status_code == 200, app_server.logs_tail()
+    assert "approval_pending" in console_resp.text, app_server.logs_tail()
+
+    approvals_resp = app_server.api_request(
+        "GET",
+        "/api/approval/list",
+        params={"session_id": session_id},
+        timeout=_APPROVAL_HTTP_TIMEOUT,
+    )
+    assert approvals_resp.status_code == 200, app_server.logs_tail()
+    approvals_payload = approvals_resp.json()
+    assert approvals_payload.get("count") == 1, app_server.logs_tail()
+    pending = approvals_payload["pending_approvals"][0]
+
+    checkpoint_path = app_server.working_dir / "audit_chain_checkpoint.json"
+    assert checkpoint_path.exists(), app_server.logs_tail()
+    checkpoint_path.unlink()
+
+    approve_resp = app_server.api_request(
+        "POST",
+        "/api/approval/approve",
+        json={
+            "request_id": pending["request_id"],
+            "session_id": session_id,
+            "user_id": user_id,
+        },
+        timeout=_APPROVAL_HTTP_TIMEOUT,
+    )
+    assert approve_resp.status_code == 423, app_server.logs_tail()
+    approve_payload = approve_resp.json()
+    assert approve_payload.get("success") is False
+    assert approve_payload.get("tool_name") == "payroll_export_tool"
+
+    post_list_resp = app_server.api_request(
+        "GET",
+        "/api/approval/list",
+        params={"session_id": session_id},
+        timeout=_APPROVAL_HTTP_TIMEOUT,
+    )
+    assert post_list_resp.status_code == 200, app_server.logs_tail()
+    assert post_list_resp.json().get("count") == 0, app_server.logs_tail()

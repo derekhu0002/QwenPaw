@@ -16,9 +16,32 @@ Covers:
 # pylint: disable=protected-access,unused-argument
 
 import asyncio
-from unittest.mock import MagicMock, patch
+import sys
+from types import ModuleType
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
+
+
+if "agentscope.message" not in sys.modules:
+    agentscope_message = ModuleType("agentscope.message")
+
+    class Msg:  # noqa: D401
+        """Minimal test stub for agentscope.message.Msg."""
+
+        def __init__(self, *args, **kwargs):
+            self.args = args
+            self.kwargs = kwargs
+
+    class ToolResultBlock:  # noqa: D401
+        """Minimal test stub for agentscope.message.ToolResultBlock."""
+
+        def __init__(self, **kwargs):
+            self.__dict__.update(kwargs)
+
+    agentscope_message.Msg = Msg
+    agentscope_message.ToolResultBlock = ToolResultBlock
+    sys.modules["agentscope.message"] = agentscope_message
 
 from qwenpaw.agents.tool_guard_mixin import (
     _GuardAction,
@@ -472,3 +495,62 @@ class TestEnsureToolGuard:
         assert hasattr(m, "_tool_guard_engine")
         assert hasattr(m, "_tool_guard_approval_service")
         assert hasattr(m, "_tool_guard_lock")
+
+
+class _FakeActingBase:
+    """Provides ``_acting`` that ToolGuardMixin.super() resolves to."""
+
+    def __init__(self):
+        self.acting_called = False
+
+    async def _acting(self, _tool_call):
+        self.acting_called = True
+        return {"output": "executed"}
+
+
+@pytest.mark.asyncio
+async def test_acting_blocks_execution_when_audit_lock_mode_is_active():
+    """Control point: invoke ToolGuardMixin._acting while the audit
+    checkpoint is reported missing.
+
+    Observation point: the tool must not execute through super()._acting,
+    and one lockdown record should be emitted.
+    """
+
+    from qwenpaw.agents.tool_guard_mixin import ToolGuardMixin
+
+    class _GuardedAgent(ToolGuardMixin, _FakeActingBase):
+        pass
+
+    agent = _GuardedAgent()
+    agent._request_context = {
+        "session_id": "lock-session",
+        "user_id": "employee_security_auditor",
+        "channel": "local_console",
+        "agent_id": "security_audit_agent",
+    }
+    agent._agent_config = {"approval_level": "AUTO"}
+    agent._language = "en"
+    agent.name = "TestAgent"
+    agent.memory = MagicMock()
+    agent.memory.add = AsyncMock()
+    agent.print = AsyncMock()
+
+    tool_call = {
+        "id": "tc-lock-1",
+        "name": "execute_shell_command",
+        "input": {"command": "del /f /q \"D:\\Projects\\QwenPaw\\design\\delivery\\showcases\\sss\""},
+    }
+
+    with patch(
+        "qwenpaw.security.audit_foundation.lock_mode_required",
+        return_value=True,
+    ), patch(
+        "qwenpaw.security.audit_foundation.write_lockdown_record",
+        new=AsyncMock(),
+    ) as mock_lockdown:
+        result = await agent._acting(tool_call)
+
+    assert result is None
+    assert agent.acting_called is False
+    mock_lockdown.assert_awaited_once()

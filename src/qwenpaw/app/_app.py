@@ -316,6 +316,11 @@ async def lifespan(  # pylint: disable=too-many-statements,too-many-branches
 
     async def _background_startup():  # pylint: disable=too-many-statements
         try:
+            # Let the server serve immediate lightweight requests, including
+            # tool-boundary security rejections, before heavy agent startup
+            # begins competing for the event loop.
+            await asyncio.sleep(1)
+
             # Start all configured agents (truly parallel now)
             await multi_agent_manager.start_all_configured_agents()
 

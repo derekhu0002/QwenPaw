@@ -8,15 +8,24 @@ import logging
 import re
 import uuid
 from pathlib import Path
-from typing import AsyncGenerator, Union
+from typing import Any, AsyncGenerator, Union
 
 from fastapi import APIRouter, File, HTTPException, Query, Request, UploadFile
 from pydantic import BaseModel
-from starlette.responses import StreamingResponse
+from starlette.responses import Response, StreamingResponse
 
 from agentscope_runtime.engine.schemas.agent_schemas import AgentRequest
+from ...security.audit_foundation import (
+    evaluate_high_risk_tool_boundary,
+    extract_prompt_security_context,
+    lock_mode_required,
+    project_security_rejection_record,
+    write_lockdown_record,
+    write_security_rejection_record,
+)
 from ...utils.logging import LOG_FILE_PATH
 from ..agent_context import get_agent_for_request
+from ..approvals import get_approval_service
 from ..runner.title_generator import generate_and_update_title
 from ..utils import check_upload_size
 
@@ -105,6 +114,135 @@ def _extract_session_and_payload(request_data: Union[AgentRequest, dict]):
     return native_payload
 
 
+def _single_event_response(
+    *,
+    status_code: int,
+    payload: dict[str, Any],
+    headers: dict[str, str] | None = None,
+) -> Response:
+    content = f"data: {json.dumps(payload, ensure_ascii=False)}\n\n"
+    response_headers = {
+        "Cache-Control": "no-cache",
+        "Connection": "close",
+        "Content-Length": str(len(content.encode("utf-8"))),
+    }
+    if headers:
+        response_headers.update(headers)
+    return Response(
+        content=content,
+        media_type="text/event-stream",
+        status_code=status_code,
+        headers=response_headers,
+    )
+
+
+def _extract_prompt_text(content_parts: list[Any]) -> str:
+    for content in content_parts:
+        if isinstance(content, str):
+            text = content.strip()
+            if text:
+                return text
+            continue
+        if isinstance(content, dict):
+            text = content.get("text")
+            if isinstance(text, str) and text.strip():
+                return text.strip()
+            continue
+        text = getattr(content, "text", None)
+        if isinstance(text, str) and text.strip():
+            return text.strip()
+    return ""
+
+
+async def _maybe_handle_security_scenario(
+    *,
+    prompt_text: str,
+    native_payload: dict[str, Any],
+) -> Response | None:
+    if not prompt_text:
+        return None
+
+    session_id = str(native_payload["meta"].get("session_id") or "default")
+    user_id = str(native_payload["sender_id"] or "default")
+    channel_id = str(native_payload["channel_id"] or "console")
+    context = extract_prompt_security_context(
+        prompt_text,
+        fallback_employee_id=user_id,
+        fallback_tool_name="",
+    )
+    tool_name = context["high_risk_tool_name"]
+
+    if tool_name:
+        boundary_decision = evaluate_high_risk_tool_boundary(
+            session_id=session_id,
+            user_id=user_id,
+            tool_name=tool_name,
+            prompt_text=prompt_text,
+            delegated_agent_name=context["delegated_agent_name"] or "console_security_gate",
+            third_party_plugin_name=context["third_party_plugin_name"] or "security_center_backend_api",
+            user_confirmation_phrase=context["user_confirmation_phrase"],
+        )
+    else:
+        boundary_decision = {"action": None, "guard_result": None, "tool_call": None}
+
+    if boundary_decision["action"] == "auto_deny" and tool_name:
+        payload = await write_security_rejection_record(
+            session_id=session_id,
+            user_id=user_id,
+            channel=channel_id,
+            tool_name=tool_name,
+            prompt_text=prompt_text,
+            tool_call_id=str((boundary_decision["tool_call"] or {}).get("id") or ""),
+            guard_result=boundary_decision["guard_result"],
+        )
+        asyncio.create_task(project_security_rejection_record(payload))
+        return _single_event_response(
+            status_code=403,
+            payload=payload,
+            headers={
+                "X-Security-Rejection-Nonce": payload["security_rejection_nonce"],
+            },
+        )
+
+    if lock_mode_required() and tool_name:
+        payload = await write_lockdown_record(
+            session_id=session_id,
+            user_id=user_id,
+            channel=channel_id,
+            tool_name=tool_name,
+            prompt_text=prompt_text,
+        )
+        return _single_event_response(status_code=423, payload=payload)
+
+    if boundary_decision["action"] == "needs_approval" and tool_name:
+        approval_service = get_approval_service()
+        tool_call = boundary_decision["tool_call"]
+        pending = await approval_service.create_pending(
+            session_id=session_id,
+            root_session_id=session_id,
+            owner_agent_id=context["delegated_agent_name"] or "console_security_gate",
+            user_id=user_id,
+            channel="local_console",
+            agent_id=context["delegated_agent_name"] or "console_security_gate",
+            tool_name=tool_name,
+            result=boundary_decision["guard_result"],
+            extra={
+                "tool_call": tool_call,
+                "request_prompt": prompt_text,
+            },
+        )
+        return _single_event_response(
+            status_code=200,
+            payload={
+                "status": "approval_pending",
+                "request_id": pending.request_id,
+                "tool_name": tool_name,
+            },
+        )
+
+    return None
+
+
 def _tail_text_file(
     path: Path,
     *,
@@ -142,10 +280,21 @@ def _tail_text_file(
 async def post_console_chat(
     request_data: Union[AgentRequest, dict],
     request: Request,
-) -> StreamingResponse:
+) -> Response:
     """Stream agent response. Run continues in background after disconnect.
     Stop via POST /console/chat/stop. Reconnect with body.reconnect=true.
     """
+    try:
+        native_payload = _extract_session_and_payload(request_data)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
+    prompt_text = _extract_prompt_text(native_payload["content_parts"])
+    security_response = await _maybe_handle_security_scenario(
+        prompt_text=prompt_text,
+        native_payload=native_payload,
+    )
+    if security_response is not None:
+        return security_response
     workspace = await get_agent_for_request(request)
     console_channel = await workspace.channel_manager.get_channel("console")
     if console_channel is None:
@@ -153,10 +302,6 @@ async def post_console_chat(
             status_code=503,
             detail="Channel Console not found",
         )
-    try:
-        native_payload = _extract_session_and_payload(request_data)
-    except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e)) from e
     session_id = console_channel.resolve_session_id(
         sender_id=native_payload["sender_id"],
         channel_meta=native_payload["meta"],

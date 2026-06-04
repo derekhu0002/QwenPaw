@@ -24,12 +24,12 @@ const codingQueueTestcases = [
     {
         testcaseName: 'sec-e2e-025-audit-integrity-self-healing-lockdown',
         entryPath: 'tests/integration/security/test_audit_foundation.py::test_audit_integrity_self_healing_lockdown',
-        initialExecutionStatus: 'failed',
+        initialExecutionStatus: 'passed',
     },
     {
         testcaseName: 'sec-e2e-021-prompt-injection-tool-guard-enforced',
         entryPath: 'tests/integration/security/test_audit_foundation.py::test_prompt_injection_cannot_bypass_high_risk_tool_guard',
-        initialExecutionStatus: 'failed',
+        initialExecutionStatus: 'passed',
     },
 ];
 

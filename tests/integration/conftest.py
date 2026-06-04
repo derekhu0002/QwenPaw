@@ -190,6 +190,40 @@ def _find_free_port(host: str = "127.0.0.1") -> int:
         return int(sock.getsockname()[1])
 
 
+def _wait_for_http_ready(
+    client: httpx.Client,
+    *,
+    url: str,
+    ready_statuses: set[int],
+    timeout_seconds: float,
+    process: subprocess.Popen[str],
+    logs: list[str],
+    service_name: str,
+) -> str | None:
+    start_at = time.time()
+    last_error: str | None = None
+    while time.time() - start_at < timeout_seconds:
+        if process.poll() is not None:
+            return (
+                f"{service_name} exited during startup.\n"
+                f"exit_code={process.returncode}\n"
+                f"logs:\n{''.join(logs)[-4000:]}"
+            )
+        try:
+            response = client.get(url)
+            if response.status_code in ready_statuses:
+                return None
+            last_error = f"unexpected status {response.status_code}"
+        except (httpx.ConnectError, httpx.TimeoutException) as exc:
+            last_error = str(exc)
+        time.sleep(0.25)
+    return (
+        f"{service_name} did not become ready in time.\n"
+        f"last_error={last_error}\n"
+        f"logs:\n{''.join(logs)[-4000:]}"
+    )
+
+
 def _tee_stream(stream, buffer: list[str]) -> None:
     """Read subprocess output, tag and print live, keep a raw copy."""
     prefix = "[app server] "
@@ -222,6 +256,14 @@ class AppServer:
     # these files on each HTTP request, so no restart is needed after seeding.
     working_dir: Path
     startup_error: str | None = None
+    security_center_api_url: str | None = None
+    security_center_web_url: str | None = None
+    security_center_api_process: subprocess.Popen[str] | None = None
+    security_center_web_process: subprocess.Popen[str] | None = None
+    security_center_api_logs: list[str] | None = None
+    security_center_web_logs: list[str] | None = None
+    security_center_api_log_thread: threading.Thread | None = None
+    security_center_web_log_thread: threading.Thread | None = None
 
     @property
     def base_url(self) -> str:
@@ -310,6 +352,8 @@ def app_server(  # pylint: disable=too-many-statements,too-many-branches
     working_dir.mkdir(parents=True, exist_ok=True)
     secret_dir.mkdir(parents=True, exist_ok=True)
     backups_dir.mkdir(parents=True, exist_ok=True)
+    security_center_data_dir = tmp_path / "security-center-data"
+    security_center_data_dir.mkdir(parents=True, exist_ok=True)
 
     env = os.environ.copy()
     for key in _SENSITIVE_ENV_VARS:
@@ -333,6 +377,23 @@ def app_server(  # pylint: disable=too-many-statements,too-many-branches
     # is cp1252.
     env["PYTHONIOENCODING"] = "utf-8"
 
+    security_center_api_port = _find_free_port(host)
+    security_center_web_port = _find_free_port(host)
+    security_center_api_url = f"http://{host}:{security_center_api_port}"
+    security_center_web_url = f"http://{host}:{security_center_web_port}"
+    env["QWENPAW_SECURITY_CENTER_API_URL"] = security_center_api_url
+    env["QWENPAW_SECURITY_CENTER_WEB_URL"] = security_center_web_url
+
+    security_center_env = env.copy()
+    security_center_env["SECURITY_CENTER_API_HOST"] = host
+    security_center_env["SECURITY_CENTER_API_PORT"] = str(security_center_api_port)
+    security_center_env["QWENPAW_SECURITY_CENTER_DATA_DIR"] = str(security_center_data_dir)
+
+    security_center_web_env = env.copy()
+    security_center_web_env["SECURITY_CENTER_WEB_HOST"] = host
+    security_center_web_env["SECURITY_CENTER_WEB_PORT"] = str(security_center_web_port)
+    security_center_web_env["SECURITY_CENTER_API_BASE"] = security_center_api_url
+
     if _integration_coverage_requested():
         if _INTEGRATION_COVERAGE_DIR is None:
             raise AssertionError(
@@ -347,7 +408,29 @@ def app_server(  # pylint: disable=too-many-statements,too-many-branches
         )
 
     logs: list[str] = []
+    security_center_api_logs: list[str] = []
+    security_center_web_logs: list[str] = []
     with subprocess.Popen(
+        [sys.executable, "-m", "deploy.api.app"],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        text=True,
+        bufsize=1,
+        encoding="utf-8",
+        errors="replace",
+        env=security_center_env,
+        cwd=repo_root,
+    ) as security_center_api_process, subprocess.Popen(
+        [sys.executable, "-m", "deploy.web.server"],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        text=True,
+        bufsize=1,
+        encoding="utf-8",
+        errors="replace",
+        env=security_center_web_env,
+        cwd=repo_root,
+    ) as security_center_web_process, subprocess.Popen(
         [
             sys.executable,
             "-m",
@@ -372,7 +455,23 @@ def app_server(  # pylint: disable=too-many-statements,too-many-branches
         env=env,
         cwd=repo_root,
     ) as process:
+        assert security_center_api_process.stdout is not None
+        assert security_center_web_process.stdout is not None
         assert process.stdout is not None
+
+        security_center_api_log_thread = threading.Thread(
+            target=_tee_stream,
+            args=(security_center_api_process.stdout, security_center_api_logs),
+            daemon=True,
+        )
+        security_center_api_log_thread.start()
+
+        security_center_web_log_thread = threading.Thread(
+            target=_tee_stream,
+            args=(security_center_web_process.stdout, security_center_web_logs),
+            daemon=True,
+        )
+        security_center_web_log_thread.start()
 
         log_thread = threading.Thread(
             target=_tee_stream,
@@ -392,7 +491,30 @@ def app_server(  # pylint: disable=too-many-statements,too-many-branches
             start_at = time.time()
             last_error: str | None = None
             startup_error: str | None = None
+
+            startup_error = _wait_for_http_ready(
+                client,
+                url=f"{security_center_api_url}/security-center/v1/health",
+                ready_statuses={200},
+                timeout_seconds=15.0,
+                process=security_center_api_process,
+                logs=security_center_api_logs,
+                service_name="Security Center API",
+            )
+            if startup_error is None:
+                startup_error = _wait_for_http_ready(
+                    client,
+                    url=f"{security_center_web_url}/",
+                    ready_statuses={200},
+                    timeout_seconds=15.0,
+                    process=security_center_web_process,
+                    logs=security_center_web_logs,
+                    service_name="Security Center web",
+                )
+
             while time.time() - start_at < max_wait_seconds:
+                if startup_error is not None:
+                    break
                 if process.poll() is not None:
                     startup_error = (
                         "qwenpaw app exited during startup.\n"
@@ -404,6 +526,12 @@ def app_server(  # pylint: disable=too-many-statements,too-many-branches
                 try:
                     resp = client.get(f"http://{host}:{port}/api/version")
                     if resp.status_code == 200:
+                        # /api/version turns green before the console route's
+                        # lightweight security fast path is consistently ready
+                        # under cold startup. Give the subprocess a brief
+                        # settle window so explicit security tests do not race
+                        # background startup on their first request.
+                        time.sleep(2.0)
                         break
                 except (httpx.ConnectError, httpx.TimeoutException) as exc:
                     last_error = str(exc)
@@ -424,6 +552,14 @@ def app_server(  # pylint: disable=too-many-statements,too-many-branches
                 log_thread=log_thread,
                 working_dir=working_dir,
                 startup_error=startup_error,
+                security_center_api_url=security_center_api_url,
+                security_center_web_url=security_center_web_url,
+                security_center_api_process=security_center_api_process,
+                security_center_web_process=security_center_web_process,
+                security_center_api_logs=security_center_api_logs,
+                security_center_web_logs=security_center_web_logs,
+                security_center_api_log_thread=security_center_api_log_thread,
+                security_center_web_log_thread=security_center_web_log_thread,
             )
         finally:
             client.close()
@@ -450,3 +586,13 @@ def app_server(  # pylint: disable=too-many-statements,too-many-branches
                         process.kill()
                         process.wait(timeout=5)
             log_thread.join(timeout=2)
+            for extra_process in (security_center_web_process, security_center_api_process):
+                if extra_process.poll() is None:
+                    extra_process.terminate()
+                    try:
+                        extra_process.wait(timeout=10)
+                    except subprocess.TimeoutExpired:
+                        extra_process.kill()
+                        extra_process.wait(timeout=5)
+            security_center_api_log_thread.join(timeout=2)
+            security_center_web_log_thread.join(timeout=2)
