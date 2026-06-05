@@ -122,6 +122,11 @@ if (-not $resolvedSecurityCenterStoreFile) {
 }
 $resolvedSecurityCenterStoreFile = [System.IO.Path]::GetFullPath($resolvedSecurityCenterStoreFile)
 
+$resolvedSecurityCenterApiUrl = First-NonEmptyValue -Preferred $env:QWENPAW_SECURITY_CENTER_API_URL -Fallback "http://127.0.0.1:8091"
+$resolvedSecurityCenterWebUrl = First-NonEmptyValue -Preferred $env:QWENPAW_SECURITY_CENTER_WEB_URL -Fallback "http://127.0.0.1:8092"
+$resolvedSecurityCenterApiBase = First-NonEmptyValue -Preferred $env:SECURITY_CENTER_API_BASE -Fallback $resolvedSecurityCenterApiUrl
+$resolvedPythonPath = First-NonEmptyValue -Preferred $env:PYTHONPATH -Fallback (Join-Path $RepoRoot "src")
+
 Write-Step "Repo root: $RepoRoot"
 Write-Step "WorkingDir: $resolvedWorkingDir"
 Write-Step "SecretDir: $resolvedSecretDir"
@@ -154,6 +159,10 @@ Write-Host ('$env:QWENPAW_BACKUP_DIR = "{0}"' -f $resolvedBackupDir)
 if ($resolvedSecurityCenterDataDir) {
     Write-Host ('$env:QWENPAW_SECURITY_CENTER_DATA_DIR = "{0}"' -f $resolvedSecurityCenterDataDir)
 }
+Write-Host ('$env:QWENPAW_SECURITY_CENTER_API_URL = "{0}"' -f $resolvedSecurityCenterApiUrl)
+Write-Host ('$env:QWENPAW_SECURITY_CENTER_WEB_URL = "{0}"' -f $resolvedSecurityCenterWebUrl)
+Write-Host ('$env:SECURITY_CENTER_API_BASE = "{0}"' -f $resolvedSecurityCenterApiBase)
 Write-Host ('$env:QWENPAW_AUTH_ENABLED = "false"')
 Write-Host ('$env:NO_PROXY = "*"')
+Write-Host ('$env:PYTHONPATH = "{0}"' -f $resolvedPythonPath)
 Write-Host ('$env:PYTHONIOENCODING = "utf-8"')

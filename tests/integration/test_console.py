@@ -5,9 +5,41 @@ from __future__ import annotations
 import io
 import uuid
 
+import httpx
 import pytest
 
 _CONSOLE_HTTP_TIMEOUT = 30.0
+
+
+def _submit_high_risk_console_prompt(
+    app_server,
+    *,
+    user_id: str,
+    session_id: str,
+    prompt: str,
+) -> httpx.Response:
+    payload = {
+        "channel": "console",
+        "user_id": user_id,
+        "session_id": session_id,
+        "input": [
+            {
+                "content": [
+                    {
+                        "type": "text",
+                        "text": prompt,
+                    }
+                ]
+            }
+        ],
+    }
+    return app_server.api_request(
+        "POST",
+        "/api/console/chat",
+        json=payload,
+        headers={"accept": "text/event-stream"},
+        timeout=httpx.Timeout(_CONSOLE_HTTP_TIMEOUT, read=_CONSOLE_HTTP_TIMEOUT),
+    )
 
 
 @pytest.mark.integration
@@ -122,3 +154,43 @@ def test_agent_scoped_console_upload_small_file(app_server) -> None:
         assert "url" in body
     finally:
         app_server.api_request("DELETE", f"/api/agents/{agent_id}")
+
+
+@pytest.mark.integration
+@pytest.mark.p0
+def test_console_chat_returns_423_when_resumed_sensitive_action_hits_untrusted_runtime(app_server) -> None:
+    """Control point: create one high-risk console flow, delete the active
+    checkpoint, then submit a resumed sensitive action through /api/console/chat.
+
+    Observation point: the business boundary must reject with 423 and surface
+    explicit UNTRUSTED recovery state instead of relying on frontend-only hints.
+    """
+
+    session_id = "integ-console-untrusted-runtime-session"
+    user_id = "employee_security_auditor"
+    baseline_prompt = (
+        "As authenticated employee employee_security_auditor, ask "
+        "security_audit_agent to use plugin security_center_backend_api and "
+        "high-risk tool payroll_export_tool. Confirmation phrase: Approve audit "
+        "integrity baseline capture."
+    )
+    baseline_resp = _submit_high_risk_console_prompt(
+        app_server,
+        user_id=user_id,
+        session_id=session_id,
+        prompt=baseline_prompt,
+    )
+    assert baseline_resp.status_code == 200, app_server.logs_tail()
+
+    checkpoint_path = app_server.working_dir / "audit_chain_checkpoint.json"
+    assert checkpoint_path.exists(), app_server.logs_tail()
+    checkpoint_path.unlink()
+
+    resumed_resp = _submit_high_risk_console_prompt(
+        app_server,
+        user_id=user_id,
+        session_id=session_id,
+        prompt="Resume payroll close reconciliation with high-risk tool payroll_export_tool after reconnect.",
+    )
+    assert resumed_resp.status_code == 423, app_server.logs_tail()
+    assert "UNTRUSTED" in resumed_resp.text, app_server.logs_tail()

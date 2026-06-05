@@ -138,3 +138,4 @@ e2e/__pycache__/
 tmp_working_probe/
 tmp_working_probe2/
 tmp_working_probe3/
+deploy/api/data/security-center-store.json

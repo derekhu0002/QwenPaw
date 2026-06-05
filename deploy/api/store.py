@@ -3,9 +3,26 @@ from __future__ import annotations
 import asyncio
 import hashlib
 import json
+import os
 import time
 from pathlib import Path
 from typing import Any
+
+
+TRUST_STATE_UNKNOWN = "UNKNOWN"
+TRUST_STATE_ALIGNED = "ALIGNED"
+TRUST_STATE_DIVERGED = "DIVERGED"
+TRUST_STATE_GAP_VALIDATION_REQUIRED = "GAP_VALIDATION_REQUIRED"
+TRUST_STATE_UNTRUSTED = "UNTRUSTED"
+TRUST_STATE_REJECTED = "REJECTED"
+
+GAP_STATUS_CLEAR = "CLEAR"
+GAP_STATUS_REQUIRED = "REQUIRED"
+GAP_STATUS_DIVERGED = "DIVERGED"
+GAP_STATUS_VALIDATED = "VALIDATED"
+
+RECOVERY_GATE_OPEN = "OPEN"
+RECOVERY_GATE_CLOSED = "CLEAR"
 
 
 def canonical_json(value: Any) -> str:
@@ -49,6 +66,180 @@ def require_edge_timestamp_ns(payload: dict[str, Any]) -> int:
     return edge_timestamp_ns
 
 
+def _as_int(value: Any, default: int = 0) -> int:
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return default
+
+
+def _gap_failure(kind: str, reason: str, **details: Any) -> dict[str, Any]:
+    return {
+        "accepted": False,
+        "failure_kind": kind,
+        "reason": reason,
+        "details": details,
+    }
+
+
+def _canonical_payload_digest(payload: dict[str, Any]) -> str:
+    return hashlib.sha256(canonical_json(payload).encode("utf-8")).hexdigest()
+
+
+def _anchor_material_digest(anchor: dict[str, Any]) -> str:
+    payload = {
+        "event_type": str(anchor.get("event_type") or ""),
+        "run_id": str(anchor.get("run_id") or ""),
+        "sequence": _as_int(anchor.get("sequence"), 0),
+        "anchored_event_id": str(anchor.get("anchored_event_id") or ""),
+        "prior_hash": str(anchor.get("prior_hash") or ""),
+        "payload_hash": str(anchor.get("payload_hash") or ""),
+        "canonical_payload_digest": str(anchor.get("canonical_payload_digest") or ""),
+    }
+    return hashlib.sha256(
+        canonical_json({"label": "gap-anchor-material-v1", "payload": payload}).encode("utf-8"),
+    ).hexdigest()
+
+
+def _event_chain_label(event_type: str) -> str:
+    return {
+        "USER_CONFIRMATION": "user-confirmation-chain-v2",
+        "SECURITY_REJECTION": "security-rejection-chain-v1",
+        "AUDIT_INTEGRITY_LOCKDOWN": "audit-lockdown-chain-v1",
+    }.get(event_type, "")
+
+
+def _expected_current_hash(anchor: dict[str, Any]) -> str:
+    chain_label = _event_chain_label(str(anchor.get("event_type") or ""))
+    chain_material = anchor.get("chain_material")
+    if not chain_label or not isinstance(chain_material, dict):
+        return ""
+    return hashlib.sha256(
+        canonical_json({"label": chain_label, "payload": chain_material}).encode("utf-8"),
+    ).hexdigest()
+
+
+def _validate_anchor_evidence(anchor: dict[str, Any]) -> dict[str, Any]:
+    canonical_payload = anchor.get("canonical_payload")
+    if not isinstance(canonical_payload, dict):
+        return _gap_failure("STRUCTURE_INVALID", "canonical_payload_missing")
+
+    expected_payload_digest = _canonical_payload_digest(canonical_payload)
+    if str(anchor.get("canonical_payload_digest") or "") != expected_payload_digest:
+        return _gap_failure(
+            "EVIDENCE_UNTRUSTED",
+            "canonical_payload_digest_mismatch",
+            expected=expected_payload_digest,
+            observed=str(anchor.get("canonical_payload_digest") or ""),
+        )
+
+    expected_anchor_material_digest = _anchor_material_digest(anchor)
+    if str(anchor.get("anchor_material_digest") or "") != expected_anchor_material_digest:
+        return _gap_failure(
+            "EVIDENCE_UNTRUSTED",
+            "anchor_material_digest_mismatch",
+            expected=expected_anchor_material_digest,
+            observed=str(anchor.get("anchor_material_digest") or ""),
+        )
+
+    expected_current_hash = _expected_current_hash(anchor)
+    if not expected_current_hash:
+        return _gap_failure(
+            "STRUCTURE_INVALID",
+            "unsupported_anchor_event_type",
+            event_type=str(anchor.get("event_type") or ""),
+        )
+    if str(anchor.get("current_hash") or "") != expected_current_hash:
+        return _gap_failure(
+            "EVIDENCE_UNTRUSTED",
+            "current_hash_not_recomputable",
+            expected=expected_current_hash,
+            observed=str(anchor.get("current_hash") or ""),
+        )
+
+    return {"accepted": True, "reason": "validated", "failure_kind": "NONE", "details": {}}
+
+
+def _default_client_state(client_id: str, requested_at_ns: int) -> dict[str, Any]:
+    bootstrap_hash = derive_shadow_hash(client_id, "bootstrap")
+    return {
+        "shadow_hash": bootstrap_hash,
+        "trust_state": TRUST_STATE_UNKNOWN,
+        "last_trace_id": None,
+        "updated_at_ns": requested_at_ns,
+        "last_trusted_anchor_hash": bootstrap_hash,
+        "last_trusted_sequence": 0,
+        "last_trusted_anchor_event_id": f"shadow-anchor::{client_id}",
+        "last_trusted_anchor_source": "bootstrap",
+        "last_trusted_anchor_trace_id": None,
+        "last_trusted_anchor_event_type": None,
+        "last_edge_reported_hash": "",
+        "last_edge_reported_sequence": 0,
+        "last_edge_reported_anchor_event_id": "",
+        "gap_status": GAP_STATUS_CLEAR,
+        "recovery_gate_status": RECOVERY_GATE_CLOSED,
+        "divergence_reason": "",
+        "recovery_required": False,
+    }
+
+
+def _validate_gap_proof(
+    *,
+    gap_proof: dict[str, Any],
+    trusted_anchor_hash: str,
+    trusted_sequence: int,
+    local_hash: str,
+    local_sequence: int,
+) -> dict[str, Any]:
+    if not gap_proof:
+        return _gap_failure("MISSING", "missing_gap_proof")
+
+    base_anchor_hash = str(gap_proof.get("base_anchor_hash") or "")
+    base_sequence = _as_int(gap_proof.get("base_sequence"), -1)
+    head_hash = str(gap_proof.get("head_hash") or "")
+    head_sequence = _as_int(gap_proof.get("head_sequence"), -1)
+    anchor_sequence = gap_proof.get("anchor_sequence") or gap_proof.get("anchors") or []
+
+    if base_anchor_hash != trusted_anchor_hash:
+        return _gap_failure("STRUCTURE_INVALID", "base_anchor_mismatch")
+    if base_sequence != trusted_sequence:
+        return _gap_failure("STRUCTURE_INVALID", "base_sequence_mismatch")
+    if head_hash != local_hash:
+        return _gap_failure("STRUCTURE_INVALID", "head_hash_mismatch")
+    if local_sequence and head_sequence != local_sequence:
+        return _gap_failure("STRUCTURE_INVALID", "head_sequence_mismatch")
+    if not isinstance(anchor_sequence, list) or not anchor_sequence:
+        return _gap_failure("STRUCTURE_INVALID", "empty_gap_proof")
+
+    previous_hash = trusted_anchor_hash
+    previous_sequence = trusted_sequence
+    for anchor in anchor_sequence:
+        if not isinstance(anchor, dict):
+            return _gap_failure("STRUCTURE_INVALID", "invalid_gap_anchor")
+        sequence = _as_int(anchor.get("sequence"), previous_sequence + 1)
+        if sequence <= previous_sequence:
+            return _gap_failure("STRUCTURE_INVALID", "non_monotonic_gap_sequence", sequence=sequence)
+        prior_hash = str(anchor.get("prior_hash") or previous_hash)
+        current_hash = str(anchor.get("current_hash") or anchor.get("hash") or "")
+        if prior_hash != previous_hash:
+            return _gap_failure("STRUCTURE_INVALID", "gap_prior_hash_mismatch", sequence=sequence)
+        if not current_hash:
+            return _gap_failure("STRUCTURE_INVALID", "gap_hash_missing", sequence=sequence)
+        evidence_validation = _validate_anchor_evidence(anchor)
+        if not evidence_validation["accepted"]:
+            evidence_validation.setdefault("details", {})
+            evidence_validation["details"]["sequence"] = sequence
+            return evidence_validation
+        previous_hash = current_hash
+        previous_sequence = sequence
+
+    if previous_hash != local_hash:
+        return _gap_failure("STRUCTURE_INVALID", "gap_head_not_reached")
+    if head_sequence >= 0 and previous_sequence != head_sequence:
+        return _gap_failure("STRUCTURE_INVALID", "gap_sequence_not_reached")
+    return {"accepted": True, "reason": "validated", "failure_kind": "NONE", "details": {}}
+
+
 class SecurityCenterStore:
     def __init__(self, store_path: Path) -> None:
         self._path = store_path
@@ -57,7 +248,11 @@ class SecurityCenterStore:
 
     @classmethod
     def from_default(cls) -> "SecurityCenterStore":
-        base = Path(__file__).resolve().parent / "data" / "security-center-store.json"
+        configured_dir = os.environ.get("QWENPAW_SECURITY_CENTER_DATA_DIR", "").strip()
+        if configured_dir:
+            base = Path(configured_dir) / "security-center-store.json"
+        else:
+            base = Path(__file__).resolve().parent / "data" / "security-center-store.json"
         return cls(base)
 
     def _bootstrap_state(self) -> dict[str, Any]:
@@ -107,26 +302,111 @@ class SecurityCenterStore:
     async def recovery_handshake(self, payload: dict[str, Any]) -> dict[str, Any]:
         client_id = str(payload.get("client_id") or payload.get("session_id") or "unknown-client")
         local_hash = str(payload.get("local_hash") or payload.get("checkpoint_hash") or "")
+        checkpoint_hash = str(payload.get("checkpoint_hash") or local_hash)
         trace_id = str(payload.get("trace_id") or "")
         requested_at_ns = int(payload.get("requested_at_ns") or time.time_ns())
+        raw_local_sequence = _as_int(payload.get("local_sequence"), 0)
+        raw_checkpoint_sequence = _as_int(payload.get("checkpoint_sequence"), 0)
+        local_sequence = _as_int(payload.get("local_sequence") or payload.get("checkpoint_sequence"), 0)
+        checkpoint_sequence = _as_int(payload.get("checkpoint_sequence") or payload.get("local_sequence"), local_sequence)
+        raw_anchored_event_id = str(payload.get("anchored_event_id") or "")
+        raw_checkpoint_anchor_id = str(payload.get("checkpoint_anchor_id") or "")
+        anchored_event_id = str(raw_anchored_event_id or raw_checkpoint_anchor_id or trace_id or f"edge-anchor::{client_id}")
+        checkpoint_anchor_id = str(raw_checkpoint_anchor_id or raw_anchored_event_id or anchored_event_id)
+        gap_proof = payload.get("gap_proof") if isinstance(payload.get("gap_proof"), dict) else {}
         async with self._lock:
             state = self._read_locked()
             client_state = state["clients"].setdefault(
                 client_id,
-                {
-                    "shadow_hash": derive_shadow_hash(client_id, "bootstrap"),
-                    "trust_state": "UNKNOWN",
-                    "last_trace_id": None,
-                    "updated_at_ns": requested_at_ns,
-                },
+                _default_client_state(client_id, requested_at_ns),
             )
             shadow_hash = str(client_state.get("shadow_hash") or derive_shadow_hash(client_id, "bootstrap"))
-            trust_state = "ALIGNED" if local_hash and local_hash == shadow_hash else "DIVERGED"
+            trusted_anchor_hash = str(client_state.get("last_trusted_anchor_hash") or shadow_hash)
+            trusted_sequence = _as_int(client_state.get("last_trusted_sequence"), 0)
+            established_trusted_anchor = trusted_sequence > 0
+            has_continuity_evidence = any(
+                (
+                    raw_local_sequence > 0,
+                    raw_checkpoint_sequence > 0,
+                    bool(raw_anchored_event_id),
+                    bool(raw_checkpoint_anchor_id),
+                ),
+            )
+            recovery_gate_open = str(client_state.get("recovery_gate_status") or RECOVERY_GATE_CLOSED) == RECOVERY_GATE_OPEN
+            gap_validation = _validate_gap_proof(
+                gap_proof=gap_proof,
+                trusted_anchor_hash=trusted_anchor_hash,
+                trusted_sequence=trusted_sequence,
+                local_hash=local_hash,
+                local_sequence=max(local_sequence, checkpoint_sequence),
+            )
+
+            if local_hash and local_hash == shadow_hash:
+                if recovery_gate_open:
+                    if gap_validation["accepted"]:
+                        trust_state = TRUST_STATE_ALIGNED
+                        recovery_required = False
+                        gap_status = GAP_STATUS_VALIDATED
+                        recovery_gate_status = RECOVERY_GATE_CLOSED
+                        divergence_reason = ""
+                        client_state.update(
+                            {
+                                "last_trusted_anchor_hash": checkpoint_hash or local_hash,
+                                "last_trusted_sequence": max(local_sequence, checkpoint_sequence, trusted_sequence),
+                                "last_trusted_anchor_event_id": checkpoint_anchor_id or anchored_event_id,
+                                "last_trusted_anchor_source": "recovery_handshake_gap_validation",
+                                "last_trusted_anchor_trace_id": trace_id or client_state.get("last_handshake_trace_id"),
+                                "last_trusted_anchor_event_type": "GAP_VALIDATION",
+                            },
+                        )
+                    else:
+                        trust_state = TRUST_STATE_GAP_VALIDATION_REQUIRED
+                        recovery_required = True
+                        gap_status = GAP_STATUS_REQUIRED
+                        recovery_gate_status = RECOVERY_GATE_OPEN
+                        divergence_reason = gap_validation["reason"]
+                else:
+                    if established_trusted_anchor and not has_continuity_evidence:
+                        trust_state = TRUST_STATE_GAP_VALIDATION_REQUIRED
+                        recovery_required = True
+                        gap_status = GAP_STATUS_REQUIRED
+                        recovery_gate_status = RECOVERY_GATE_OPEN
+                        divergence_reason = "continuity_evidence_missing"
+                    else:
+                        trust_state = TRUST_STATE_ALIGNED
+                        recovery_required = False
+                        gap_status = GAP_STATUS_CLEAR
+                        recovery_gate_status = RECOVERY_GATE_CLOSED
+                        divergence_reason = ""
+                        client_state.update(
+                            {
+                                "last_trusted_anchor_hash": checkpoint_hash or local_hash,
+                                "last_trusted_sequence": max(local_sequence, checkpoint_sequence, trusted_sequence),
+                                "last_trusted_anchor_event_id": checkpoint_anchor_id or anchored_event_id,
+                                "last_trusted_anchor_source": "recovery_handshake_direct",
+                                "last_trusted_anchor_trace_id": trace_id or client_state.get("last_handshake_trace_id"),
+                                "last_trusted_anchor_event_type": "DIRECT_ALIGNMENT",
+                            },
+                        )
+            else:
+                trust_state = TRUST_STATE_DIVERGED
+                recovery_required = True
+                gap_status = GAP_STATUS_DIVERGED
+                recovery_gate_status = RECOVERY_GATE_OPEN
+                divergence_reason = "local_hash_mismatch"
+
             client_state.update(
                 {
                     "trust_state": trust_state,
                     "last_handshake_trace_id": trace_id or client_state.get("last_handshake_trace_id"),
                     "updated_at_ns": requested_at_ns,
+                    "last_edge_reported_hash": local_hash,
+                    "last_edge_reported_sequence": max(local_sequence, checkpoint_sequence),
+                    "last_edge_reported_anchor_event_id": anchored_event_id,
+                    "gap_status": gap_status,
+                    "recovery_gate_status": recovery_gate_status,
+                    "divergence_reason": divergence_reason,
+                    "recovery_required": recovery_required,
                 },
             )
             state["clients"][client_id] = client_state
@@ -135,10 +415,19 @@ class SecurityCenterStore:
             "client_id": client_id,
             "shadow_hash": shadow_hash,
             "trust_state": trust_state,
-            "recovery_required": trust_state != "ALIGNED",
+            "recovery_required": recovery_required,
             "requested_at_ns": requested_at_ns,
             "last_trace_id": client_state.get("last_trace_id"),
-            "handshake_status": "ready",
+            "handshake_status": trust_state.lower(),
+            "last_trusted_anchor_hash": client_state.get("last_trusted_anchor_hash", trusted_anchor_hash),
+            "last_trusted_sequence": client_state.get("last_trusted_sequence", trusted_sequence),
+            "last_trusted_anchor_event_id": client_state.get("last_trusted_anchor_event_id"),
+            "current_edge_reported_hash": local_hash,
+            "current_edge_reported_sequence": max(local_sequence, checkpoint_sequence),
+            "current_edge_reported_anchor_event_id": anchored_event_id,
+            "gap_status": gap_status,
+            "recovery_gate_status": recovery_gate_status,
+            "divergence_reason": divergence_reason,
         }
 
     async def record_rejection(self, payload: dict[str, Any]) -> dict[str, Any]:
@@ -187,7 +476,7 @@ class SecurityCenterStore:
             client_state.update(
                 {
                     "last_rejection_nonce": nonce,
-                    "trust_state": "REJECTED",
+                    "trust_state": TRUST_STATE_REJECTED,
                     "updated_at_ns": record["received_at_ns"],
                     "last_trace_id": trace_id,
                 },
@@ -214,11 +503,15 @@ class SecurityCenterStore:
         trace_id = str(payload.get("trace_id") or payload.get("run_id") or derive_shadow_hash(client_id, "lockdown")[:12])
         local_hash = str(payload.get("current_hash") or payload.get("local_hash") or derive_shadow_hash(client_id, "local"))
         prior_hash = str(payload.get("prior_hash") or derive_shadow_hash(client_id, "prior"))
+        current_sequence = _as_int(payload.get("current_sequence") or payload.get("local_sequence"), 1)
+        prior_sequence = _as_int(payload.get("prior_sequence"), max(current_sequence - 1, 0))
+        anchored_event_id = str(payload.get("anchored_event_id") or trace_id)
+        prior_anchored_event_id = str(payload.get("prior_anchored_event_id") or f"shadow-anchor::{client_id}")
         edge_timestamp_ns = require_edge_timestamp_ns(payload)
         received_at_ns = time.time_ns()
         async with self._lock:
             state = self._read_locked()
-            client_state = state["clients"].setdefault(client_id, {})
+            client_state = state["clients"].setdefault(client_id, _default_client_state(client_id, received_at_ns))
             previous_shadow_hash = str(client_state.get("shadow_hash") or derive_shadow_hash(client_id, "shadow-head"))
             fork_point_event_id = str(
                 client_state.get("last_trace_id")
@@ -235,19 +528,28 @@ class SecurityCenterStore:
             timeline = {
                 "client_id": client_id,
                 "local_hash_curve": [
-                    {"sequence": 0, "label": "anchor", "hash": prior_hash},
-                    {"sequence": 1, "label": "tampered-head", "hash": local_hash},
+                    {"sequence": prior_sequence, "label": "anchor", "hash": prior_hash},
+                    {"sequence": current_sequence, "label": "tampered-head", "hash": local_hash},
                 ],
                 "cloud_shadow_curve": [
-                    {"sequence": 0, "label": "shadow-anchor", "hash": previous_shadow_hash},
-                    {"sequence": 1, "label": "shadow-head", "hash": cloud_shadow_hash},
+                    {"sequence": prior_sequence, "label": "shadow-anchor", "hash": previous_shadow_hash},
+                    {"sequence": current_sequence, "label": "shadow-head", "hash": cloud_shadow_hash},
                 ],
                 "fork_point": {
                     "event_id": fork_point_event_id,
-                    "sequence": 0,
+                    "sequence": prior_sequence,
                     "local_hash": local_hash,
                     "cloud_shadow_hash": cloud_shadow_hash,
                 },
+                "last_trusted_anchor_hash": previous_shadow_hash,
+                "last_trusted_sequence": prior_sequence,
+                "last_trusted_anchor_event_id": prior_anchored_event_id,
+                "current_edge_reported_hash": local_hash,
+                "current_edge_reported_sequence": current_sequence,
+                "current_edge_reported_anchor_event_id": anchored_event_id,
+                "gap_status": "GAP_VALIDATION_REQUIRED",
+                "recovery_gate_status": RECOVERY_GATE_OPEN,
+                "divergence_reason": "checkpoint_gap_unverified",
             }
             record = {
                 "client_id": client_id,
@@ -259,18 +561,38 @@ class SecurityCenterStore:
                 "local_hash": local_hash,
                 "cloud_shadow_hash": cloud_shadow_hash,
                 "prior_hash": prior_hash,
+                "current_sequence": current_sequence,
+                "prior_sequence": prior_sequence,
+                "anchored_event_id": anchored_event_id,
+                "prior_anchored_event_id": prior_anchored_event_id,
                 "timeline": timeline,
-                "trust_state": "UNTRUSTED",
+                "trust_state": TRUST_STATE_UNTRUSTED,
                 "recovery_required": True,
                 "handshake_status": "required",
+                "gap_status": "GAP_VALIDATION_REQUIRED",
+                "recovery_gate_status": RECOVERY_GATE_OPEN,
+                "divergence_reason": "checkpoint_gap_unverified",
             }
             client_state.update(
                 {
                     "shadow_hash": cloud_shadow_hash,
-                    "trust_state": "UNTRUSTED",
+                    "trust_state": TRUST_STATE_UNTRUSTED,
                     "updated_at_ns": record["received_at_ns"],
                     "last_trace_id": trace_id,
                     "last_fork_point_event_id": fork_point_event_id,
+                    "last_trusted_anchor_hash": previous_shadow_hash,
+                    "last_trusted_sequence": prior_sequence,
+                    "last_trusted_anchor_event_id": prior_anchored_event_id,
+                    "last_trusted_anchor_source": "lockdown_baseline",
+                    "last_trusted_anchor_trace_id": trace_id,
+                    "last_trusted_anchor_event_type": "AUDIT_INTEGRITY_LOCKDOWN_BASELINE",
+                    "last_edge_reported_hash": local_hash,
+                    "last_edge_reported_sequence": current_sequence,
+                    "last_edge_reported_anchor_event_id": anchored_event_id,
+                    "gap_status": "GAP_VALIDATION_REQUIRED",
+                    "recovery_gate_status": RECOVERY_GATE_OPEN,
+                    "divergence_reason": "checkpoint_gap_unverified",
+                    "recovery_required": True,
                 },
             )
             state["clients"][client_id] = client_state
@@ -296,8 +618,93 @@ class SecurityCenterStore:
             "trace_id": trace_id,
             "shadow_hash": cloud_shadow_hash,
             "timeline_url": f"/security-center/v1/operator/timelines/{client_id}",
-            "trust_state": "UNTRUSTED",
+            "trust_state": TRUST_STATE_UNTRUSTED,
             "alert_latency_ms": alert["alert_latency_ms"],
+        }
+
+    async def record_trusted_anchor(self, payload: dict[str, Any]) -> dict[str, Any]:
+        client_id = str(payload.get("client_id") or payload.get("session_id") or "unknown-client")
+        trace_id = str(payload.get("trace_id") or payload.get("run_id") or "")
+        anchor = payload.get("anchor") if isinstance(payload.get("anchor"), dict) else payload
+        evidence_validation = _validate_anchor_evidence(anchor)
+        if not evidence_validation["accepted"]:
+            return {
+                "ack_status": "rejected",
+                "client_id": client_id,
+                "trace_id": trace_id,
+                "reason": evidence_validation["reason"],
+                "failure_kind": evidence_validation.get("failure_kind", "EVIDENCE_UNTRUSTED"),
+                "recovery_required": True,
+            }
+
+        async with self._lock:
+            state = self._read_locked()
+            client_state = state["clients"].setdefault(client_id, _default_client_state(client_id, time.time_ns()))
+            if str(client_state.get("recovery_gate_status") or RECOVERY_GATE_CLOSED) == RECOVERY_GATE_OPEN:
+                return {
+                    "ack_status": "rejected",
+                    "client_id": client_id,
+                    "trace_id": trace_id,
+                    "reason": "recovery_gate_open",
+                    "failure_kind": "RECOVERY_GATED",
+                    "recovery_required": True,
+                }
+
+            current_hash = str(anchor.get("current_hash") or "")
+            current_sequence = _as_int(anchor.get("sequence"), 0)
+            anchored_event_id = str(anchor.get("anchored_event_id") or trace_id or f"trusted-anchor::{client_id}")
+            prior_hash = str(anchor.get("prior_hash") or "")
+            expected_prior_hash = str(client_state.get("shadow_hash") or derive_shadow_hash(client_id, "bootstrap"))
+            if prior_hash != expected_prior_hash:
+                return {
+                    "ack_status": "rejected",
+                    "client_id": client_id,
+                    "trace_id": trace_id,
+                    "reason": "trusted_anchor_prior_hash_mismatch",
+                    "failure_kind": "STRUCTURE_INVALID",
+                    "recovery_required": bool(client_state.get("recovery_required")),
+                }
+            if current_sequence <= _as_int(client_state.get("last_trusted_sequence"), 0):
+                return {
+                    "ack_status": "rejected",
+                    "client_id": client_id,
+                    "trace_id": trace_id,
+                    "reason": "stale_trusted_anchor",
+                    "failure_kind": "STRUCTURE_INVALID",
+                    "recovery_required": bool(client_state.get("recovery_required")),
+                }
+            client_state.update(
+                {
+                    "shadow_hash": current_hash,
+                    "trust_state": TRUST_STATE_ALIGNED,
+                    "updated_at_ns": time.time_ns(),
+                    "last_trace_id": trace_id or client_state.get("last_trace_id"),
+                    "last_trusted_anchor_hash": current_hash,
+                    "last_trusted_sequence": current_sequence,
+                    "last_trusted_anchor_event_id": anchored_event_id,
+                    "last_trusted_anchor_source": "trusted_anchor_uplink",
+                    "last_trusted_anchor_trace_id": trace_id,
+                    "last_trusted_anchor_event_type": str(anchor.get("event_type") or "UNKNOWN"),
+                    "last_edge_reported_hash": current_hash,
+                    "last_edge_reported_sequence": current_sequence,
+                    "last_edge_reported_anchor_event_id": anchored_event_id,
+                    "gap_status": GAP_STATUS_CLEAR,
+                    "recovery_gate_status": RECOVERY_GATE_CLOSED,
+                    "divergence_reason": "",
+                    "recovery_required": False,
+                },
+            )
+            state["clients"][client_id] = client_state
+            self._write_locked(state)
+
+        return {
+            "ack_status": "received",
+            "client_id": client_id,
+            "trace_id": trace_id,
+            "shadow_hash": current_hash,
+            "last_trusted_sequence": current_sequence,
+            "last_trusted_anchor_event_id": anchored_event_id,
+            "trusted_anchor_source": "trusted_anchor_uplink",
         }
 
     async def overview(self) -> dict[str, Any]:
@@ -355,6 +762,12 @@ class SecurityCenterStore:
                 "client_id": client_id,
                 "trust_state": latest["trust_state"],
                 "recovery_required": latest["recovery_required"],
+                "last_trusted_anchor_source": (client_state or {}).get("last_trusted_anchor_source", "lockdown_baseline"),
+                "last_trusted_anchor_trace_id": (client_state or {}).get("last_trusted_anchor_trace_id"),
+                "last_trusted_anchor_event_type": (client_state or {}).get("last_trusted_anchor_event_type"),
+                "gap_status": latest.get("gap_status", "GAP_VALIDATION_REQUIRED"),
+                "recovery_gate_status": latest.get("recovery_gate_status", "OPEN"),
+                "divergence_reason": latest.get("divergence_reason", "checkpoint_gap_unverified"),
                 **latest["timeline"],
             }
         if client_state is None:
@@ -363,8 +776,20 @@ class SecurityCenterStore:
         return {
             "client_id": client_id,
             "trust_state": client_state.get("trust_state", "UNKNOWN"),
-            "recovery_required": client_state.get("trust_state") == "UNTRUSTED",
+            "recovery_required": bool(client_state.get("recovery_required")) or client_state.get("trust_state") == "UNTRUSTED",
             "local_hash_curve": [{"sequence": 0, "label": "anchor", "hash": shadow_hash}],
             "cloud_shadow_curve": [{"sequence": 0, "label": "shadow-head", "hash": shadow_hash}],
             "fork_point": None,
+            "last_trusted_anchor_hash": client_state.get("last_trusted_anchor_hash", shadow_hash),
+            "last_trusted_sequence": client_state.get("last_trusted_sequence", 0),
+            "last_trusted_anchor_event_id": client_state.get("last_trusted_anchor_event_id"),
+            "last_trusted_anchor_source": client_state.get("last_trusted_anchor_source", "bootstrap"),
+            "last_trusted_anchor_trace_id": client_state.get("last_trusted_anchor_trace_id"),
+            "last_trusted_anchor_event_type": client_state.get("last_trusted_anchor_event_type"),
+            "current_edge_reported_hash": client_state.get("last_edge_reported_hash", ""),
+            "current_edge_reported_sequence": client_state.get("last_edge_reported_sequence", 0),
+            "current_edge_reported_anchor_event_id": client_state.get("last_edge_reported_anchor_event_id", ""),
+            "gap_status": client_state.get("gap_status", "CLEAR"),
+            "recovery_gate_status": client_state.get("recovery_gate_status", "CLEAR"),
+            "divergence_reason": client_state.get("divergence_reason", ""),
         }

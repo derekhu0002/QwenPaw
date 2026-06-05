@@ -66,18 +66,32 @@ def _strip_terminal_punctuation(value: str) -> str:
     return value.strip().rstrip(".。!！")
 
 
-def _latest_trace_payload(base_dir: Path | None = None) -> dict[str, Any]:
+def _latest_trace_payload(
+    base_dir: Path | None = None,
+    *,
+    session_id: str = "",
+) -> dict[str, Any]:
     trace_dir = _trace_dir(base_dir)
     if not trace_dir.exists():
         return {}
     trace_paths = sorted(trace_dir.glob("*.json"), key=lambda path: path.stat().st_mtime)
     if not trace_paths:
         return {}
-    return _read_json(trace_paths[-1]) or {}
+    if not session_id:
+        return _read_json(trace_paths[-1]) or {}
+    for path in reversed(trace_paths):
+        payload = _read_json(path) or {}
+        if _normalize_text(payload.get("session_id")) == session_id:
+            return payload
+    return {}
 
 
-def _latest_trace_run_id(base_dir: Path | None = None) -> str:
-    latest = _latest_trace_payload(base_dir)
+def _latest_trace_run_id(
+    base_dir: Path | None = None,
+    *,
+    session_id: str = "",
+) -> str:
+    latest = _latest_trace_payload(base_dir, session_id=session_id)
     run_id = _normalize_text(latest.get("run_id"))
     if run_id:
         return run_id
@@ -90,6 +104,15 @@ def _security_center_base_url() -> str:
 
 def _security_center_web_url() -> str:
     return (os.environ.get("QWENPAW_SECURITY_CENTER_WEB_URL") or "").strip().rstrip("/")
+
+
+def _safe_int(value: Any, default: int = 0) -> int:
+    try:
+        if value is None:
+            return default
+        return int(value)
+    except (TypeError, ValueError):
+        return default
 
 
 async def _get_security_center(path: str) -> dict[str, Any]:
@@ -289,6 +312,67 @@ def lock_mode_required(base_dir: Path | None = None) -> bool:
     return trace_dir.exists() and any(trace_dir.glob("*.json")) and not _checkpoint_path(base_dir).exists()
 
 
+async def preflight_sensitive_action_recovery(
+    *,
+    session_id: str,
+    user_id: str,
+    tool_name: str,
+    prompt_text: str,
+    base_dir: Path | None = None,
+) -> dict[str, Any]:
+    if not tool_name:
+        return {}
+
+    checkpoint_path = _checkpoint_path(base_dir)
+    checkpoint = _read_json(checkpoint_path) or {}
+    latest_payload = _latest_trace_payload(base_dir, session_id=session_id)
+    head_hash = _normalize_text(latest_payload.get("current_hash")) or _normalize_text(checkpoint.get("current_hash"))
+    head_sequence = _safe_int(
+        latest_payload.get("event_sequence"),
+        _safe_int(checkpoint.get("confirmed_sequence") or checkpoint.get("event_sequence"), 0),
+    )
+    head_anchor_id = _normalize_text(latest_payload.get("anchored_event_id")) or _normalize_text(
+        checkpoint.get("last_anchored_event_id") or checkpoint.get("anchored_event_id") or checkpoint.get("run_id"),
+    )
+
+    if not checkpoint_path.exists() and latest_payload:
+        return {
+            "recovery_required": True,
+            "trust_state": "UNTRUSTED",
+            "gap_status": "CHECKPOINT_MISSING",
+            "recovery_gate_status": "OPEN",
+            "divergence_reason": "checkpoint_missing",
+            "reported_edge_head_hash": head_hash,
+            "reported_edge_sequence": head_sequence,
+            "reported_edge_anchor_event_id": head_anchor_id,
+        }
+
+    if not head_hash:
+        return {}
+
+    return await _post_security_center(
+        "/security-center/v1/recovery/handshake",
+        {
+            "client_id": session_id,
+            "trace_id": f"runtime-preflight::{uuid.uuid4().hex[:12]}",
+            "local_hash": head_hash,
+            "checkpoint_hash": _normalize_text(checkpoint.get("current_hash")) or head_hash,
+            "local_sequence": head_sequence,
+            "anchored_event_id": head_anchor_id,
+            "checkpoint_sequence": _safe_int(checkpoint.get("confirmed_sequence") or checkpoint.get("event_sequence"), head_sequence),
+            "checkpoint_anchor_id": _normalize_text(
+                checkpoint.get("last_anchored_event_id") or checkpoint.get("anchored_event_id") or checkpoint.get("run_id"),
+            )
+            or head_anchor_id,
+            "gap_proof": _build_gap_proof(base_dir, session_id=session_id),
+            "requested_at_ns": time.time_ns(),
+            "tool_name": tool_name,
+            "user_id": user_id,
+            "prompt_text": prompt_text,
+        },
+    )
+
+
 async def write_security_rejection_record(
     *,
     session_id: str,
@@ -304,26 +388,29 @@ async def write_security_rejection_record(
     created_at = time.time()
     edge_timestamp_ns = time.time_ns()
     run_id = str(uuid.uuid4())
-    checkpoint = _read_json(_checkpoint_path(base_dir)) or {}
-    previous_payload = _latest_trace_payload(base_dir)
-    prior_hash = (
-        _normalize_text(previous_payload.get("current_hash"))
-        or _normalize_text(checkpoint.get("current_hash"))
-        or "GENESIS"
+    anchor_state = _current_anchor_state(
+        base_dir,
+        bootstrap_client_id=session_id,
     )
-    current_hash = hashlib.sha256(
-        "|".join(
-            (
-                run_id,
-                session_id,
-                user_id,
-                tool_name,
-                prompt_text,
-                prior_hash,
-                f"{created_at:.9f}",
-            ),
-        ).encode("utf-8"),
-    ).hexdigest()
+    prior_hash = anchor_state["head_hash"]
+    prior_sequence = anchor_state["head_sequence"]
+    prior_anchored_event_id = anchor_state["head_anchor_event_id"]
+    event_sequence = anchor_state["next_sequence"]
+    anchored_event_id = anchor_state["next_anchor_event_id"]
+    current_hash = _canonical_hash(
+        "security-rejection-chain-v1",
+        {
+            "run_id": run_id,
+            "session_id": session_id,
+            "user_id": user_id,
+            "tool_name": tool_name,
+            "prompt_text": prompt_text,
+            "prior_hash": prior_hash,
+            "event_sequence": event_sequence,
+            "anchored_event_id": anchored_event_id,
+            "created_at": f"{created_at:.9f}",
+        },
+    )
     nonce, binding_hash = _bind_security_nonce(
         run_id=run_id,
         session_id=session_id,
@@ -347,6 +434,10 @@ async def write_security_rejection_record(
         "tool_call_id": tool_call_id or run_id,
         "tool_name": tool_name,
         "high_risk_tool_name": tool_name,
+        "event_sequence": event_sequence,
+        "anchored_event_id": anchored_event_id,
+        "prior_event_sequence": prior_sequence,
+        "prior_anchored_event_id": prior_anchored_event_id,
         "prompt_text": prompt_text,
         "prior_hash": prior_hash,
         "current_hash": current_hash,
@@ -457,29 +548,43 @@ async def write_lockdown_record(
     created_at = time.time()
     edge_timestamp_ns = time.time_ns()
     run_id = str(uuid.uuid4())
-    latest_payload = _latest_trace_payload(base_dir)
-    prior_hash = _normalize_text(latest_payload.get("current_hash")) or "GENESIS"
-    current_hash = hashlib.sha256(
-        "|".join(
-            (
-                run_id,
-                session_id,
-                user_id,
-                tool_name,
-                prompt_text,
-                prior_hash,
-                "UNTRUSTED",
-                f"{created_at:.9f}",
-            ),
-        ).encode("utf-8"),
-    ).hexdigest()
+    checkpoint_path = _checkpoint_path(base_dir)
+    checkpoint_exists = checkpoint_path.exists()
+    checkpoint = _read_json(checkpoint_path) or {}
+    latest_payload = _latest_trace_payload(base_dir, session_id=session_id)
+    anchor_state = _current_anchor_state(
+        base_dir,
+        bootstrap_client_id=session_id,
+    )
+    prior_hash = anchor_state["head_hash"]
+    prior_sequence = anchor_state["head_sequence"]
+    prior_anchored_event_id = anchor_state["head_anchor_event_id"]
+    event_sequence = anchor_state["next_sequence"]
+    anchored_event_id = anchor_state["next_anchor_event_id"]
+    current_hash = _canonical_hash(
+        "audit-lockdown-chain-v1",
+        {
+            "run_id": run_id,
+            "session_id": session_id,
+            "user_id": user_id,
+            "tool_name": tool_name,
+            "prompt_text": prompt_text,
+            "prior_hash": prior_hash,
+            "event_sequence": event_sequence,
+            "anchored_event_id": anchored_event_id,
+            "lock_mode": "UNTRUSTED",
+            "created_at": f"{created_at:.9f}",
+        },
+    )
     fork_point_event_id = (
         _normalize_text(latest_payload.get("run_id"))
-        or _latest_trace_run_id(base_dir)
+        or _latest_trace_run_id(base_dir, session_id=session_id)
         or run_id
     )
-    local_hash = _normalize_text(latest_payload.get("current_hash")) or "tampered-current-hash"
-    cloud_anchor_hash = prior_hash
+    local_hash = anchor_state["head_hash"] or _normalize_text(latest_payload.get("current_hash")) or "tampered-current-hash"
+    local_sequence = anchor_state["head_sequence"]
+    local_anchor_event_id = anchor_state["head_anchor_event_id"]
+    cloud_anchor_hash = _normalize_text(checkpoint.get("current_hash")) or prior_hash
     payload = {
         "run_id": run_id,
         "event_type": "AUDIT_INTEGRITY_LOCKDOWN",
@@ -495,6 +600,10 @@ async def write_lockdown_record(
         "agent_id": agent_id,
         "tool_name": tool_name,
         "high_risk_tool_name": tool_name,
+        "event_sequence": event_sequence,
+        "anchored_event_id": anchored_event_id,
+        "prior_event_sequence": prior_sequence,
+        "prior_anchored_event_id": prior_anchored_event_id,
         "prompt_text": prompt_text,
         "prior_hash": prior_hash,
         "current_hash": current_hash,
@@ -502,10 +611,10 @@ async def write_lockdown_record(
         "lock_mode": "UNTRUSTED",
         "trust_state": "UNTRUSTED",
         "anomaly_category": "audit_continuity_gap",
-        "checkpoint_missing": True,
-        "checkpoint_loss_detected": True,
+        "checkpoint_missing": not checkpoint_exists,
+        "checkpoint_loss_detected": not checkpoint_exists,
         "tamper_detected": True,
-        "integrity_alert": "checkpoint_loss",
+        "integrity_alert": "checkpoint_loss" if not checkpoint_exists else "recovery_gate_active",
         "cloud_anchor_hash": cloud_anchor_hash,
     }
 
@@ -514,8 +623,16 @@ async def write_lockdown_record(
         {
             "client_id": session_id,
             "trace_id": run_id,
-            "local_hash": current_hash,
-            "checkpoint_hash": prior_hash,
+            "local_hash": local_hash,
+            "checkpoint_hash": _normalize_text(checkpoint.get("current_hash")) or prior_hash,
+            "local_sequence": local_sequence,
+            "anchored_event_id": local_anchor_event_id,
+            "checkpoint_sequence": _safe_int(checkpoint.get("confirmed_sequence") or checkpoint.get("event_sequence"), local_sequence),
+            "checkpoint_anchor_id": _normalize_text(
+                checkpoint.get("last_anchored_event_id") or checkpoint.get("anchored_event_id") or checkpoint.get("run_id"),
+            )
+            or local_anchor_event_id,
+            "gap_proof": _build_gap_proof(base_dir, session_id=session_id),
             "requested_at_ns": time.time_ns(),
         },
     )
@@ -549,6 +666,14 @@ async def write_lockdown_record(
                     "trust_state",
                     "pending",
                 ),
+                "gap_status": handshake.get("gap_status", "GAP_VALIDATION_REQUIRED"),
+                "recovery_gate_status": handshake.get("recovery_gate_status", "OPEN"),
+                "last_trusted_anchor_hash": handshake.get("last_trusted_anchor_hash", cloud_anchor_hash),
+                "last_trusted_sequence": handshake.get("last_trusted_sequence", 0),
+                "last_trusted_anchor_event_id": handshake.get("last_trusted_anchor_event_id", prior_anchored_event_id),
+                "current_edge_reported_hash": handshake.get("reported_edge_head_hash", local_hash),
+                "current_edge_reported_sequence": handshake.get("reported_edge_sequence", local_sequence),
+                "current_edge_reported_anchor_event_id": handshake.get("reported_edge_anchor_event_id", local_anchor_event_id),
             },
         )
 
@@ -563,7 +688,14 @@ async def write_lockdown_record(
             "prior_hash": prior_hash,
             "current_hash": local_hash,
             "local_hash": local_hash,
-            "checkpoint_missing": True,
+            "current_sequence": local_sequence,
+            "prior_sequence": _safe_int(checkpoint.get("confirmed_sequence") or checkpoint.get("event_sequence"), prior_sequence),
+            "anchored_event_id": local_anchor_event_id,
+            "prior_anchored_event_id": _normalize_text(
+                checkpoint.get("last_anchored_event_id") or checkpoint.get("anchored_event_id") or checkpoint.get("run_id"),
+            )
+            or prior_anchored_event_id,
+            "checkpoint_missing": not checkpoint_exists,
             "edge_timestamp_ns": edge_timestamp_ns,
             "prompt_text": prompt_text,
         },
@@ -670,6 +802,232 @@ def _to_jsonable(value: Any) -> Any:
     return {"repr": repr(value)}
 
 
+def _canonical_json(value: Any) -> str:
+    return json.dumps(_to_jsonable(value), ensure_ascii=False, separators=(",", ":"), sort_keys=True)
+
+
+def _canonical_hash(label: str, payload: dict[str, Any]) -> str:
+    return hashlib.sha256(
+        _canonical_json({"label": label, "payload": payload}).encode("utf-8"),
+    ).hexdigest()
+
+
+def _derive_security_center_bootstrap_hash(client_id: str) -> str:
+    return hashlib.sha256(
+        _canonical_json(
+            {
+                "client_id": client_id,
+                "parts": ["bootstrap"],
+                "protocol": "security-center-v1",
+            },
+        ).encode("utf-8"),
+    ).hexdigest()
+
+
+def _current_anchor_state(
+    base_dir: Path | None = None,
+    *,
+    bootstrap_client_id: str = "",
+) -> dict[str, Any]:
+    latest_payload = _latest_trace_payload(
+        base_dir,
+        session_id=bootstrap_client_id,
+    )
+    checkpoint = _read_json(_checkpoint_path(base_dir)) or {}
+    bootstrap_hash = (
+        _derive_security_center_bootstrap_hash(bootstrap_client_id)
+        if bootstrap_client_id
+        else ""
+    )
+    bootstrap_anchor_event_id = (
+        f"shadow-anchor::{bootstrap_client_id}"
+        if bootstrap_client_id
+        else ""
+    )
+    head_hash = (
+        _normalize_text(latest_payload.get("current_hash"))
+        or _normalize_text(checkpoint.get("current_hash"))
+        or bootstrap_hash
+        or "GENESIS"
+    )
+    head_sequence = _safe_int(
+        latest_payload.get("event_sequence"),
+        _safe_int(checkpoint.get("confirmed_sequence") or checkpoint.get("event_sequence"), 0),
+    )
+    head_anchor_event_id = _normalize_text(latest_payload.get("anchored_event_id")) or _normalize_text(
+        checkpoint.get("last_anchored_event_id") or checkpoint.get("anchored_event_id") or checkpoint.get("run_id"),
+    ) or bootstrap_anchor_event_id or "GENESIS"
+    next_sequence = head_sequence + 1
+    return {
+        "head_hash": head_hash,
+        "head_sequence": head_sequence,
+        "head_anchor_event_id": head_anchor_event_id,
+        "next_sequence": next_sequence,
+        "next_anchor_event_id": f"anchor-{next_sequence:08d}",
+    }
+
+
+def _gap_anchor_chain_material(payload: dict[str, Any]) -> dict[str, Any] | None:
+    event_type = _normalize_text(payload.get("event_type"))
+    if event_type == "USER_CONFIRMATION":
+        return {
+            "prior_hash": _normalize_text(payload.get("prior_hash")),
+            "confirmation_digest": _normalize_text(payload.get("confirmation_digest")),
+            "run_id": _normalize_text(payload.get("run_id")),
+            "confirmed_at": f"{float(payload.get('confirmed_at') or payload.get('created_at') or 0):.9f}",
+            "event_sequence": _safe_int(payload.get("event_sequence"), 0),
+            "anchored_event_id": _normalize_text(payload.get("anchored_event_id")),
+        }
+    if event_type == "SECURITY_REJECTION":
+        return {
+            "run_id": _normalize_text(payload.get("run_id")),
+            "session_id": _normalize_text(payload.get("session_id")),
+            "user_id": _normalize_text(payload.get("user_id")),
+            "tool_name": _normalize_text(payload.get("tool_name")),
+            "prompt_text": _normalize_text(payload.get("prompt_text")),
+            "prior_hash": _normalize_text(payload.get("prior_hash")),
+            "event_sequence": _safe_int(payload.get("event_sequence"), 0),
+            "anchored_event_id": _normalize_text(payload.get("anchored_event_id")),
+            "created_at": f"{float(payload.get('created_at') or 0):.9f}",
+        }
+    if event_type == "AUDIT_INTEGRITY_LOCKDOWN":
+        return {
+            "run_id": _normalize_text(payload.get("run_id")),
+            "session_id": _normalize_text(payload.get("session_id")),
+            "user_id": _normalize_text(payload.get("user_id")),
+            "tool_name": _normalize_text(payload.get("tool_name")),
+            "prompt_text": _normalize_text(payload.get("prompt_text")),
+            "prior_hash": _normalize_text(payload.get("prior_hash")),
+            "event_sequence": _safe_int(payload.get("event_sequence"), 0),
+            "anchored_event_id": _normalize_text(payload.get("anchored_event_id")),
+            "lock_mode": _normalize_text(payload.get("lock_mode")) or "UNTRUSTED",
+            "created_at": f"{float(payload.get('created_at') or 0):.9f}",
+        }
+    return None
+
+
+def _gap_anchor_canonical_payload(payload: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "event_type": _normalize_text(payload.get("event_type")),
+        "run_id": _normalize_text(payload.get("run_id")),
+        "session_id": _normalize_text(payload.get("session_id")),
+        "user_id": _normalize_text(payload.get("user_id")),
+        "tool_name": _normalize_text(payload.get("tool_name")),
+        "status": _normalize_text(payload.get("status")),
+        "decision": _normalize_text(payload.get("decision")),
+        "event_sequence": _safe_int(payload.get("event_sequence"), 0),
+        "anchored_event_id": _normalize_text(payload.get("anchored_event_id")),
+        "prior_hash": _normalize_text(payload.get("prior_hash")),
+        "payload_hash": _normalize_text(payload.get("payload_hash")),
+    }
+
+
+def _gap_anchor_material_digest(anchor: dict[str, Any]) -> str:
+    return hashlib.sha256(
+        _canonical_json(
+            {
+                "label": "gap-anchor-material-v1",
+                "payload": {
+                    "event_type": anchor["event_type"],
+                    "run_id": anchor["run_id"],
+                    "sequence": anchor["sequence"],
+                    "anchored_event_id": anchor["anchored_event_id"],
+                    "prior_hash": anchor["prior_hash"],
+                    "payload_hash": anchor["payload_hash"],
+                    "canonical_payload_digest": anchor["canonical_payload_digest"],
+                },
+            },
+        ).encode("utf-8"),
+    ).hexdigest()
+
+
+def _gap_anchor_from_trace_payload(payload: dict[str, Any]) -> dict[str, Any] | None:
+    chain_material = _gap_anchor_chain_material(payload)
+    current_hash = _normalize_text(payload.get("current_hash"))
+    if chain_material is None or not current_hash:
+        return None
+    canonical_payload = _gap_anchor_canonical_payload(payload)
+    anchor = {
+        "run_id": _normalize_text(payload.get("run_id")),
+        "event_type": _normalize_text(payload.get("event_type")),
+        "sequence": _safe_int(payload.get("event_sequence"), 0),
+        "anchored_event_id": _normalize_text(payload.get("anchored_event_id")),
+        "prior_hash": _normalize_text(payload.get("prior_hash")),
+        "current_hash": current_hash,
+        "payload_hash": _normalize_text(payload.get("payload_hash")),
+        "canonical_payload": canonical_payload,
+        "canonical_payload_digest": hashlib.sha256(_canonical_json(canonical_payload).encode("utf-8")).hexdigest(),
+        "chain_material": chain_material,
+    }
+    anchor["anchor_material_digest"] = _gap_anchor_material_digest(anchor)
+    return anchor
+
+
+async def _project_trusted_anchor(payload: dict[str, Any]) -> None:
+    anchor = _gap_anchor_from_trace_payload(payload)
+    if anchor is None:
+        return
+    await _post_security_center(
+        "/security-center/v1/uplinks/trusted-anchors",
+        {
+            "client_id": payload.get("session_id", ""),
+            "trace_id": payload.get("run_id", ""),
+            "run_id": payload.get("run_id", ""),
+            "session_id": payload.get("session_id", ""),
+            "event_type": payload.get("event_type", "UNKNOWN"),
+            "anchor": anchor,
+        },
+    )
+
+
+def _build_gap_proof(base_dir: Path | None = None, *, session_id: str = "") -> dict[str, Any]:
+    checkpoint = _read_json(_checkpoint_path(base_dir)) or {}
+    base_anchor_hash = _normalize_text(checkpoint.get("current_hash"))
+    if not base_anchor_hash:
+        return {}
+
+    base_sequence = _safe_int(checkpoint.get("confirmed_sequence") or checkpoint.get("event_sequence"), 0)
+    base_anchor_event_id = _normalize_text(
+        checkpoint.get("last_anchored_event_id") or checkpoint.get("anchored_event_id") or checkpoint.get("run_id"),
+    )
+    trace_dir = _trace_dir(base_dir)
+    if not trace_dir.exists():
+        return {}
+
+    anchors: list[dict[str, Any]] = []
+    for path in sorted(trace_dir.glob("*.json"), key=lambda item: item.stat().st_mtime):
+        payload = _read_json(path) or {}
+        if session_id and _normalize_text(payload.get("session_id")) != session_id:
+            continue
+        sequence = _safe_int(payload.get("event_sequence"), 0)
+        if sequence <= base_sequence:
+            continue
+        anchor = _gap_anchor_from_trace_payload(payload)
+        if anchor is None:
+            continue
+        anchor["sequence"] = sequence
+        if not anchor.get("anchored_event_id"):
+            anchor["anchored_event_id"] = path.stem
+        if not anchor.get("prior_hash"):
+            anchor["prior_hash"] = base_anchor_hash
+        anchors.append(anchor)
+    if not anchors:
+        return {}
+
+    head = anchors[-1]
+    proof_payload = {
+        "base_anchor_hash": base_anchor_hash,
+        "base_sequence": base_sequence,
+        "base_anchor_event_id": base_anchor_event_id,
+        "head_hash": head["current_hash"],
+        "head_sequence": head["sequence"],
+        "head_anchor_event_id": head["anchored_event_id"],
+        "anchors": anchors,
+    }
+    proof_payload["proof_digest"] = _canonical_hash("audit-gap-proof-v1", proof_payload)
+    return proof_payload
+
+
 def _read_json(path: Path) -> dict[str, Any] | None:
     if not path.exists():
         return None
@@ -694,12 +1052,18 @@ def _write_checkpoint(
     base_dir: Path | None,
     run_id: str,
     current_hash: str,
+    confirmed_sequence: int,
+    anchored_event_id: str,
     confirmed_at: float,
 ) -> None:
     checkpoint = {
         "run_id": run_id,
         "current_hash": current_hash,
         "continuity_anchor": current_hash,
+        "event_sequence": confirmed_sequence,
+        "confirmed_sequence": confirmed_sequence,
+        "anchored_event_id": anchored_event_id,
+        "last_anchored_event_id": anchored_event_id,
         "updated_at": confirmed_at,
     }
     _atomic_write(_checkpoint_path(base_dir), checkpoint)
@@ -833,8 +1197,15 @@ async def write_confirmation_record(
         )
 
     confirmed_at = time.time()
-    checkpoint = _read_json(_checkpoint_path(base_dir)) or {}
-    prior_hash = _normalize_text(checkpoint.get("current_hash")) or "GENESIS"
+    anchor_state = _current_anchor_state(
+        base_dir,
+        bootstrap_client_id=session_id,
+    )
+    prior_hash = anchor_state["head_hash"]
+    prior_sequence = anchor_state["head_sequence"]
+    prior_anchored_event_id = anchor_state["head_anchor_event_id"]
+    event_sequence = anchor_state["next_sequence"]
+    anchored_event_id = anchor_state["next_anchor_event_id"]
     confirmation_digest = _confirmation_digest(
         employee_id=confirmation_context["employee_id"],
         channel_name=confirmation_context["channel_name"],
@@ -844,12 +1215,16 @@ async def write_confirmation_record(
         high_risk_tool_name=confirmation_context["high_risk_tool_name"],
         user_confirmation_phrase=confirmation_context["user_confirmation_phrase"],
     )
-    current_hash = _sha256_hex(
-        "user-confirmation-chain-v1",
-        prior_hash,
-        confirmation_digest,
-        run_id,
-        f"{confirmed_at:.9f}",
+    current_hash = _canonical_hash(
+        "user-confirmation-chain-v2",
+        {
+            "prior_hash": prior_hash,
+            "confirmation_digest": confirmation_digest,
+            "run_id": run_id,
+            "confirmed_at": f"{confirmed_at:.9f}",
+            "event_sequence": event_sequence,
+            "anchored_event_id": anchored_event_id,
+        },
     )
 
     payload: dict[str, Any] = {
@@ -865,6 +1240,10 @@ async def write_confirmation_record(
         "continuity_anchor": current_hash,
         "prior_hash": prior_hash,
         "current_hash": current_hash,
+        "event_sequence": event_sequence,
+        "anchored_event_id": anchored_event_id,
+        "prior_event_sequence": prior_sequence,
+        "prior_anchored_event_id": prior_anchored_event_id,
         "payload_hash": confirmation_digest,
         "confirmation_digest": confirmation_digest,
         "user_id": confirmation_context["employee_id"],
@@ -896,8 +1275,11 @@ async def write_confirmation_record(
         base_dir=base_dir,
         run_id=run_id,
         current_hash=current_hash,
+        confirmed_sequence=event_sequence,
+        anchored_event_id=anchored_event_id,
         confirmed_at=confirmed_at,
     )
+    await _project_trusted_anchor(payload)
     return payload
 
 

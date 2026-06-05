@@ -163,10 +163,13 @@ class AuditIntegrityTamperRequest:
 @dataclass(frozen=True)
 class AuditIntegrityLockdownObservation:
     tampered_artifact_path: str
+    baseline_cloud_anchor_ready: bool
     continuity_anomaly_ready: bool
     checkpoint_loss_treated_as_tamper: bool
     local_lock_mode_ready: bool
     sensitive_tool_blocked: bool
+    external_anchor_divergence_ready: bool
+    rebuilt_chain_recovery_gate_ready: bool
     backend_api_projection_ready: bool
     operator_web_projection_ready: bool
     hash_break_curve_chart_ready: bool
@@ -178,10 +181,13 @@ class AuditIntegrityLockdownObservation:
     def enforces_lockdown(self) -> bool:
         return all(
             (
+                self.baseline_cloud_anchor_ready,
                 self.continuity_anomaly_ready,
                 self.checkpoint_loss_treated_as_tamper,
                 self.local_lock_mode_ready,
                 self.sensitive_tool_blocked,
+                self.external_anchor_divergence_ready,
+                self.rebuilt_chain_recovery_gate_ready,
                 self.backend_api_projection_ready,
                 self.operator_web_projection_ready,
                 self.hash_break_curve_chart_ready,
@@ -580,10 +586,13 @@ class SecurityAuditHarness:
         if self._app_server.startup_error is not None:
             return AuditIntegrityLockdownObservation(
                 tampered_artifact_path=str(self._app_server.working_dir),
+                baseline_cloud_anchor_ready=False,
                 continuity_anomaly_ready=False,
                 checkpoint_loss_treated_as_tamper=False,
                 local_lock_mode_ready=False,
                 sensitive_tool_blocked=False,
+                external_anchor_divergence_ready=False,
+                rebuilt_chain_recovery_gate_ready=False,
                 backend_api_projection_ready=False,
                 operator_web_projection_ready=False,
                 hash_break_curve_chart_ready=False,
@@ -610,10 +619,63 @@ class SecurityAuditHarness:
             session_id=request.authenticated_employee.authenticated_session_id,
             before_trace_names=before_trace_names,
         )
+        baseline_overview = self._read_security_center_api_json(
+            "/security-center/v1/operator/overview",
+        )
+        baseline_client = self._find_client_state(
+            baseline_overview,
+            client_id=request.authenticated_employee.authenticated_session_id,
+        )
+        baseline_trusted_sequence = 0
+        if isinstance(baseline_client, dict):
+            try:
+                baseline_trusted_sequence = int(
+                    baseline_client.get("last_trusted_sequence") or 0,
+                )
+            except (TypeError, ValueError):
+                baseline_trusted_sequence = 0
+        baseline_cloud_anchor_ready = all(
+            (
+                isinstance(baseline_client, dict),
+                baseline_trusted_sequence > 0,
+                not str(
+                    baseline_client.get("last_trusted_anchor_event_id") or "",
+                ).startswith("shadow-anchor::"),
+            ),
+        )
 
         tampered_artifact_path = self._tamper_latest_audit_artifact(
             artifact_label=request.tampered_artifact_label,
         )
+        tampered_trace_payload = self._load_latest_trace_payload()
+        tampered_local_hash = self._find_first_scalar(
+            tampered_trace_payload,
+            keys=("current_hash", "continuity_anchor"),
+        ) or "tampered-current-hash"
+        divergence_probe = self._post_security_center_api_json(
+            "/security-center/v1/recovery/handshake",
+            json={
+                "client_id": request.authenticated_employee.authenticated_session_id,
+                "trace_id": f"external-anchor-probe::{request.authenticated_employee.authenticated_session_id}",
+                "local_hash": tampered_local_hash,
+                "checkpoint_hash": tampered_local_hash,
+                "requested_at_ns": time.time_ns(),
+            },
+        )
+        shadow_hash = self._find_first_scalar(
+            divergence_probe,
+            keys=("shadow_hash",),
+        )
+        rebuilt_chain_probe = self._post_security_center_api_json(
+            "/security-center/v1/recovery/handshake",
+            json={
+                "client_id": request.authenticated_employee.authenticated_session_id,
+                "trace_id": f"rebuilt-chain-probe::{request.authenticated_employee.authenticated_session_id}",
+                "local_hash": shadow_hash or tampered_local_hash,
+                "checkpoint_hash": shadow_hash or tampered_local_hash,
+                "requested_at_ns": time.time_ns(),
+            },
+        ) if shadow_hash else {}
         resume_prompt = (
             f"Resume {request.reconnect_action_label} with high-risk tool "
             f"{request.sensitive_tool_name} after reconnect."
@@ -662,6 +724,19 @@ class SecurityAuditHarness:
         )
         local_lock_mode_ready = trust_state == "UNTRUSTED"
         sensitive_tool_blocked = self._latest_console_status in {401, 403, 409, 423}
+        external_anchor_divergence_ready = all(
+            (
+                divergence_probe.get("trust_state") == "DIVERGED",
+                divergence_probe.get("recovery_required") is True,
+            ),
+        )
+        rebuilt_chain_recovery_gate_ready = all(
+            (
+                bool(rebuilt_chain_probe),
+                rebuilt_chain_probe.get("recovery_required") is True,
+                rebuilt_chain_probe.get("trust_state") != "ALIGNED",
+            ),
+        )
         overview_client = self._find_client_state(
             security_center_overview,
             client_id=request.authenticated_employee.authenticated_session_id,
@@ -711,6 +786,13 @@ class SecurityAuditHarness:
         )
 
         failure_reasons: list[str] = []
+        if not baseline_cloud_anchor_ready:
+            failure_reasons.append(
+                "Baseline_Cloud_Anchor_Missing: before tamper, the Security "
+                "Center did not hold a non-bootstrap trusted anchor for the "
+                "live high-risk session, so rebuilt local history could still "
+                "hide behind an empty external baseline."
+            )
         if not continuity_anomaly_ready:
             failure_reasons.append(
                 "Continuity_Anomaly_Missing: the live runtime did not surface "
@@ -730,6 +812,18 @@ class SecurityAuditHarness:
             failure_reasons.append(
                 "Sensitive_Tool_Not_Blocked: the resumed high-risk action was "
                 "not refused at the business boundary after tamper evidence."
+            )
+        if not external_anchor_divergence_ready:
+            failure_reasons.append(
+                "External_Anchor_Divergence_Missing: the cloud-side recovery "
+                "handshake did not mark the tampered local anchor as divergent "
+                "before resumed work."
+            )
+        if not rebuilt_chain_recovery_gate_ready:
+            failure_reasons.append(
+                "Rebuilt_Chain_Recovery_Gate_Missing: a locally reconstructed "
+                "chain head that matches the current cloud anchor could still "
+                "clear recovery without a missing-gap validation step."
             )
         if not backend_api_projection_ready:
             failure_reasons.append(
@@ -768,10 +862,13 @@ class SecurityAuditHarness:
 
         return AuditIntegrityLockdownObservation(
             tampered_artifact_path=tampered_artifact_path,
+            baseline_cloud_anchor_ready=baseline_cloud_anchor_ready,
             continuity_anomaly_ready=continuity_anomaly_ready,
             checkpoint_loss_treated_as_tamper=checkpoint_loss_treated_as_tamper,
             local_lock_mode_ready=local_lock_mode_ready,
             sensitive_tool_blocked=sensitive_tool_blocked,
+            external_anchor_divergence_ready=external_anchor_divergence_ready,
+            rebuilt_chain_recovery_gate_ready=rebuilt_chain_recovery_gate_ready,
             backend_api_projection_ready=backend_api_projection_ready,
             operator_web_projection_ready=operator_web_projection_ready,
             hash_break_curve_chart_ready=hash_break_curve_chart_ready,
@@ -1334,6 +1431,23 @@ class SecurityAuditHarness:
         payload = response.json()
         return payload if isinstance(payload, dict) else {"payload": payload}
 
+    def _post_security_center_api_json(self, path: str, **kwargs: Any) -> dict[str, Any]:
+        base_url = self._app_server.security_center_api_url
+        if not base_url:
+            return {}
+        try:
+            response = self._app_server.client.post(
+                f"{base_url}{path}",
+                timeout=_HTTP_TIMEOUT,
+                **kwargs,
+            )
+        except httpx.HTTPError:
+            return {}
+        if response.status_code != 200:
+            return {"status_code": response.status_code}
+        payload = response.json()
+        return payload if isinstance(payload, dict) else {"payload": payload}
+
     def _read_security_center_web_text(self, path: str) -> str:
         base_url = self._app_server.security_center_web_url
         if not base_url:
@@ -1467,9 +1581,11 @@ class SecurityAuditHarness:
         keys: tuple[str, ...],
     ) -> Any | None:
         if isinstance(payload, dict):
-            for key, value in payload.items():
-                if key in keys and not isinstance(value, (dict, list)):
+            for key in keys:
+                value = payload.get(key)
+                if not isinstance(value, (dict, list)) and value is not None:
                     return value
+            for value in payload.values():
                 nested = self._find_first_scalar(value, keys=keys)
                 if nested is not None:
                     return nested

@@ -6,15 +6,20 @@ QwenPaw now includes a deploy-owned Security Center slice that stays physically 
 
 - Backend API: `deploy/api/app.py`
   - Recovery handshake: `POST /security-center/v1/recovery/handshake`
+    - Accepts edge-reported head hash plus anchor and sequence metadata, and keeps recovery gated until any missing gap is explicitly validated.
+    - Distinguishes `ALIGNED`, `DIVERGED`, and `GAP_VALIDATION_REQUIRED` instead of treating head-hash equality as automatic recovery.
+  - Trusted-anchor uplink: `POST /security-center/v1/uplinks/trusted-anchors`
+    - Accepts normal critical anchor evidence such as `USER_CONFIRMATION`, recomputes the anchor materials server-side, and advances the cloud trusted anchor only when the uploaded evidence is independently reproducible.
   - Rejected-event uplink: `POST /security-center/v1/uplinks/rejections`
   - Lockdown uplink: `POST /security-center/v1/uplinks/lockdowns`
   - Operator overview: `GET /security-center/v1/operator/overview`
   - Voucher lookup: `GET /security-center/v1/operator/vouchers/{nonce}`
   - Divergence timeline: `GET /security-center/v1/operator/timelines/{client_id}`
+    - Returns last trusted anchor, current edge-reported head, gap status, fork point, and recovery gate state for operator review.
   - Realtime alerts: `GET /security-center/v1/operator/stream`
 
 - Operator web: `deploy/web/index.html`
-  - Renders anomaly dashboard, trust-state and recovery view, rejected-event evidence, hash-break curve chart, and Security_Rejection_Nonce Voucher display.
+  - Renders anomaly dashboard, trust-state and recovery view, rejected-event evidence, hash-break curve chart, gap-validation state, recovery gate state, and Security_Rejection_Nonce Voucher display.
   - Subscribes to deploy/api over Server-Sent Events instead of manual refresh.
 
 ## Launch

@@ -114,6 +114,18 @@ def test_audit_integrity_self_healing_lockdown(app_server) -> None:
     )
 
     # // THEN
+    assert lockdown_observation.baseline_cloud_anchor_ready, harness.render_audit_integrity_lockdown_failure_report(
+        tamper_recovery_attempt=tamper_recovery_attempt,
+        lockdown_observation=lockdown_observation,
+    )
+    assert lockdown_observation.external_anchor_divergence_ready, harness.render_audit_integrity_lockdown_failure_report(
+        tamper_recovery_attempt=tamper_recovery_attempt,
+        lockdown_observation=lockdown_observation,
+    )
+    assert lockdown_observation.rebuilt_chain_recovery_gate_ready, harness.render_audit_integrity_lockdown_failure_report(
+        tamper_recovery_attempt=tamper_recovery_attempt,
+        lockdown_observation=lockdown_observation,
+    )
     assert lockdown_observation.backend_api_projection_ready, harness.render_audit_integrity_lockdown_failure_report(
         tamper_recovery_attempt=tamper_recovery_attempt,
         lockdown_observation=lockdown_observation,

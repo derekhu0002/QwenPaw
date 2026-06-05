@@ -158,18 +158,26 @@ class ToolGuardMixin:
         if tool_name:
             from qwenpaw.security.audit_foundation import (
                 lock_mode_required,
+                preflight_sensitive_action_recovery,
                 write_lockdown_record,
             )
 
-            if lock_mode_required():
-                tool_input = tool_call.get("input", {}) if isinstance(tool_call, dict) else {}
-                prompt_text = str(
-                    tool_input.get("prompt_text")
-                    or tool_input.get("prompt")
-                    or tool_input.get("command")
-                    or tool_input.get("raw_input")
-                    or ""
-                )
+            tool_input = tool_call.get("input", {}) if isinstance(tool_call, dict) else {}
+            prompt_text = str(
+                tool_input.get("prompt_text")
+                or tool_input.get("prompt")
+                or tool_input.get("command")
+                or tool_input.get("raw_input")
+                or ""
+            )
+            recovery_gate = await preflight_sensitive_action_recovery(
+                session_id=str(ctx.get("session_id") or ""),
+                user_id=str(ctx.get("user_id") or ""),
+                tool_name=tool_name,
+                prompt_text=prompt_text,
+            )
+
+            if lock_mode_required() or recovery_gate.get("recovery_required") is True:
                 await write_lockdown_record(
                     session_id=str(ctx.get("session_id") or ""),
                     user_id=str(ctx.get("user_id") or ""),

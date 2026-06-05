@@ -154,6 +154,76 @@ def test_approval_list_filters_by_session_id(app_server) -> None:
 
 @pytest.mark.integration
 @pytest.mark.p0
+def test_approval_approve_succeeds_for_first_confirmed_high_risk_action_on_clean_state(app_server) -> None:
+    """Control point: submit the first approval-gated high-risk request in a
+    clean runtime and then approve it through /api/approval/approve.
+
+    Observation point: the approval API must return 200 instead of reopening
+    recovery gate, because the pending confirmation record has already projected
+    the first trusted anchor to Security Center.
+    """
+
+    session_id = "integ-approval-first-clean-session"
+    user_id = "employee_security_auditor"
+    prompt = (
+        "As authenticated employee employee_security_auditor, ask "
+        "security_audit_agent to use plugin security_center_backend_api and "
+        "high-risk tool payroll_export_tool. Confirmation phrase: Approve file "
+        "deletion showcase baseline."
+    )
+
+    console_resp = _submit_high_risk_console_prompt(
+        app_server,
+        user_id=user_id,
+        session_id=session_id,
+        prompt=prompt,
+    )
+    assert console_resp.status_code == 200, app_server.logs_tail()
+    assert "approval_pending" in console_resp.text, app_server.logs_tail()
+
+    approvals_resp = app_server.api_request(
+        "GET",
+        "/api/approval/list",
+        params={"session_id": session_id},
+        timeout=_APPROVAL_HTTP_TIMEOUT,
+    )
+    assert approvals_resp.status_code == 200, app_server.logs_tail()
+    approvals_payload = approvals_resp.json()
+    assert approvals_payload.get("count") == 1, app_server.logs_tail()
+    pending = approvals_payload["pending_approvals"][0]
+
+    assert app_server.security_center_api_url is not None
+    timeline_before_approve = app_server.client.get(
+        f"{app_server.security_center_api_url}/security-center/v1/operator/timelines/{session_id}",
+        timeout=_APPROVAL_HTTP_TIMEOUT,
+    )
+    assert timeline_before_approve.status_code == 200
+    timeline_before_payload = timeline_before_approve.json()
+    assert timeline_before_payload.get("last_trusted_anchor_source") in {
+        "trusted_anchor_uplink",
+        "recovery_handshake_direct",
+    }
+    assert timeline_before_payload.get("recovery_required") is False
+    assert timeline_before_payload.get("recovery_gate_status") in {"CLEAR", None}
+
+    approve_resp = app_server.api_request(
+        "POST",
+        "/api/approval/approve",
+        json={
+            "request_id": pending["request_id"],
+            "session_id": session_id,
+            "user_id": user_id,
+        },
+        timeout=_APPROVAL_HTTP_TIMEOUT,
+    )
+    assert approve_resp.status_code == 200, app_server.logs_tail()
+    approve_payload = approve_resp.json()
+    assert approve_payload.get("success") is True
+    assert approve_payload.get("tool_name") == "payroll_export_tool"
+
+
+@pytest.mark.integration
+@pytest.mark.p0
 def test_approval_approve_returns_423_when_checkpoint_is_missing(app_server) -> None:
     """Control point: create one pending high-risk approval, delete the active
     checkpoint file, then attempt approval via the approval API.

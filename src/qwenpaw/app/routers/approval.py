@@ -10,7 +10,11 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 
 from ..approvals import get_approval_service
-from ...security.audit_foundation import lock_mode_required, write_lockdown_record
+from ...security.audit_foundation import (
+    lock_mode_required,
+    preflight_sensitive_action_recovery,
+    write_lockdown_record,
+)
 from ...security.tool_guard.approval import ApprovalDecision
 
 logger = logging.getLogger(__name__)
@@ -95,8 +99,15 @@ async def post_approval_approve(
             detail="Root session mismatch: cannot approve other session trees",
         )
 
-    if lock_mode_required() and pending.tool_name:
-        prompt_text = str(pending.extra.get("request_prompt") or "")
+    prompt_text = str(pending.extra.get("request_prompt") or "")
+    recovery_gate = await preflight_sensitive_action_recovery(
+        session_id=pending.session_id,
+        user_id=pending.user_id,
+        tool_name=pending.tool_name or "",
+        prompt_text=prompt_text,
+    ) if pending.tool_name else {}
+
+    if pending.tool_name and (lock_mode_required() or recovery_gate.get("recovery_required") is True):
         await write_lockdown_record(
             session_id=pending.session_id,
             user_id=pending.user_id,

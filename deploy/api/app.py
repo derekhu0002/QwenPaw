@@ -19,6 +19,11 @@ class RecoveryHandshakeRequest(BaseModel):
     trace_id: str | None = None
     local_hash: str = Field(..., min_length=1)
     checkpoint_hash: str | None = None
+    local_sequence: int | None = Field(None, ge=0)
+    checkpoint_sequence: int | None = Field(None, ge=0)
+    anchored_event_id: str | None = None
+    checkpoint_anchor_id: str | None = None
+    gap_proof: dict[str, Any] | None = None
     requested_at_ns: int | None = None
 
 
@@ -46,7 +51,20 @@ class LockdownUplinkRequest(BaseModel):
     tool_name: str = Field(..., min_length=1)
     current_hash: str = Field(..., min_length=1)
     prior_hash: str | None = None
+    current_sequence: int | None = Field(None, ge=0)
+    prior_sequence: int | None = Field(None, ge=0)
+    anchored_event_id: str | None = None
+    prior_anchored_event_id: str | None = None
     edge_timestamp_ns: int = Field(..., ge=1)
+
+
+class TrustedAnchorUplinkRequest(BaseModel):
+    client_id: str = Field(..., min_length=1)
+    trace_id: str | None = None
+    run_id: str | None = None
+    session_id: str | None = None
+    event_type: str = Field(..., min_length=1)
+    anchor: dict[str, Any] = Field(...)
 
 
 def create_app(store: SecurityCenterStore | None = None) -> FastAPI:
@@ -88,6 +106,10 @@ def create_app(store: SecurityCenterStore | None = None) -> FastAPI:
     @app.post("/security-center/v1/uplinks/lockdowns")
     async def uplink_lockdown(body: LockdownUplinkRequest) -> dict[str, Any]:
         return await service_store.record_lockdown(body.model_dump(mode="json"))
+
+    @app.post("/security-center/v1/uplinks/trusted-anchors")
+    async def uplink_trusted_anchor(body: TrustedAnchorUplinkRequest) -> dict[str, Any]:
+        return await service_store.record_trusted_anchor(body.model_dump(mode="json"))
 
     @app.get("/security-center/v1/operator/overview")
     async def operator_overview() -> dict[str, Any]:

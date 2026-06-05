@@ -224,6 +224,31 @@ def _wait_for_http_ready(
     )
 
 
+def _wait_for_log_marker(
+    *,
+    marker: str,
+    timeout_seconds: float,
+    process: subprocess.Popen[str],
+    logs: list[str],
+    service_name: str,
+) -> str | None:
+    start_at = time.time()
+    while time.time() - start_at < timeout_seconds:
+        if any(marker in line for line in logs):
+            return None
+        if process.poll() is not None:
+            return (
+                f"{service_name} exited during startup.\n"
+                f"exit_code={process.returncode}\n"
+                f"logs:\n{''.join(logs)[-4000:]}"
+            )
+        time.sleep(0.25)
+    return (
+        f"{service_name} did not emit startup marker '{marker}' in time.\n"
+        f"logs:\n{''.join(logs)[-4000:]}"
+    )
+
+
 def _tee_stream(stream, buffer: list[str]) -> None:
     """Read subprocess output, tag and print live, keep a raw copy."""
     prefix = "[app server] "
@@ -526,12 +551,17 @@ def app_server(  # pylint: disable=too-many-statements,too-many-branches
                 try:
                     resp = client.get(f"http://{host}:{port}/api/version")
                     if resp.status_code == 200:
-                        # /api/version turns green before the console route's
-                        # lightweight security fast path is consistently ready
-                        # under cold startup. Give the subprocess a brief
-                        # settle window so explicit security tests do not race
-                        # background startup on their first request.
-                        time.sleep(2.0)
+                        # /api/version turns green before background startup
+                        # consistently finishes under cold boot. Wait for the
+                        # runtime marker instead of using a fixed sleep so the
+                        # security integration slice does not race startup.
+                        startup_error = _wait_for_log_marker(
+                            marker="Background startup completed",
+                            timeout_seconds=20.0,
+                            process=process,
+                            logs=logs,
+                            service_name="qwenpaw app",
+                        )
                         break
                 except (httpx.ConnectError, httpx.TimeoutException) as exc:
                     last_error = str(exc)

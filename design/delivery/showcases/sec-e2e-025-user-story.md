@@ -4,16 +4,20 @@
 
 用户先完成一次正常的高风险操作，随后有人离线篡改本地审计证据；系统在下一次恢复使用时自动进入 UNTRUSTED 锁死状态，同时把异常同步到 Security Center 后端和告警页面，直到信任被重新建立。
 
+本轮实现还额外保证两点：第一次正常高风险动作会先把可信锚点投影到云侧，后续即使攻击者在本地篡改并重建一条“自洽”的假链，恢复握手也不会被错误放行，而是继续维持 recovery gate。
+
 ## 前置准备
 
-- 开始演示前，先将环境恢复到正常状态。推荐直接在仓库根目录执行`.venv\Scripts\Activate.ps1` `powershell -ExecutionPolicy Bypass -File .\scripts\reset-showcase-demo-state.ps1`。该脚本会停止默认演示端口上的旧进程、重建干净的演示目录，并清掉残留状态。若不使用脚本，最小要求是：使用一个干净的 `QWENPAW_WORKING_DIR`，确认本地审计链、checkpoint、Security Center 时间线与 operator web 视图没有遗留的旧异常；如果上一轮演示已经做过离线篡改，建议直接切换到新的演示目录，或清理旧目录与 Security Center 数据后重启 QwenPaw、deploy/api、deploy/web，再开始本用例。
+- 开始演示前，先将环境恢复到正常状态。推荐直接在仓库根目录执行`.venv\Scripts\Activate.ps1` `powershell -ExecutionPolicy Bypass -File .\scripts\reset-showcase-demo-state.ps1`。该脚本会停止默认演示端口上的旧进程、重建干净的演示目录，并清掉残留状态；当前脚本也会额外打印一组建议直接复用的环境变量。若不使用脚本，最小要求是：使用一个干净的 `QWENPAW_WORKING_DIR`，确认本地审计链、checkpoint、Security Center 时间线与 operator web 视图没有遗留的旧异常；如果上一轮演示已经做过离线篡改，建议直接切换到新的演示目录，或清理旧目录与 Security Center 数据后重启 QwenPaw、deploy/api、deploy/web，再开始本用例。
 - 建议在演示机器上显式设置运行目录相关环境变量，避免 QwenPaw 因为历史 `~/.copaw` 目录优先级而读到旧数据。最小建议如下：
 	- `QWENPAW_WORKING_DIR` 指向一个干净的演示目录。
 	- `QWENPAW_SECRET_DIR` 指向配套的 secret 目录。
 	- `QWENPAW_BACKUP_DIR` 指向配套的 backup 目录。
+	- `QWENPAW_SECURITY_CENTER_DATA_DIR` 指向 deploy/api 使用的独立 Security Center 数据目录；如果不显式设置，deploy/api 可能回落到仓库内默认 store 路径，上一轮演示的云侧残留状态会污染本轮结果。
 - 对 edge runtime，还需要显式设置 Security Center 投影地址：
 	- `QWENPAW_SECURITY_CENTER_API_URL` 指向 deploy/api。
 	- `QWENPAW_SECURITY_CENTER_WEB_URL` 指向 deploy/web。
+- 对 Security Center backend API 进程，建议与 edge runtime 使用同一个 `QWENPAW_SECURITY_CENTER_DATA_DIR`，保证 reset 脚本清掉的就是本轮演示实际读取的 store。
 - 对 Security Center operator web 进程，还需要设置 `SECURITY_CENTER_API_BASE` 指向 deploy/api；否则页面会尝试连接默认后端地址。
 - 如果是从仓库源码直接运行，而不是使用安装包，建议确保 `PYTHONPATH` 包含仓库下的 `src` 目录；在 Windows 上建议额外设置 `PYTHONIOENCODING=utf-8`，减少日志与子进程编码问题。
 - 若演示机器存在系统代理，建议设置 `NO_PROXY=*`，避免本机 `127.0.0.1` 的 API / SSE 请求被代理劫持。
@@ -32,6 +36,7 @@
 $env:QWENPAW_WORKING_DIR = "D:\QwenPawDemo\working2"
 $env:QWENPAW_SECRET_DIR = "D:\QwenPawDemo\working2.secret"
 $env:QWENPAW_BACKUP_DIR = "D:\QwenPawDemo\working2.backups"
+$env:QWENPAW_SECURITY_CENTER_DATA_DIR = "D:\QwenPawDemo\security-center-data"
 $env:QWENPAW_SECURITY_CENTER_API_URL = "http://127.0.0.1:8091"
 $env:QWENPAW_SECURITY_CENTER_WEB_URL = "http://127.0.0.1:8092"
 $env:QWENPAW_AUTH_ENABLED = "false"
@@ -45,6 +50,12 @@ $env:SECURITY_CENTER_API_BASE = "http://127.0.0.1:8091"
 
 ```powershell
 $env:SECURITY_CENTER_API_BASE = "http://127.0.0.1:8091"
+```
+
+如果单独启动 deploy/api，再额外为该进程设置：
+
+```powershell
+$env:QWENPAW_SECURITY_CENTER_DATA_DIR = "D:\QwenPawDemo\security-center-data"
 ```
 
 ## 演示输入
@@ -67,7 +78,7 @@ $env:SECURITY_CENTER_API_BASE = "http://127.0.0.1:8091"
 
 - QwenPaw 正常接收请求。
 - 本地形成一条新的审计记录。
-- 本地基线已经形成，但此时 Security Center WEB / backend API 不一定已经出现该客户端卡片；按当前实现，客户端投影主要在后续 recovery handshake 或 lockdown 路径里出现。
+- 本地基线已经形成，同时 Security Center backend API 已经收到这次正常关键锚点的投影；若此时打开 operator web，对应客户端应可以被查询到，只是还没有异常告警。
 
 可按下面方式确认“基线已经建立”：
 
@@ -78,8 +89,13 @@ $env:SECURITY_CENTER_API_BASE = "http://127.0.0.1:8091"
 	- `tool_name = payroll_export_tool`
 	- `current_hash` 与 `prior_hash` 不相同，且下一条审计记录的 `prior_hash` 会指向上一条记录的 `current_hash`
 4. 在 `audit_chain_checkpoint.json` 中，确认 `current_hash` / `continuity_anchor` 已更新到这次基线动作产生的值。
+5. 调用 `GET /security-center/v1/operator/timelines/{client_id}`，确认云侧已经存在这次正常基线的可信锚点信息，至少可以看到以下信号之一：
+	- `last_trusted_anchor_hash`
+	- `last_trusted_sequence`
+	- `last_trusted_anchor_event_id`
+	- `last_trusted_anchor_source = trusted_anchor_uplink`
 
-注意：你截图里 WEB 端 `Trust-state and recovery view` 为空，在当前实现下是正常现象，不代表基线动作失败。原因是正常批准路径只会写本地审计证据，不会在这一步主动把客户端注册进 Security Center 的 `clients` 视图。等到后续进入篡改后的 recovery / lockdown 路径，再去看 WEB 上的 `Trust state`、`Recovery required`、`Fork point` 和 hash-break curve chart 才是当前 acceptance 边界内稳定可见的观测点。
+注意：如果此时 WEB 端 `Trust-state and recovery view` 仍然完全为空，反而应视为异常信号。当前实现下，正常批准路径已经会把可信锚点投影到 Security Center；后续 recovery / lockdown 路径是在这个云侧基线之上暴露分叉、recovery gate、fork point 和 hash-break curve chart，而不是从零开始临时建卡。
 
 ### 2. 模拟离线篡改本地证据
 
@@ -108,6 +124,7 @@ $env:SECURITY_CENTER_API_BASE = "http://127.0.0.1:8091"
 - 请求不会像正常情况那样继续执行。本次通过用例不要求手工重启；直接在篡改后继续发起高风险请求，就应触发拒绝与恢复投影。
 - 系统检测到本地审计连续性已被破坏。
 - 本地进入 `UNTRUSTED` 状态，敏感工具被阻断。
+- 即使攻击者顺手把本地链重算成一条“看起来连续”的假链，恢复握手也不会因为链表面自洽就清除风险；系统仍应维持 recovery gate，直到云侧基于既有可信锚点完成独立校验。
 ![alt text](image.png)
 ![alt text](image-1.png)
 ### 4. 观察 Security Center backend API 的恢复状态
@@ -124,6 +141,7 @@ $env:SECURITY_CENTER_API_BASE = "http://127.0.0.1:8091"
 - 可以看到该客户端已进入恢复必需状态。
 - 可以看到 `recovery_required = true` 或等价状态。
 - 可以看到 local hash 与 cloud shadow hash 已出现分叉。
+- 可以看到当前恢复判断并不是“仅凭边缘自报 hash 相等就恢复”，而是仍然保留与云侧可信锚点相关的恢复语义；若做了重建假链演示，接口应继续体现 `GAP_VALIDATION_REQUIRED`、`REQUIRED` 或等价的恢复闸门状态，而不是直接回到 `ALIGNED`。
 
 ### 5. 观察 Security Center operator web 的图表和分叉点
 
@@ -149,6 +167,7 @@ $env:SECURITY_CENTER_API_BASE = "http://127.0.0.1:8091"
 ## 观测点
 
 - 离线篡改不会被静默吞掉，而是在下一次恢复使用时被发现。
+- 正常基线动作会先把可信锚点同步到云侧，后续恢复判断依赖这条外部锚点，而不是只依赖本地自报链头。
 - 系统不仅在本地锁死，还把异常投影到 Security Center backend API。
 - Security Center operator web 可以直接展示 hash-break curve chart 和 fork point。
 - 在信任恢复前，高风险工具始终不可继续使用。
@@ -157,6 +176,7 @@ $env:SECURITY_CENTER_API_BASE = "http://127.0.0.1:8091"
 
 - 物理篡改后，系统进入 `UNTRUSTED` 或等价锁死状态。
 - 恢复前，高风险工具调用被拒绝。
+- 即使篡改者重建出一条表面连续的本地假链，系统也不会把恢复状态误判为已对齐。
 - Security Center backend API 可见恢复必需状态。
 - Security Center operator web 可见 hash-break curve chart 与 fork point。
 - 演示全程不依赖手工伪造云端数据。
@@ -164,6 +184,7 @@ $env:SECURITY_CENTER_API_BASE = "http://127.0.0.1:8091"
 ## 失败判定
 
 - 本地证据被篡改后，系统仍继续执行敏感工具。
+- 攻击者只要把本地 hash 链重算成自洽状态，就能让恢复闸门错误消失。
 - Security Center backend API 看不到恢复必需状态。
 - Security Center operator web 没有显示 hash-break curve chart 或 fork point。
 - 演示需要手工往云端写假数据才能成立。
@@ -171,4 +192,4 @@ $env:SECURITY_CENTER_API_BASE = "http://127.0.0.1:8091"
 
 ## 讲解口径
 
-“这里演示的是员工试图在本地删除或篡改审计证据后的系统反应。QwenPaw 不会把这类情况当作普通故障，而是把它识别成审计连续性破坏。结果是两边同时动作：本地进入 UNTRUSTED，后续敏感工具直接被挡住；同时 Security Center 后端和告警页面收到异常状态，并在图表上标出 local hash 与 cloud shadow hash 的分叉点。这样管理员不仅知道‘出事了’，还知道是从哪里开始失去可信性的。”
+“这里演示的不只是‘删了文件会报警’，而是‘先有云侧可信锚点，再发生离线篡改时，哪怕攻击者把本地 hash 链重新算得看起来连续，系统仍不会轻信本地结果’。QwenPaw 会把它识别成审计连续性破坏：本地进入 UNTRUSTED，后续敏感工具直接被挡住；同时 Security Center 后端和告警页面收到异常状态，并在图表上标出 local hash 与 cloud shadow hash 的分叉点。这样管理员不仅知道‘出事了’，还知道这次恢复判断依赖的是云侧既有可信锚点，而不是攻击者改写后的本地链。”

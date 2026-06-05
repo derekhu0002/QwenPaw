@@ -31,6 +31,7 @@ const TRUST_STATE_LABELS = {
   UNKNOWN: "未知",
   ALIGNED: "已对齐",
   DIVERGED: "已分叉",
+  GAP_VALIDATION_REQUIRED: "缺口待验证",
   UNTRUSTED: "不可信",
   REJECTED: "已拒绝",
 };
@@ -110,10 +111,16 @@ function updateTrustView(overview) {
   elements.trustView.innerHTML = clients
     .map((client) => {
       const trust = client.trust_state || "UNKNOWN";
-      const tone = trust === "UNTRUSTED" ? "danger" : trust === "ALIGNED" ? "success" : "";
+      const tone = trust === "UNTRUSTED"
+        ? "danger"
+        : trust === "ALIGNED"
+          ? "success"
+          : trust === "GAP_VALIDATION_REQUIRED"
+            ? "warning"
+            : "";
       return stackCard(
         client.client_id,
-        `信任状态：<span class="${tone}">${trustLabel(trust)}</span><br/>最近 trace：${client.last_trace_id || "--"}`,
+        `信任状态：<span class="${tone}">${trustLabel(trust)}</span><br/>Gap 状态：${client.gap_status || "CLEAR"}<br/>恢复闸门：${client.recovery_gate_status || "CLOSED"}<br/>最近 trace：${client.last_trace_id || "--"}`,
         tone,
       );
     })
@@ -204,9 +211,26 @@ async function renderTimeline() {
   try {
     const timeline = await readJson(`/security-center/v1/operator/timelines/${encodeURIComponent(state.selectedClientId)}`);
     drawTimeline(timeline);
+    const trustTone = timeline.trust_state === "UNTRUSTED"
+      ? "danger"
+      : timeline.trust_state === "ALIGNED"
+        ? "success"
+        : timeline.trust_state === "GAP_VALIDATION_REQUIRED"
+          ? "warning"
+          : "";
     elements.handshakeProgress.innerHTML = [
       stackCard("恢复握手进度", `需要恢复：${timeline.recovery_required ? "是" : "否"}`),
-      stackCard("当前信任态", trustLabel(timeline.trust_state || "UNKNOWN"), timeline.trust_state === "UNTRUSTED" ? "danger" : "success"),
+      stackCard("当前信任态", trustLabel(timeline.trust_state || "UNKNOWN"), trustTone),
+      stackCard("Gap 校验状态", timeline.gap_status || "CLEAR", timeline.gap_status === "GAP_VALIDATION_REQUIRED" ? "warning" : ""),
+      stackCard("恢复闸门", timeline.recovery_gate_status || "CLOSED", timeline.recovery_gate_status === "OPEN" ? "danger" : "success"),
+      stackCard(
+        "最后可信锚点",
+        `序号：${timeline.last_trusted_sequence ?? 0}<br/>事件：${timeline.last_trusted_anchor_event_id || "--"}`,
+      ),
+      stackCard(
+        "当前边缘申报头",
+        `序号：${timeline.current_edge_reported_sequence ?? 0}<br/>事件：${timeline.current_edge_reported_anchor_event_id || "--"}`,
+      ),
       stackCard("分叉点", timeline.fork_point ? timeline.fork_point.event_id : "暂无分叉"),
     ].join("");
   } catch (error) {

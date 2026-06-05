@@ -19,6 +19,7 @@ from ...security.audit_foundation import (
     evaluate_high_risk_tool_boundary,
     extract_prompt_security_context,
     lock_mode_required,
+    preflight_sensitive_action_recovery,
     project_security_rejection_record,
     write_lockdown_record,
     write_security_rejection_record,
@@ -204,7 +205,14 @@ async def _maybe_handle_security_scenario(
             },
         )
 
-    if lock_mode_required() and tool_name:
+    recovery_gate = await preflight_sensitive_action_recovery(
+        session_id=session_id,
+        user_id=user_id,
+        tool_name=tool_name,
+        prompt_text=prompt_text,
+    ) if tool_name else {}
+
+    if tool_name and (lock_mode_required() or recovery_gate.get("recovery_required") is True):
         payload = await write_lockdown_record(
             session_id=session_id,
             user_id=user_id,
