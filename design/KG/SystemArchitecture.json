@@ -128,7 +128,6 @@
           "acceptanceCriteria": "tests/integration/security/test_audit_foundation.py::test_stolen_session_replay_is_blocked_by_cloud_sequence_validation",
           "TestResults": "Security Center or its cloud verifier detects that the replayed trace or session does not match the next expected sequence and hash continuity, blocks further authorization for that session, and surfaces the attempted hijack as a business-visible alert."
         }
-        }
       ]
     },
     {
