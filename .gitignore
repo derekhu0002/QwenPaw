@@ -135,7 +135,5 @@ e2e/.pytest_cache/
 e2e/__pycache__/
 .obsidian/
 .pip-temp/
-tmp_working_probe/
-tmp_working_probe2/
-tmp_working_probe3/
+/tmp_*/
 deploy/api/data/security-center-store.json
