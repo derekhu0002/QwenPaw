@@ -76,12 +76,6 @@
         "type": "string"
       }
     },
-    "notes": {
-      "type": "array",
-      "items": {
-        "type": "string"
-      }
-    },
     "openGaps": {
       "type": "array",
       "items": {
