@@ -105,12 +105,29 @@
           "TestResults": "Before the device can continue sensitive work or upload new anchors, the system raises a data continuity anomaly in Security Center, enters local lock mode, and refuses sensitive tools until the local ledger, checkpoint anchors, and cloud mirror are reconciled."
         },
         {
+          "name": "sec-e2e-027-lease-expiry-active-defense",
+          "description": "When a QwenPaw device goes missing or stays offline beyond its lease window, Security Center must actively downgrade the device to untrusted and keep it blocked until it proves continuity on return.",
+          "type": "Acceptance Test",
+          "Input": "Let a client miss its heartbeat long enough to exceed the lease TTL, observe the cloud dashboard state turn untrusted, then reconnect the device and attempt to resume model access without first completing the missing-gap verification.",
+          "acceptanceCriteria": "tests/integration/security/test_audit_foundation.py::test_lease_expiry_blocks_untrusted_rejoin_until_gap_sync",
+          "TestResults": "Security Center marks the device untrusted when the lease expires, denies restored authorization on reconnect until the full missing hash gap is validated, and only then allows the node to regain normal model access."
+        },
+        {
           "name": "sec-e2e-021-prompt-injection-tool-guard-enforced",
           "description": "A malicious prompt or contaminated external text must not be able to talk an agent into skipping the high-risk confirmation path or into treating a high-risk action as if it were a trusted test operation.",
           "type": "Acceptance Test",
           "Input": "In a live conversation, submit nested or deceptive instructions that claim the agent is in test mode or otherwise exempt from approval, then drive the agent toward a tool whose configured risk level is High without providing a valid trusted context or confirmation artifact.",
           "acceptanceCriteria": "tests/integration/security/test_audit_foundation.py::test_prompt_injection_cannot_bypass_high_risk_tool_guard",
           "TestResults": "The high-risk tool remains blocked at the tool-call layer, the guard rejects execution because the required trusted context and confirmation are absent, and the attempted bypass is recorded as a rejected security-relevant event rather than silently executing."
+        },
+        {
+          "name": "sec-e2e-022-session-hijack-replay-blocked",
+          "description": "If an attacker steals a still-valid session context and replays it from an unaudited process, Security Center must detect that the session lineage no longer matches the next expected sequence and stop the session before it can continue operating.",
+          "type": "Acceptance Test",
+          "Input": "Capture a valid session context after an authenticated operation, inject it into a second process that is not participating in the audited runtime, and attempt to emit additional operations under the same trace or session identity.",
+          "acceptanceCriteria": "tests/integration/security/test_audit_foundation.py::test_stolen_session_replay_is_blocked_by_cloud_sequence_validation",
+          "TestResults": "Security Center or its cloud verifier detects that the replayed trace or session does not match the next expected sequence and hash continuity, blocks further authorization for that session, and surfaces the attempted hijack as a business-visible alert."
+        }
         }
       ]
     },
