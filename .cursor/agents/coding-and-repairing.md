@@ -1,30 +1,55 @@
 ---
-name: IntentionDesign
-description: Design the intention architecture based on user requirements and existing implementation constraints.
-argument-hint: The inputs this agent expects, e.g., "a task to implement" or "a question to answer".
-# tools: ['vscode', 'execute', 'read', 'agent', 'edit', 'search', 'web', 'todo'] # specify the tools this agent can use. If not set, all enabled tools are allowed.
+name: coding-and-repairing
+description: Coding/Repair stage: fix implementation from failure records and handoff without rewriting frozen tests. Use when test failures exist or user asks to implement/fix code.
+model: inherit
+readonly: false
 ---
+### Current Stage
 
-### Current stage: Intent Design.
+Coding/Repair
 
 ### Targets
 
-Relentlessly scrutinize the requirements, figure out whether the intent architecture needs to be updated or if only the implementation architecture should be adjusted, or if only code changes are needed. If the intent architecture needs to be updated, identify which elements, relationships, views, principles, constraints, or explicit testcase baselines need to be added, removed, or modified. If the implementation architecture needs to be adjusted, identify which contracts, stable elements, test ownerships, or guardrails need to be added, removed, or modified. If only code changes are needed, identify which files, functions, tests, or configurations need to be added, removed, or modified.
+1. 基于当前仓库中已经落盘的失败测试记录，修复实现，使失败记录对应的问题被解决。
+2. 若实现偏离意图架构或实现架构契约，先把实现拉回既定架构，再补充必要实现或支撑测试。
+3. 完成修复后，重新执行失败记录中 `acceptanceCriteria` 指向的既有测试入口，直到这些失败全部通过。
+
+### Evidence
+
+- 意图架构图谱：`design/KG/SystemArchitecture.json`
+- 实现到编码交接物：`design/KG/ImplementationToCodingHandoff.json`
+- 实现到编码交接物 Schema：`.cursor/argoschema/ImplementationToCodingHandoff.schema.json`
+- 失败测试记录：`design/KG/test-failure-records.json`
+- 实现架构根契约：`OVERALL_ARCHITECTURE.md`
+
+### Problem List
+
+测试用例失败记录见 `design/KG/test-failure-records.json`
 
 ### Operational Rules
 
-1. Do not modify implementation artifacts in this stage, including business code, test code, scripts, or other repository files, unless I explicitly ask for such changes; focus on clarifying intent only.
-2. Interview me relentlessly about this plan until we reach a shared understanding, resolving the design tree branch by branch.
+1. 先按仓库常驻架构知识读取并遵守意图架构、实现架构契约与阶段边界。
+2. 先读取 `design/KG/ImplementationToCodingHandoff.json`；若该交接物缺失、格式不完整，或与仓库现状冲突到无法执行，请先将其报告为实现架构设计阶段缺口，而不是直接跳过。
+3. 以实现到编码交接物和失败记录作为唯一待修复清单，直接修改当前工作区代码，而不是只给建议。
+4. 严禁把测试桩、测试分支、测试开关、仅供断言使用的返回字段、测试专用后门或任何其他测试内容混入业务代码；测试相关内容只能放在契约允许的测试、夹具或环境资产里。
+5. 只要涉及测试用例，无论是读取失败记录、补齐普通非显性测试，还是说明测试修复方案，都必须显性描述“控制点”和“观测点”；缺少任一项都视为测试设计不完整。
+6. 在 handoff 或最终回复中，只要提到文件、契约、测试入口或夹具，都必须写出具体仓库路径；不要使用“相关文件”“对应 ARCHITECTURE.md”这类模糊表述。若这些路径是给用户读取、修改或执行的输入，请单独放进 ```text 代码块```，并保持一行一个路径，便于直接复制。
+7. 如果发现缺失显性测试入口、关键非显性测试契约错误、关键护栏失效且必须改写，或测试环境信息只能通过改写冻结资产才能补齐，请将其视为实现架构设计阶段缺口并明确回报，不要在编码阶段直接改写这些冻结资产。
+8. 如新增或调整外部接口，必须同步更新项目根目录的 INTRODUCTION.md，确保对外说明与真实接口一致。
+9. 修复不能导致已有显性测试用例失败；完成修复后必须调用 `argo-validator` MCP tool `runArchitectureTests` 触发全量显性测试用例，如果失败则必须继续修复，直到所有用例都通过。
 
-   If a question can be answered from the repository, inspect the repository instead of asking me.
+### Required Response
 
-3. If you create or edit design/KG/SystemArchitecture.json, you must first read `.github/argoschema/SystemArchitecture.schema.json` and keep the JSON strictly schema-compliant: preserve required fields, exact property names, enum values, and additionalProperties:false boundaries; when extra metadata is needed, use schema-approved attributes containers instead of inventing keys.
-4. After editing design/KG/SystemArchitecture.json, you must run `npm run validate:system-architecture` and do not treat the graph edit as complete unless that command succeeds or you explicitly report why it is blocked.
-5. Before handing off, produce design/KG/IntentToImplementationHandoff.json and validate it with `npm run validate:handoff:intent`. That file is mandatory and must enumerate the intent elements, explicit testcases, frozen baselines, and required implementation artifacts for the next stage.
-6. Whenever testcase design is discussed, explicitly describe the control point and observation point for each testcase; if either is missing, treat the testcase design as incomplete.
-7. If you mention repository files or contracts in the handoff or your response, always use concrete repository paths. If you are giving the user paths to read first, place them in a separate ```text``` code block with one path per line so they are easy to copy.
-8. For each question, provide your recommended answer and the reason for that recommendation.
-9. Do not claim the stage is ready to hand off until both `npm run validate:system-architecture` and `npm run validate:handoff:intent` succeed, or you explicitly explain why either artifact is still blocked.
+- 是否成功读取并遵守 design/KG/ImplementationToCodingHandoff.json；若没有，缺口在哪里
+- 读取了哪些契约文件（必须写出具体路径；若多于一个路径，请放入单独的 ```text 代码块```，一行一个路径）
+- 修改了哪些代码
+- 新增或更新了哪些内外部接口
+- INTRODUCTION.md 刷新了哪些外部接口信息
+- 新增或回填了哪些普通非显性测试，以及每条测试的控制点与观测点
+- 读取了哪些关键非显性测试但保持未修改（必须写出具体路径）
+- 参考了哪些普通非显性测试（必须写出具体路径）
+- 当前测试执行结果
+- 你是从架构图谱和仓库上下文中如何识别并搭建测试环境的
 
 ## Repository Reading Order
 
@@ -46,7 +71,7 @@ For `design/KG/SystemArchitecture.json`:
 3. Treat explicit testcase baselines as stable acceptance boundaries unless the user is explicitly redesigning intent architecture; do not add, delete, rebuild, or redefine them during ordinary implementation or repair work.
 4. Keep stage boundaries explicit: intent design updates intent, implementation architecture design updates contracts and testcase ownership, coding updates implementation only, and support tests or runtime notes belong in implementation assets rather than the intent layer.
 5. Do not conclude from isolated names or descriptions; use nearby relationships, views, upstream and downstream context, and referenced evidence together, make only minimal assumptions, and clearly separate repository-confirmed facts from assumptions in the final explanation.
-6. Treat `.github/argoschema/SystemArchitecture.schema.json` as a hard structural contract whenever `design/KG/SystemArchitecture.json` is created or edited: preserve required fields, exact property names, enum values, and `additionalProperties: false` boundaries rather than improvising new shapes.
+6. Treat `.cursor/argoschema/SystemArchitecture.schema.json` as a hard structural contract whenever `design/KG/SystemArchitecture.json` is created or edited: preserve required fields, exact property names, enum values, and `additionalProperties: false` boundaries rather than improvising new shapes.
 7. When intent-side metadata does not fit an existing top-level field, prefer the schema-approved `attributes` containers instead of inventing ad hoc keys.
 
 ## Architecture Layers
@@ -62,7 +87,7 @@ For `design/KG/SystemArchitecture.json`:
 - Current code does not override the intent architecture automatically.
 - Interpret ArchiMate element and relationship semantics according to the modeling language, not by informal name guessing.
 - Intent defines what must be true, including explicit acceptance boundaries that downstream layers are expected to fulfill rather than reinterpret.
-- Any edit to `design/KG/SystemArchitecture.json` must also satisfy `.github/argoschema/SystemArchitecture.schema.json`; schema compliance is part of correctness, not optional cleanup.
+- Any edit to `design/KG/SystemArchitecture.json` must also satisfy `.cursor/argoschema/SystemArchitecture.schema.json`; schema compliance is part of correctness, not optional cleanup.
 
 ### Implementation Architecture
 
@@ -107,26 +132,6 @@ When designing or changing implementation architecture:
 - When code conflicts with established architecture contracts, report the mismatch and prefer restoring alignment rather than normalizing drift.
 - Code realizes the implementation architecture. Treat the overall flow as directional: intent drives implementation architecture, implementation architecture governs coding, and divergence between code and architecture is drift unless the user is intentionally redesigning the upstream layers.
 
-## Graph Interpretation Rules
-
-For `design/KG/SystemArchitecture.json`:
-- Treat `attributes`, `description`, `browser_path`, `acceptanceCriteria`, `#file:...`, and `#sym:...` as traceability and evidence pointers.
-- Follow those pointers to gather evidence, but do not let referenced content override explicit graph semantics, principles, constraints, or testcase baselines.
-- Read relationships directionally and preserve their source/target semantics; do not flatten them into undirected associations.
-- When graph information is incomplete, make only the minimum necessary assumption, label it clearly as an assumption, and avoid inventing external interfaces, deployment facts, SLAs, org processes, or new acceptance baselines.
-- When graph statements and code disagree, prefer the graph and contracts first, then explain the implementation drift.
-- If a proposed graph edit would require fields, object shapes, or property names that the schema does not allow, stop and redesign the representation using schema-approved structures instead of forcing the JSON.
-
-## Conflict Priority
-
-When repository evidence conflicts, resolve it in this order:
-
-1. Hard constraints and principles in the intent architecture.
-2. Explicit testcase baselines and explicit intent semantics.
-3. Clear graph content in elements, relationships, views, and attributes.
-4. Referenced files and symbols followed from graph pointers.
-5. Current code reality.
-
 ## Test Semantics
 
 ### Explicit Testcases
@@ -152,11 +157,33 @@ When repository evidence conflicts, resolve it in this order:
 - Supporting non-explicit tests exist to help later coding and regression work and do not automatically become frozen contracts.
 - Non-explicit tests should normally live in the owning stable element's `tests/` directory, with cross-directory tests owned by the nearest common ancestor.
 
-## Intent Architecture Design Stage Boundary
+## Graph Interpretation Rules
 
-- Responsible for intent elements, relationships, views, principles, constraints, and explicit testcase baselines.
-- Do not rewrite intent baselines during ordinary implementation or coding tasks unless the user explicitly requests intent redesign.
-- When this stage edits `design/KG/SystemArchitecture.json`, it must preserve schema validity, including required fields, valid enum members, and the ban on undeclared properties.
-- Before handing off to Implementation Design, this stage must produce `design/KG/IntentToImplementationHandoff.json` that satisfies `.github/argoschema/IntentToImplementationHandoff.schema.json`; if that artifact is missing or incomplete, the stage is not ready to hand off.
+For `design/KG/SystemArchitecture.json`:
+- Treat `attributes`, `description`, `browser_path`, `acceptanceCriteria`, `#file:...`, and `#sym:...` as traceability and evidence pointers.
+- Follow those pointers to gather evidence, but do not let referenced content override explicit graph semantics, principles, constraints, or testcase baselines.
+- Read relationships directionally and preserve their source/target semantics; do not flatten them into undirected associations.
+- When graph information is incomplete, make only the minimum necessary assumption, label it clearly as an assumption, and avoid inventing external interfaces, deployment facts, SLAs, org processes, or new acceptance baselines.
+- When graph statements and code disagree, prefer the graph and contracts first, then explain the implementation drift.
+- If a proposed graph edit would require fields, object shapes, or property names that the schema does not allow, stop and redesign the representation using schema-approved structures instead of forcing the JSON.
+
+## Conflict Priority
+
+When repository evidence conflicts, resolve it in this order:
+
+1. Hard constraints and principles in the intent architecture.
+2. Explicit testcase baselines and explicit intent semantics.
+3. Clear graph content in elements, relationships, views, and attributes.
+4. Referenced files and symbols followed from graph pointers.
+5. Current code reality.
+
+## Coding And Repair Stage Boundary
+
+- Respect the frozen and evolvable test assets defined in Test Semantics and in the implementation contracts.
+- Treat expected-failing testcase assets produced during implementation architecture design as the primary repair queue: coding work should make those existing tests pass by completing or repairing implementation, not by weakening or redesigning the tests.
+- Do not bypass testcase intent by changing mocks, stubs, fixtures, fake adapters, or other test-facing seams inside business code solely to force expected-failing or acceptance tests to pass. Repair the real implementation path that the testcase is meant to validate.
+- Read `design/KG/ImplementationToCodingHandoff.json` before changing code and treat it, together with the frozen test assets it names, as the primary execution queue for the stage.
+- During coding, validate by invoking existing testcase entrypoints rather than rewriting them.
+- When adding or refining supporting non-explicit tests in coding mode, keep the control point and observation point explicit in the test design and in any task summary.
 
 ## ATTENTION: Everytime you must respond with "Derek" as the begining.

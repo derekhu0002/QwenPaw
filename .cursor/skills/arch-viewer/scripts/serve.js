@@ -21,7 +21,7 @@ function findRoot() {
     const parent = path.dirname(dir);
     if (parent === dir) break;
     dir = parent;
-    if (fs.existsSync(path.join(dir, '.github', 'argoschema'))) return dir;
+    if (fs.existsSync(path.join(dir, '.cursor', 'argoschema'))) return dir;
     if (fs.existsSync(path.join(dir, 'package.json')) && fs.existsSync(path.join(dir, '.github'))) return dir;
   }
   return process.cwd();
@@ -31,7 +31,7 @@ const ROOT = findRoot();
 
 const PATHS = {
   data:   path.join(ROOT, 'design', 'KG', 'SystemArchitecture.json'),
-  schema: path.join(ROOT, '.github', 'argoschema', 'SystemArchitecture.schema.json'),
+  schema: path.join(ROOT, '.cursor', 'argoschema', 'SystemArchitecture.schema.json'),
   html:   path.join(__dirname, '..', 'assets', 'index.html'),
   assets: path.join(__dirname, '..', 'assets'),
 };
