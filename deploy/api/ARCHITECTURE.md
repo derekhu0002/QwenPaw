@@ -41,3 +41,6 @@ element_path: deploy/api
 
 ### Notes
 - Coding/Repair may choose concrete framework and route layout, but must preserve HTTP as the edge transport, keep this backend as the only cloud-side control point for edge interactions, require missing-gap verification before an `UNTRUSTED` client regains model access, and publish Security_Rejection_Nonce-triggered operator alerts to deploy/web in under 500ms from uplink receipt without requiring manual refresh.
+- Current repository evidence now proves the backend projects lease timing through operator query surfaces, autonomously downgrades expired clients to `UNTRUSTED` from the cloud-side lease registry, and keeps recovery gated until cloud-side gap validation succeeds.
+- Current repository evidence also proves the explicit-gap-verification shortcut no longer returns clients to `ALIGNED` without an accepted full-chain gap proof.
+- The supporting contract test at `../../tests/contract/security/test_lease_recovery_semantics_contract.py` now guards those semantics as passing regression tests: one for TTL-driven lease downgrade and one for rejecting hash-only recovery shortcuts without full-chain cloud validation.

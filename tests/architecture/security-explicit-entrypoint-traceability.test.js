@@ -29,7 +29,7 @@ const codingQueueTestcases = [
     {
         testcaseName: 'sec-e2e-027-lease-expiry-active-defense',
         entryPath: 'tests/integration/security/test_audit_foundation.py::test_lease_expiry_blocks_untrusted_rejoin_until_gap_sync',
-        initialExecutionStatus: 'failed',
+        initialExecutionStatus: 'passed',
     },
 ];
 
@@ -129,6 +129,10 @@ for (const marker of [
     'verify_confirmation_precedes_high_risk_tool_effect',
     'verify_tamper_evidence_forces_lockdown',
     'verify_lease_expiry_blocks_untrusted_rejoin_until_gap_sync',
+    'recovery_control_point_ready',
+    'pre_recovery_lease_monitor_projection_ready',
+    'post_recovery_backend_api_projection_ready',
+    'post_recovery_operator_web_projection_ready',
     'verify_prompt_injection_guard_enforced',
     'render_non_repudiation_failure_report',
     'render_audit_integrity_lockdown_failure_report',
@@ -154,6 +158,9 @@ for (const categoryMarker of [
     'category="Audit_Integrity_Lockdown_Gap"',
     'category="Lease_Expiry_Active_Defense_Gap"',
     'category="Prompt_Injection_Guard_Gap"',
+    'pre_recovery_console_status',
+    'post_recovery_console_status',
+    'Recovery_Control_Point_Missing',
     'Security_Rejection_Nonce',
     'Security_Center_Backend_Api_Missing',
     'Security_Center_Operator_Web_Missing',
@@ -173,6 +180,7 @@ for (const harnessMethod of [
     'verify_confirmation_precedes_high_risk_tool_effect',
     'verify_tamper_evidence_forces_lockdown',
     'verify_lease_expiry_blocks_untrusted_rejoin_until_gap_sync',
+    '_attempt_missing_gap_verification',
     'verify_prompt_injection_guard_enforced',
     'render_non_repudiation_failure_report',
     'render_audit_integrity_lockdown_failure_report',

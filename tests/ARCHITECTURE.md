@@ -55,6 +55,7 @@ element_path: tests
 
 ### Supporting Non-Explicit Tests
 - integration/test_security_config.py
+- contract/security/test_lease_recovery_semantics_contract.py
 
 ### Protected Fixtures
 - integration/security/harness.py
@@ -62,4 +63,6 @@ element_path: tests
 ### Notes
 - The current explicit testcases are intentionally anchored to repository-owned pytest entrypoints so the architecture baseline stays executable in the current workspace state.
 - `tests/integration/security/harness.py` is a protected fixture for explicit security acceptance bodies. Coding/Repair may realize the runtime behind it, but should not rewrite its business-facing vocabulary, runtime-inspection method names, the required `app_server` real-environment binding, or the read-only testcase entrypoints without an upstream architecture change.
+- For `sec-e2e-027`, that protected fixture now freezes two separate console observation points, `pre_recovery_console_status` and `post_recovery_console_status`, so the denied rejoin frame and restored-access frame remain independently observable.
+- `tests/contract/security/test_lease_recovery_semantics_contract.py` is a supporting contract-test entrypoint that now guards the closed sec-e2e-027 intent semantics beneath the explicit acceptance path: Security Center must keep a true TTL-driven lease downgrade path and a full-chain cloud-side gap-validation path. These tests are now expected to pass and serve as regression guards.
 - `tests/integration/conftest.py` now carries the shared real-app subprocess bootstrap baseline for integration entrypoints; when runtime startup fails, it must surface a readable `startup_error` to test bodies instead of terminating those entrypoints during fixture setup.

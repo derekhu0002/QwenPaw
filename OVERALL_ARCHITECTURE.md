@@ -89,7 +89,7 @@
 - direct sub-boundary materialization: `deploy/web/ARCHITECTURE.md` freezes the operator-facing Security Center web frontend that visualizes anomalies, rejected events, recovery state, hash-break curve forks, and nonce-driven red alerts.
 - direct testcase materialization: `tests/integration/security/test_audit_foundation.py::test_end_to_end_non_repudiation_evidence_chain` is the read-only explicit entrypoint for `sec-e2e-024-end-to-end-non-repudiation-evidence-chain`, and it must run through the real `app_server` fixture rather than repository source inspection.
 - direct testcase materialization: `tests/integration/security/test_audit_foundation.py::test_audit_integrity_self_healing_lockdown` is the read-only explicit entrypoint for `sec-e2e-025-audit-integrity-self-healing-lockdown`.
-- direct testcase materialization: `tests/integration/security/test_audit_foundation.py::test_lease_expiry_blocks_untrusted_rejoin_until_gap_sync` is the read-only explicit entrypoint for `sec-e2e-027-lease-expiry-active-defense`.
+- direct testcase materialization: `tests/integration/security/test_audit_foundation.py::test_lease_expiry_blocks_untrusted_rejoin_until_gap_sync` is the read-only explicit entrypoint for `sec-e2e-027-lease-expiry-active-defense`, and its implementation-architecture contract freezes one entrypoint with two control points plus two distinct console observation points: `pre_recovery_console_status` for the denied rejoin frame before missing-gap verification and `post_recovery_console_status` for the restored-access frame after continuity validation.
 - direct testcase materialization: `tests/integration/security/test_audit_foundation.py::test_prompt_injection_cannot_bypass_high_risk_tool_guard` is the read-only explicit entrypoint for `sec-e2e-021-prompt-injection-tool-guard-enforced`.
 
 ## Explicit Testcase Materialization
@@ -133,7 +133,7 @@
 - tests/architecture/root-architecture-deliverables.test.js guards that the expected architecture deliverables exist at stable repository paths.
 - tests/architecture/validator-bootstrap-traceability.test.js guards the wiring between `package.json` validation commands and bundled validator assets.
 - tests/architecture/security-audit-contract-boundaries.test.js guards the frozen boundary between `src/qwenpaw/security`, the explicit security entrypoint zone, the separate Security Center deployment boundary, and the root/runtime/test contracts that reference them.
-- tests/architecture/security-explicit-entrypoint-traceability.test.js guards that `sec-e2e-024`, `sec-e2e-025`, `sec-e2e-027`, and `sec-e2e-021` stay mounted to the read-only explicit entrypoints and that the implementation handoff keeps the same paths plus initial failure traceability.
+- tests/architecture/security-explicit-entrypoint-traceability.test.js guards that `sec-e2e-024`, `sec-e2e-025`, `sec-e2e-027`, and `sec-e2e-021` stay mounted to the read-only explicit entrypoints and that the implementation handoff keeps the same paths plus the frozen execution-state traceability for `sec-e2e-027`.
 
 ## Frozen Files For Downstream Coding
 - design/KG/SystemArchitecture.json

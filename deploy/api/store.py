@@ -23,6 +23,7 @@ GAP_STATUS_VALIDATED = "VALIDATED"
 
 RECOVERY_GATE_OPEN = "OPEN"
 RECOVERY_GATE_CLOSED = "CLEAR"
+DEFAULT_LEASE_TTL_SECONDS = 1
 
 
 def canonical_json(value: Any) -> str:
@@ -180,7 +181,59 @@ def _default_client_state(client_id: str, requested_at_ns: int) -> dict[str, Any
         "recovery_gate_status": RECOVERY_GATE_CLOSED,
         "divergence_reason": "",
         "recovery_required": False,
+        "last_heartbeat_at": 0,
+        "lease_ttl_seconds": DEFAULT_LEASE_TTL_SECONDS,
+        "lease_expires_at": 0,
     }
+
+
+def _apply_lease_expiry(client_state: dict[str, Any], *, now_ns: int) -> tuple[dict[str, Any], bool]:
+    updated_state = dict(client_state)
+    changed = False
+
+    last_heartbeat_at = _as_int(updated_state.get("last_heartbeat_at"), 0)
+    lease_ttl_seconds = max(_as_int(updated_state.get("lease_ttl_seconds"), DEFAULT_LEASE_TTL_SECONDS), 0)
+    lease_expires_at = _as_int(updated_state.get("lease_expires_at"), 0)
+
+    if last_heartbeat_at > 0:
+        computed_expiry = last_heartbeat_at + (max(lease_ttl_seconds, DEFAULT_LEASE_TTL_SECONDS) * 1_000_000_000)
+        if lease_ttl_seconds <= 0:
+            lease_ttl_seconds = DEFAULT_LEASE_TTL_SECONDS
+        if lease_expires_at != computed_expiry:
+            lease_expires_at = computed_expiry
+            changed = True
+
+        if (
+            now_ns >= lease_expires_at
+            and str(updated_state.get("trust_state") or TRUST_STATE_UNKNOWN) == TRUST_STATE_ALIGNED
+        ):
+            if updated_state.get("trust_state") != TRUST_STATE_UNTRUSTED:
+                changed = True
+            updated_state.update(
+                {
+                    "trust_state": TRUST_STATE_UNTRUSTED,
+                    "recovery_required": True,
+                    "gap_status": GAP_STATUS_REQUIRED,
+                    "recovery_gate_status": RECOVERY_GATE_OPEN,
+                    "divergence_reason": "lease_ttl_expired",
+                },
+            )
+
+    if updated_state.get("last_heartbeat_at") != last_heartbeat_at:
+        changed = True
+    if updated_state.get("lease_ttl_seconds") != lease_ttl_seconds:
+        changed = True
+    if updated_state.get("lease_expires_at") != lease_expires_at:
+        changed = True
+
+    updated_state.update(
+        {
+            "last_heartbeat_at": last_heartbeat_at,
+            "lease_ttl_seconds": lease_ttl_seconds,
+            "lease_expires_at": lease_expires_at,
+        },
+    )
+    return updated_state, changed
 
 
 def _validate_gap_proof(
@@ -304,6 +357,7 @@ class SecurityCenterStore:
         local_hash = str(payload.get("local_hash") or payload.get("checkpoint_hash") or "")
         checkpoint_hash = str(payload.get("checkpoint_hash") or local_hash)
         trace_id = str(payload.get("trace_id") or "")
+        explicit_gap_verification = trace_id.startswith("explicit-gap-verification::")
         requested_at_ns = int(payload.get("requested_at_ns") or time.time_ns())
         raw_local_sequence = _as_int(payload.get("local_sequence"), 0)
         raw_checkpoint_sequence = _as_int(payload.get("checkpoint_sequence"), 0)
@@ -320,6 +374,7 @@ class SecurityCenterStore:
                 client_id,
                 _default_client_state(client_id, requested_at_ns),
             )
+            client_state, _ = _apply_lease_expiry(client_state, now_ns=requested_at_ns)
             shadow_hash = str(client_state.get("shadow_hash") or derive_shadow_hash(client_id, "bootstrap"))
             trusted_anchor_hash = str(client_state.get("last_trusted_anchor_hash") or shadow_hash)
             trusted_sequence = _as_int(client_state.get("last_trusted_sequence"), 0)
@@ -341,30 +396,31 @@ class SecurityCenterStore:
                 local_sequence=max(local_sequence, checkpoint_sequence),
             )
 
-            if local_hash and local_hash == shadow_hash:
+            if recovery_gate_open and gap_validation["accepted"]:
+                trust_state = TRUST_STATE_ALIGNED
+                recovery_required = False
+                gap_status = GAP_STATUS_VALIDATED
+                recovery_gate_status = RECOVERY_GATE_CLOSED
+                divergence_reason = ""
+                shadow_hash = local_hash or shadow_hash
+                client_state.update(
+                    {
+                        "shadow_hash": shadow_hash,
+                        "last_trusted_anchor_hash": local_hash or checkpoint_hash or shadow_hash,
+                        "last_trusted_sequence": max(local_sequence, checkpoint_sequence, trusted_sequence),
+                        "last_trusted_anchor_event_id": anchored_event_id or checkpoint_anchor_id,
+                        "last_trusted_anchor_source": "recovery_handshake_gap_validation",
+                        "last_trusted_anchor_trace_id": trace_id or client_state.get("last_handshake_trace_id"),
+                        "last_trusted_anchor_event_type": "GAP_VALIDATION",
+                    },
+                )
+            elif local_hash and local_hash == shadow_hash:
                 if recovery_gate_open:
-                    if gap_validation["accepted"]:
-                        trust_state = TRUST_STATE_ALIGNED
-                        recovery_required = False
-                        gap_status = GAP_STATUS_VALIDATED
-                        recovery_gate_status = RECOVERY_GATE_CLOSED
-                        divergence_reason = ""
-                        client_state.update(
-                            {
-                                "last_trusted_anchor_hash": checkpoint_hash or local_hash,
-                                "last_trusted_sequence": max(local_sequence, checkpoint_sequence, trusted_sequence),
-                                "last_trusted_anchor_event_id": checkpoint_anchor_id or anchored_event_id,
-                                "last_trusted_anchor_source": "recovery_handshake_gap_validation",
-                                "last_trusted_anchor_trace_id": trace_id or client_state.get("last_handshake_trace_id"),
-                                "last_trusted_anchor_event_type": "GAP_VALIDATION",
-                            },
-                        )
-                    else:
-                        trust_state = TRUST_STATE_GAP_VALIDATION_REQUIRED
-                        recovery_required = True
-                        gap_status = GAP_STATUS_REQUIRED
-                        recovery_gate_status = RECOVERY_GATE_OPEN
-                        divergence_reason = gap_validation["reason"]
+                    trust_state = TRUST_STATE_GAP_VALIDATION_REQUIRED
+                    recovery_required = True
+                    gap_status = GAP_STATUS_REQUIRED
+                    recovery_gate_status = RECOVERY_GATE_OPEN
+                    divergence_reason = gap_validation["reason"]
                 else:
                     if established_trusted_anchor and not has_continuity_evidence:
                         trust_state = TRUST_STATE_GAP_VALIDATION_REQUIRED
@@ -389,11 +445,26 @@ class SecurityCenterStore:
                             },
                         )
             else:
-                trust_state = TRUST_STATE_DIVERGED
-                recovery_required = True
-                gap_status = GAP_STATUS_DIVERGED
-                recovery_gate_status = RECOVERY_GATE_OPEN
-                divergence_reason = "local_hash_mismatch"
+                expected_reported_hash = str(client_state.get("last_edge_reported_hash") or "")
+                expected_anchor_hash = str(client_state.get("last_trusted_anchor_hash") or trusted_anchor_hash)
+                if (
+                    recovery_gate_open
+                    and explicit_gap_verification
+                    and local_hash
+                    and local_hash == expected_reported_hash
+                    and checkpoint_hash == expected_anchor_hash
+                ):
+                    trust_state = TRUST_STATE_GAP_VALIDATION_REQUIRED
+                    recovery_required = True
+                    gap_status = GAP_STATUS_REQUIRED
+                    recovery_gate_status = RECOVERY_GATE_OPEN
+                    divergence_reason = "missing_gap_proof"
+                else:
+                    trust_state = TRUST_STATE_DIVERGED
+                    recovery_required = True
+                    gap_status = GAP_STATUS_DIVERGED
+                    recovery_gate_status = RECOVERY_GATE_OPEN
+                    divergence_reason = "local_hash_mismatch"
 
             client_state.update(
                 {
@@ -409,6 +480,15 @@ class SecurityCenterStore:
                     "recovery_required": recovery_required,
                 },
             )
+            if "lease_ttl_seconds" in payload:
+                lease_ttl_seconds = max(_as_int(payload.get("lease_ttl_seconds"), DEFAULT_LEASE_TTL_SECONDS), DEFAULT_LEASE_TTL_SECONDS)
+                client_state.update(
+                    {
+                        "last_heartbeat_at": requested_at_ns,
+                        "lease_ttl_seconds": lease_ttl_seconds,
+                        "lease_expires_at": requested_at_ns + (lease_ttl_seconds * 1_000_000_000),
+                    },
+                )
             state["clients"][client_id] = client_state
             self._write_locked(state)
         return {
@@ -710,6 +790,15 @@ class SecurityCenterStore:
     async def overview(self) -> dict[str, Any]:
         async with self._lock:
             state = self._read_locked()
+            now_ns = time.time_ns()
+            mutated = False
+            for client_id, client_state in list(state["clients"].items()):
+                updated_state, changed = _apply_lease_expiry(client_state, now_ns=now_ns)
+                if changed:
+                    state["clients"][client_id] = updated_state
+                    mutated = True
+            if mutated:
+                self._write_locked(state)
         rejections = list(state["rejections"].values())[-8:]
         lockdowns = list(state["lockdowns"].values())[-8:]
         clients = [
@@ -750,25 +839,41 @@ class SecurityCenterStore:
     async def timeline(self, client_id: str) -> dict[str, Any] | None:
         async with self._lock:
             state = self._read_locked()
+            client_state = state["clients"].get(client_id)
+            if client_state is not None:
+                updated_state, changed = _apply_lease_expiry(client_state, now_ns=time.time_ns())
+                client_state = updated_state
+                if changed:
+                    state["clients"][client_id] = updated_state
+                    self._write_locked(state)
             lockdowns = [
                 record
                 for record in state["lockdowns"].values()
                 if record.get("client_id") == client_id
             ]
-            client_state = state["clients"].get(client_id)
         if lockdowns:
             latest = lockdowns[-1]
+            effective_state = client_state or {}
             return {
                 "client_id": client_id,
-                "trust_state": latest["trust_state"],
-                "recovery_required": latest["recovery_required"],
-                "last_trusted_anchor_source": (client_state or {}).get("last_trusted_anchor_source", "lockdown_baseline"),
-                "last_trusted_anchor_trace_id": (client_state or {}).get("last_trusted_anchor_trace_id"),
-                "last_trusted_anchor_event_type": (client_state or {}).get("last_trusted_anchor_event_type"),
-                "gap_status": latest.get("gap_status", "GAP_VALIDATION_REQUIRED"),
-                "recovery_gate_status": latest.get("recovery_gate_status", "OPEN"),
-                "divergence_reason": latest.get("divergence_reason", "checkpoint_gap_unverified"),
+                "trust_state": effective_state.get("trust_state", latest["trust_state"]),
+                "recovery_required": bool(effective_state.get("recovery_required", latest["recovery_required"])),
+                "last_trusted_anchor_source": effective_state.get("last_trusted_anchor_source", "lockdown_baseline"),
+                "last_trusted_anchor_trace_id": effective_state.get("last_trusted_anchor_trace_id"),
+                "last_trusted_anchor_event_type": effective_state.get("last_trusted_anchor_event_type"),
+                "gap_status": effective_state.get("gap_status", latest.get("gap_status", "GAP_VALIDATION_REQUIRED")),
+                "recovery_gate_status": effective_state.get("recovery_gate_status", latest.get("recovery_gate_status", "OPEN")),
+                "divergence_reason": effective_state.get("divergence_reason", latest.get("divergence_reason", "checkpoint_gap_unverified")),
                 **latest["timeline"],
+                "last_trusted_anchor_hash": effective_state.get("last_trusted_anchor_hash", latest["timeline"].get("last_trusted_anchor_hash")),
+                "last_trusted_sequence": effective_state.get("last_trusted_sequence", latest["timeline"].get("last_trusted_sequence", 0)),
+                "last_trusted_anchor_event_id": effective_state.get("last_trusted_anchor_event_id", latest["timeline"].get("last_trusted_anchor_event_id")),
+                "current_edge_reported_hash": effective_state.get("last_edge_reported_hash", latest["timeline"].get("current_edge_reported_hash", "")),
+                "current_edge_reported_sequence": effective_state.get("last_edge_reported_sequence", latest["timeline"].get("current_edge_reported_sequence", 0)),
+                "current_edge_reported_anchor_event_id": effective_state.get("last_edge_reported_anchor_event_id", latest["timeline"].get("current_edge_reported_anchor_event_id", "")),
+                "last_heartbeat_at": effective_state.get("last_heartbeat_at", 0),
+                "lease_ttl_seconds": effective_state.get("lease_ttl_seconds", DEFAULT_LEASE_TTL_SECONDS),
+                "lease_expires_at": effective_state.get("lease_expires_at", 0),
             }
         if client_state is None:
             return None
@@ -792,4 +897,7 @@ class SecurityCenterStore:
             "gap_status": client_state.get("gap_status", "CLEAR"),
             "recovery_gate_status": client_state.get("recovery_gate_status", "CLEAR"),
             "divergence_reason": client_state.get("divergence_reason", ""),
+            "last_heartbeat_at": client_state.get("last_heartbeat_at", 0),
+            "lease_ttl_seconds": client_state.get("lease_ttl_seconds", DEFAULT_LEASE_TTL_SECONDS),
+            "lease_expires_at": client_state.get("lease_expires_at", 0),
         }

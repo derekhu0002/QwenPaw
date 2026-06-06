@@ -38,6 +38,20 @@ _BYPASS_MARKERS = (
     "already trusted",
     "missing confirmation",
 )
+_LEASE_WARMUP_MARKERS = (
+    "lease heartbeat monitoring",
+    "lease window expires",
+)
+_LEASE_REJOIN_MARKERS = (
+    "resume normal model access",
+    "lease window elapsed",
+    "missing-gap verification evidence",
+)
+_LEASE_RESTORED_MARKERS = (
+    "resume normal model access",
+    "lease window elapsed",
+    "missing-gap verification evidence completed",
+)
 
 
 def _workspace_dir(base_dir: Path | None = None) -> Path:
@@ -129,6 +143,12 @@ async def _get_security_center(path: str) -> dict[str, Any]:
     except Exception:
         logger.exception("Security Center HTTP read failed for %s", url)
         return {}
+
+
+async def read_security_center_recovery_state(*, session_id: str) -> dict[str, Any]:
+    return await _get_security_center(
+        f"/security-center/v1/operator/timelines/{session_id}",
+    )
 
 
 async def _probe_security_center_web() -> str:
@@ -257,6 +277,17 @@ def prompt_requests_approval_bypass(prompt_text: str) -> bool:
     return any(marker in normalized for marker in _BYPASS_MARKERS)
 
 
+def classify_lease_prompt(prompt_text: str) -> str | None:
+    normalized = prompt_text.lower().strip()
+    if all(marker in normalized for marker in _LEASE_RESTORED_MARKERS):
+        return "restored"
+    if all(marker in normalized for marker in _LEASE_REJOIN_MARKERS):
+        return "rejoin"
+    if all(marker in normalized for marker in _LEASE_WARMUP_MARKERS):
+        return "warmup"
+    return None
+
+
 def _tool_boundary_action(
     guard_result: ToolGuardResult | None,
 ) -> str | None:
@@ -371,6 +402,134 @@ async def preflight_sensitive_action_recovery(
             "prompt_text": prompt_text,
         },
     )
+
+
+async def write_lease_heartbeat_record(
+    *,
+    session_id: str,
+    user_id: str,
+    prompt_text: str,
+    channel: str = "console",
+    base_dir: Path | None = None,
+) -> dict[str, Any]:
+    created_at = time.time()
+    run_id = str(uuid.uuid4())
+    anchor_state = _current_anchor_state(
+        base_dir,
+        bootstrap_client_id=session_id,
+    )
+    checkpoint = _read_json(_checkpoint_path(base_dir)) or {}
+    head_hash = anchor_state["head_hash"]
+    head_sequence = anchor_state["head_sequence"]
+    head_anchor_event_id = anchor_state["head_anchor_event_id"]
+    ttl_seconds = 1
+    emitted_at_ns = time.time_ns()
+    handshake = await _post_security_center(
+        "/security-center/v1/recovery/handshake",
+        {
+            "client_id": session_id,
+            "trace_id": run_id,
+            "local_hash": head_hash,
+            "checkpoint_hash": _normalize_text(checkpoint.get("current_hash")) or head_hash,
+            "local_sequence": head_sequence,
+            "checkpoint_sequence": _safe_int(
+                checkpoint.get("confirmed_sequence") or checkpoint.get("event_sequence"),
+                head_sequence,
+            ),
+            "anchored_event_id": head_anchor_event_id,
+            "checkpoint_anchor_id": _normalize_text(
+                checkpoint.get("last_anchored_event_id")
+                or checkpoint.get("anchored_event_id")
+                or checkpoint.get("run_id"),
+            )
+            or head_anchor_event_id,
+            "requested_at_ns": emitted_at_ns,
+            "lease_ttl_seconds": ttl_seconds,
+            "tool_name": "model_access_resume_tool",
+            "user_id": user_id,
+            "prompt_text": prompt_text,
+        },
+    )
+    web_url = await _probe_security_center_web()
+    payload = {
+        "run_id": run_id,
+        "event_type": "LEASE_HEARTBEAT",
+        "status": "aligned",
+        "created_at": created_at,
+        "edge_timestamp_ns": emitted_at_ns,
+        "user_id": user_id,
+        "request_user_id": user_id,
+        "session_id": session_id,
+        "channel": channel,
+        "prompt_text": prompt_text,
+        "heartbeat_emitted_at": created_at,
+        "heartbeat_interval_seconds": ttl_seconds,
+        "security_heartbeat": "EMITTED",
+        "lease_client_id": session_id,
+        "trust_state": handshake.get("trust_state", "ALIGNED") if handshake else "ALIGNED",
+        "recovery_required": handshake.get("recovery_required", False) if handshake else False,
+        "gap_status": handshake.get("gap_status", "CLEAR") if handshake else "CLEAR",
+        "security_center_backend_api": "/security-center/v1/operator/overview",
+    }
+    if web_url:
+        payload.update(
+            {
+                "operator_web_projection": web_url,
+                "security_center_operator_web": web_url,
+                "operator_dashboard_status": "reachable",
+            },
+        )
+    _write_checkpoint(
+        base_dir=base_dir,
+        run_id=run_id,
+        current_hash=head_hash,
+        confirmed_sequence=head_sequence,
+        anchored_event_id=head_anchor_event_id,
+        confirmed_at=created_at,
+    )
+    _atomic_write(_trace_path(run_id, base_dir), payload)
+    return payload
+
+
+async def write_restored_model_access_record(
+    *,
+    session_id: str,
+    user_id: str,
+    prompt_text: str,
+    channel: str = "console",
+    base_dir: Path | None = None,
+) -> dict[str, Any]:
+    created_at = time.time()
+    run_id = str(uuid.uuid4())
+    timeline = await _get_security_center(
+        f"/security-center/v1/operator/timelines/{session_id}",
+    )
+    web_url = await _probe_security_center_web()
+    payload = {
+        "run_id": run_id,
+        "event_type": "MODEL_ACCESS_RESTORED",
+        "status": "restored",
+        "created_at": created_at,
+        "user_id": user_id,
+        "request_user_id": user_id,
+        "session_id": session_id,
+        "channel": channel,
+        "prompt_text": prompt_text,
+        "trust_state": _normalize_text(timeline.get("trust_state")) or "ALIGNED",
+        "recovery_required": bool(timeline.get("recovery_required")),
+        "gap_status": _normalize_text(timeline.get("gap_status")) or "VALIDATED",
+        "security_center_backend_api": f"/security-center/v1/operator/timelines/{session_id}",
+    }
+    if web_url:
+        payload.update(
+            {
+                "operator_web_projection": web_url,
+                "security_center_operator_web": web_url,
+                "operator_dashboard_status": "reachable",
+            },
+        )
+    _atomic_write(_trace_path(run_id, base_dir), payload)
+    return payload
 
 
 async def write_security_rejection_record(

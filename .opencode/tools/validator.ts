@@ -1,20 +1,10 @@
+import { execFile } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
+import { promisify } from 'node:util';
 import { tool, type ToolContext, type ToolResult } from '@opencode-ai/plugin';
 
-declare const Bun: {
-    spawn(input: {
-        cmd: string[];
-        cwd: string;
-        env: NodeJS.ProcessEnv;
-        stdout: 'pipe';
-        stderr: 'pipe';
-    }): {
-        stdout: ReadableStream<Uint8Array>;
-        stderr: ReadableStream<Uint8Array>;
-        exited: Promise<number>;
-    };
-};
+const execFileAsync = promisify(execFile);
 
 const HANDOFF_STAGES = ['intent-to-implementation', 'implementation-to-coding'];
 const SYSTEM_ARCHITECTURE_SCRIPT_CANDIDATES = [
@@ -50,28 +40,33 @@ async function runValidatorScript(
     candidates: readonly string[],
     args: readonly string[],
 ): Promise<ToolResult> {
-    if (typeof Bun === 'undefined' || typeof Bun.spawn !== 'function') {
-        throw new Error('This tool requires the Bun runtime because opencode loads custom tools with Bun.');
-    }
-
     const { absolutePath, relativePath } = resolveScriptPath(workspaceRoot, candidates);
     const command = ['node', absolutePath, ...args];
-    const processHandle = Bun.spawn({
-        cmd: command,
-        cwd: workspaceRoot,
-        env: {
-            ...process.env,
-            ARGO_REPO_ROOT: workspaceRoot,
-        },
-        stdout: 'pipe',
-        stderr: 'pipe',
-    });
+    let stdout = '';
+    let stderr = '';
+    let exitCode = 0;
 
-    const [stdout, stderr, exitCode] = await Promise.all([
-        new Response(processHandle.stdout).text(),
-        new Response(processHandle.stderr).text(),
-        processHandle.exited,
-    ]);
+    try {
+        const result = await execFileAsync(command[0], command.slice(1), {
+            cwd: workspaceRoot,
+            env: {
+                ...process.env,
+                ARGO_REPO_ROOT: workspaceRoot,
+            },
+        });
+        stdout = result.stdout || '';
+        stderr = result.stderr || '';
+    } catch (error) {
+        const processError = error as {
+            code?: number | string;
+            stdout?: string;
+            stderr?: string;
+            message?: string;
+        };
+        stdout = processError.stdout || '';
+        stderr = processError.stderr || processError.message || '';
+        exitCode = typeof processError.code === 'number' ? processError.code : 1;
+    }
 
     return toToolResult('validator', {
         workspaceRoot,

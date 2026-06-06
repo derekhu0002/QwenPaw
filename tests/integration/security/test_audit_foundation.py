@@ -256,23 +256,31 @@ def test_lease_expiry_blocks_untrusted_rejoin_until_gap_sync(app_server) -> None
         lease_expiry_request=expired_lease_rejoin_attempt,
         lease_expiry_observation=lease_expiry_observation,
     )
-    assert lease_expiry_observation.lease_monitor_projection_ready, harness.render_lease_expiry_failure_report(
+    assert lease_expiry_observation.pre_recovery_lease_monitor_projection_ready, harness.render_lease_expiry_failure_report(
         lease_expiry_request=expired_lease_rejoin_attempt,
         lease_expiry_observation=lease_expiry_observation,
     )
-    assert lease_expiry_observation.backend_api_projection_ready, harness.render_lease_expiry_failure_report(
+    assert lease_expiry_observation.pre_recovery_backend_api_projection_ready, harness.render_lease_expiry_failure_report(
         lease_expiry_request=expired_lease_rejoin_attempt,
         lease_expiry_observation=lease_expiry_observation,
     )
-    assert lease_expiry_observation.operator_web_projection_ready, harness.render_lease_expiry_failure_report(
+    assert lease_expiry_observation.pre_recovery_operator_web_projection_ready, harness.render_lease_expiry_failure_report(
         lease_expiry_request=expired_lease_rejoin_attempt,
         lease_expiry_observation=lease_expiry_observation,
     )
-    assert lease_expiry_observation.reconnect_denied_ready, harness.render_lease_expiry_failure_report(
+    assert lease_expiry_observation.pre_recovery_reconnect_denied_ready, harness.render_lease_expiry_failure_report(
         lease_expiry_request=expired_lease_rejoin_attempt,
         lease_expiry_observation=lease_expiry_observation,
     )
-    assert lease_expiry_observation.missing_gap_verification_ready, harness.render_lease_expiry_failure_report(
+    assert lease_expiry_observation.recovery_control_point_ready, harness.render_lease_expiry_failure_report(
+        lease_expiry_request=expired_lease_rejoin_attempt,
+        lease_expiry_observation=lease_expiry_observation,
+    )
+    assert lease_expiry_observation.post_recovery_backend_api_projection_ready, harness.render_lease_expiry_failure_report(
+        lease_expiry_request=expired_lease_rejoin_attempt,
+        lease_expiry_observation=lease_expiry_observation,
+    )
+    assert lease_expiry_observation.post_recovery_operator_web_projection_ready, harness.render_lease_expiry_failure_report(
         lease_expiry_request=expired_lease_rejoin_attempt,
         lease_expiry_observation=lease_expiry_observation,
     )

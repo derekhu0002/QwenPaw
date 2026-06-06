@@ -21,6 +21,16 @@ _RUNTIME_SETTLE_SECONDS = 5.0
 _RUNTIME_POLL_INTERVAL_SECONDS = 0.25
 
 
+def _canonical_json(value: Any) -> str:
+    return json.dumps(value, ensure_ascii=False, separators=(",", ":"), sort_keys=True)
+
+
+def _canonical_hash(label: str, payload: dict[str, Any]) -> str:
+    return hashlib.sha256(
+        _canonical_json({"label": label, "payload": payload}).encode("utf-8"),
+    ).hexdigest()
+
+
 @dataclass(frozen=True)
 class EmployeeIdentity:
     employee_id: str
@@ -213,13 +223,18 @@ class LeaseExpiryRecoveryRequest:
 class LeaseExpiryRecoveryObservation:
     baseline_client_registration_ready: bool
     heartbeat_projection_ready: bool
-    lease_monitor_projection_ready: bool
-    backend_api_projection_ready: bool
-    operator_web_projection_ready: bool
-    reconnect_denied_ready: bool
-    missing_gap_verification_ready: bool
+    pre_recovery_lease_monitor_projection_ready: bool
+    pre_recovery_backend_api_projection_ready: bool
+    pre_recovery_operator_web_projection_ready: bool
+    pre_recovery_reconnect_denied_ready: bool
+    recovery_control_point_ready: bool
+    post_recovery_backend_api_projection_ready: bool
+    post_recovery_operator_web_projection_ready: bool
     post_recovery_model_access_ready: bool
-    observed_trust_state: str | None
+    pre_recovery_console_status: int | None
+    post_recovery_console_status: int | None
+    pre_recovery_trust_state: str | None
+    post_recovery_trust_state: str | None
     failure_reasons: tuple[str, ...]
 
     def blocks_rejoin_until_gap_sync(self) -> bool:
@@ -227,11 +242,13 @@ class LeaseExpiryRecoveryObservation:
             (
                 self.baseline_client_registration_ready,
                 self.heartbeat_projection_ready,
-                self.lease_monitor_projection_ready,
-                self.backend_api_projection_ready,
-                self.operator_web_projection_ready,
-                self.reconnect_denied_ready,
-                self.missing_gap_verification_ready,
+                self.pre_recovery_lease_monitor_projection_ready,
+                self.pre_recovery_backend_api_projection_ready,
+                self.pre_recovery_operator_web_projection_ready,
+                self.pre_recovery_reconnect_denied_ready,
+                self.recovery_control_point_ready,
+                self.post_recovery_backend_api_projection_ready,
+                self.post_recovery_operator_web_projection_ready,
                 self.post_recovery_model_access_ready,
                 not self.failure_reasons,
             ),
@@ -961,13 +978,18 @@ class SecurityAuditHarness:
                 return LeaseExpiryRecoveryObservation(
                     baseline_client_registration_ready=False,
                     heartbeat_projection_ready=False,
-                    lease_monitor_projection_ready=False,
-                    backend_api_projection_ready=False,
-                    operator_web_projection_ready=False,
-                    reconnect_denied_ready=False,
-                    missing_gap_verification_ready=False,
+                    pre_recovery_lease_monitor_projection_ready=False,
+                    pre_recovery_backend_api_projection_ready=False,
+                    pre_recovery_operator_web_projection_ready=False,
+                    pre_recovery_reconnect_denied_ready=False,
+                    recovery_control_point_ready=False,
+                    post_recovery_backend_api_projection_ready=False,
+                    post_recovery_operator_web_projection_ready=False,
                     post_recovery_model_access_ready=False,
-                    observed_trust_state=None,
+                    pre_recovery_console_status=None,
+                    post_recovery_console_status=None,
+                    pre_recovery_trust_state=None,
+                    post_recovery_trust_state=None,
                     failure_reasons=(
                         "Real_Runtime_Bootstrap_Blocking_Dependency: the real app "
                         "subprocess could not finish startup, so sec-e2e-027 could "
@@ -1016,6 +1038,7 @@ class SecurityAuditHarness:
             session_id=request.authenticated_employee.authenticated_session_id,
             before_trace_names=before_rejoin_trace_names,
         )
+        pre_recovery_console_status = self._latest_console_status
 
         latest_trace_payload = self._load_latest_trace_payload()
         overview_after_rejoin = self._read_security_center_api_json(
@@ -1030,13 +1053,69 @@ class SecurityAuditHarness:
             overview_after_rejoin,
             client_id=request.authenticated_employee.authenticated_session_id,
         )
-        observed_trust_state = self._find_first_scalar(
+        pre_recovery_trust_state = self._find_first_scalar(
             timeline_after_rejoin,
             keys=("trust_state",),
         ) or self._find_first_scalar(
             overview_client_after_rejoin if isinstance(overview_client_after_rejoin, dict) else {},
             keys=("trust_state",),
         )
+
+        recovery_handshake = self._attempt_missing_gap_verification(
+            session_id=request.authenticated_employee.authenticated_session_id,
+        )
+        timeline_after_recovery = self._read_security_center_api_json(
+            f"/security-center/v1/operator/timelines/{quote(request.authenticated_employee.authenticated_session_id, safe='')}",
+        )
+        overview_after_recovery = self._read_security_center_api_json(
+            "/security-center/v1/operator/overview",
+        )
+        overview_client_after_recovery = self._find_client_state(
+            overview_after_recovery,
+            client_id=request.authenticated_employee.authenticated_session_id,
+        )
+        post_recovery_trust_state = self._find_first_scalar(
+            timeline_after_recovery,
+            keys=("trust_state",),
+        ) or self._find_first_scalar(
+            overview_client_after_recovery if isinstance(overview_client_after_recovery, dict) else {},
+            keys=("trust_state",),
+        )
+
+        before_restored_model_access_trace_names = {path.name for path in self._trace_files()}
+        self._submit_console_prompt(
+            user_id=request.authenticated_employee.employee_id,
+            session_id=request.authenticated_employee.authenticated_session_id,
+            prompt=(
+                "Resume normal model access for the previously trusted device "
+                "after the lease window elapsed, with missing-gap verification "
+                "evidence completed."
+            ),
+        )
+        self._collect_runtime_artifacts(
+            session_id=request.authenticated_employee.authenticated_session_id,
+            before_trace_names=before_restored_model_access_trace_names,
+        )
+        post_recovery_console_status = self._latest_console_status
+
+        post_recovery_timeline_after_access = self._read_security_center_api_json(
+            f"/security-center/v1/operator/timelines/{quote(request.authenticated_employee.authenticated_session_id, safe='')}",
+        )
+        post_recovery_overview_after_access = self._read_security_center_api_json(
+            "/security-center/v1/operator/overview",
+        )
+        post_recovery_client_after_access = self._find_client_state(
+            post_recovery_overview_after_access,
+            client_id=request.authenticated_employee.authenticated_session_id,
+        )
+        if post_recovery_client_after_access is not None:
+            overview_client_after_recovery = post_recovery_client_after_access
+        if isinstance(post_recovery_timeline_after_access, dict) and post_recovery_timeline_after_access.get("client_id"):
+            timeline_after_recovery = post_recovery_timeline_after_access
+            post_recovery_trust_state = self._find_first_scalar(
+                timeline_after_recovery,
+                keys=("trust_state",),
+            ) or post_recovery_trust_state
 
         baseline_client_registration_ready = isinstance(
             overview_client_before_rejoin,
@@ -1054,48 +1133,57 @@ class SecurityAuditHarness:
             overview_client_before_rejoin if isinstance(overview_client_before_rejoin, dict) else {},
             candidate_keys=("last_heartbeat_at", "lease_expires_at", "lease_ttl_seconds"),
         )
-        lease_monitor_projection_ready = all(
+        pre_recovery_lease_monitor_projection_ready = all(
             (
                 isinstance(timeline_after_rejoin, dict),
-                observed_trust_state == "UNTRUSTED",
+                pre_recovery_trust_state == "UNTRUSTED",
                 timeline_after_rejoin.get("recovery_required") is True,
             ),
         )
-        backend_api_projection_ready = all(
+        pre_recovery_backend_api_projection_ready = all(
             (
                 isinstance(overview_client_after_rejoin, dict),
                 isinstance(timeline_after_rejoin, dict),
                 timeline_after_rejoin.get("client_id") == request.authenticated_employee.authenticated_session_id,
             ),
         )
-        operator_web_projection_ready = all(
+        pre_recovery_operator_web_projection_ready = all(
             (
-                backend_api_projection_ready,
+                pre_recovery_backend_api_projection_ready,
                 "Security Center Operator Web" in security_center_web_html,
                 "UNTRUSTED" in security_center_web_html,
                 "renderTimeline" in security_center_web_app,
                 "/security-center/v1/operator/timelines/" in security_center_web_app,
             ),
         )
-        reconnect_denied_ready = self._latest_console_status in {401, 403, 409, 423}
-        missing_gap_verification_ready = all(
+        pre_recovery_reconnect_denied_ready = pre_recovery_console_status in {401, 403, 409, 423}
+        recovery_control_point_ready = all(
             (
-                timeline_after_rejoin.get("recovery_required") is True,
-                str(timeline_after_rejoin.get("gap_status") or "") in {"REQUIRED", "GAP_VALIDATION_REQUIRED"},
+                isinstance(recovery_handshake, dict),
+                recovery_handshake.get("trust_state") in {"ALIGNED", "TRUSTED"},
+                recovery_handshake.get("recovery_required") is False,
             ),
-        ) or self._contains_any_key(
-            latest_trace_payload,
-            candidate_keys=(
-                "missing_gap_verification_required",
-                "resume_handshake_status",
-                "recovery_required",
+        )
+        post_recovery_backend_api_projection_ready = all(
+            (
+                isinstance(overview_client_after_recovery, dict),
+                isinstance(timeline_after_recovery, dict),
+                timeline_after_recovery.get("client_id") == request.authenticated_employee.authenticated_session_id,
+            ),
+        )
+        post_recovery_operator_web_projection_ready = all(
+            (
+                post_recovery_backend_api_projection_ready,
+                "Security Center Operator Web" in security_center_web_html,
+                "renderTimeline" in security_center_web_app,
+                "/security-center/v1/operator/timelines/" in security_center_web_app,
             ),
         )
         post_recovery_model_access_ready = all(
             (
-                timeline_after_rejoin.get("recovery_required") is False,
-                str(observed_trust_state or "") in {"ALIGNED", "TRUSTED"},
-                self._latest_console_status == 200,
+                timeline_after_recovery.get("recovery_required") is False,
+                str(post_recovery_trust_state or "") in {"ALIGNED", "TRUSTED"},
+                post_recovery_console_status == 200,
             ),
         )
 
@@ -1112,35 +1200,48 @@ class SecurityAuditHarness:
                 "emit any heartbeat or lease TTL evidence that the Security "
                 "Center lease monitor can evaluate."
             )
-        if not lease_monitor_projection_ready:
+        if not pre_recovery_lease_monitor_projection_ready:
             failure_reasons.append(
                 "UNTRUSTED_Lease_Downgrade_Missing: the Security Center lease "
                 "monitor did not downgrade the client to UNTRUSTED after the "
                 "expected heartbeat gap."
             )
-        if not backend_api_projection_ready:
+        if not pre_recovery_backend_api_projection_ready:
             failure_reasons.append(
                 "Security_Center_Backend_Api_Missing: the live runtime did not "
                 "surface lease-expiry trust state through the frozen backend "
                 "API service boundary."
             )
-        if not operator_web_projection_ready:
+        if not pre_recovery_operator_web_projection_ready:
             failure_reasons.append(
                 "Security_Center_Operator_Web_Missing: the operator web did "
                 "not surface the UNTRUSTED device recovery view for the lease "
                 "expiry scenario."
             )
-        if not reconnect_denied_ready:
+        if not pre_recovery_reconnect_denied_ready:
             failure_reasons.append(
                 "Model_Access_Reconnect_Gate_Missing: the reconnecting device "
                 "was not denied at model-access scope before missing-gap "
                 "verification completed."
             )
-        if not missing_gap_verification_ready:
+        if not recovery_control_point_ready:
             failure_reasons.append(
-                "Missing_Gap_Verification_Gate_Missing: the live runtime did "
-                "not require a readable missing-gap verification step before "
-                "allowing recovery from UNTRUSTED state."
+                "Recovery_Control_Point_Missing: the repository does not yet "
+                "expose a controlled missing-gap verification step that moves "
+                "sec-e2e-027 from the denied rejoin frame into a distinct "
+                "post-recovery observation frame."
+            )
+        if not post_recovery_backend_api_projection_ready:
+            failure_reasons.append(
+                "Post_Recovery_Backend_Api_Projection_Missing: the separate "
+                "Security Center backend API does not yet project a distinct "
+                "post-recovery trust-state frame for sec-e2e-027."
+            )
+        if not post_recovery_operator_web_projection_ready:
+            failure_reasons.append(
+                "Post_Recovery_Operator_Web_Projection_Missing: the operator "
+                "web does not yet surface a distinct post-recovery trust-state "
+                "frame for sec-e2e-027."
             )
         if not post_recovery_model_access_ready:
             failure_reasons.append(
@@ -1152,13 +1253,18 @@ class SecurityAuditHarness:
         return LeaseExpiryRecoveryObservation(
             baseline_client_registration_ready=baseline_client_registration_ready,
             heartbeat_projection_ready=heartbeat_projection_ready,
-            lease_monitor_projection_ready=lease_monitor_projection_ready,
-            backend_api_projection_ready=backend_api_projection_ready,
-            operator_web_projection_ready=operator_web_projection_ready,
-            reconnect_denied_ready=reconnect_denied_ready,
-            missing_gap_verification_ready=missing_gap_verification_ready,
+            pre_recovery_lease_monitor_projection_ready=pre_recovery_lease_monitor_projection_ready,
+            pre_recovery_backend_api_projection_ready=pre_recovery_backend_api_projection_ready,
+            pre_recovery_operator_web_projection_ready=pre_recovery_operator_web_projection_ready,
+            pre_recovery_reconnect_denied_ready=pre_recovery_reconnect_denied_ready,
+            recovery_control_point_ready=recovery_control_point_ready,
+            post_recovery_backend_api_projection_ready=post_recovery_backend_api_projection_ready,
+            post_recovery_operator_web_projection_ready=post_recovery_operator_web_projection_ready,
             post_recovery_model_access_ready=post_recovery_model_access_ready,
-            observed_trust_state=str(observed_trust_state) if observed_trust_state is not None else None,
+            pre_recovery_console_status=pre_recovery_console_status,
+            post_recovery_console_status=post_recovery_console_status,
+            pre_recovery_trust_state=str(pre_recovery_trust_state) if pre_recovery_trust_state is not None else None,
+            post_recovery_trust_state=str(post_recovery_trust_state) if post_recovery_trust_state is not None else None,
             failure_reasons=tuple(failure_reasons),
         )
 
@@ -1178,14 +1284,26 @@ class SecurityAuditHarness:
         lines.append("missing_gap_verification_label=" + lease_expiry_request.missing_gap_verification_label)
         lines.append("restored_model_access_label=" + lease_expiry_request.restored_model_access_label)
         lines.append(
-            "observed_trust_state="
-            + (lease_expiry_observation.observed_trust_state or "<missing>")
+            "pre_recovery_trust_state="
+            + (lease_expiry_observation.pre_recovery_trust_state or "<missing>")
         )
         lines.append(
-            "runtime_console_status="
+            "post_recovery_trust_state="
+            + (lease_expiry_observation.post_recovery_trust_state or "<missing>")
+        )
+        lines.append(
+            "pre_recovery_console_status="
             + (
-                str(self._latest_console_status)
-                if self._latest_console_status is not None
+                str(lease_expiry_observation.pre_recovery_console_status)
+                if lease_expiry_observation.pre_recovery_console_status is not None
+                else "<missing>"
+            ),
+        )
+        lines.append(
+            "post_recovery_console_status="
+            + (
+                str(lease_expiry_observation.post_recovery_console_status)
+                if lease_expiry_observation.post_recovery_console_status is not None
                 else "<missing>"
             ),
         )
@@ -1193,6 +1311,62 @@ class SecurityAuditHarness:
             lines.append("runtime_console_error=" + self._latest_console_error)
         lines.append("runtime_working_dir=" + str(self._app_server.working_dir))
         return "\n".join(lines)
+
+    def _attempt_missing_gap_verification(self, *, session_id: str) -> dict[str, Any]:
+        latest_trace_payload = self._load_latest_trace_payload()
+        gap_proof = self._build_gap_proof(session_id=session_id)
+        local_hash = self._find_first_scalar(
+            latest_trace_payload,
+            keys=("current_edge_reported_hash", "current_hash", "cloud_anchor_hash"),
+        )
+        checkpoint_hash = self._find_first_scalar(
+            latest_trace_payload,
+            keys=("last_trusted_anchor_hash", "cloud_anchor_hash", "current_hash"),
+        )
+        local_sequence = self._coerce_int(
+            self._find_first_scalar(
+                latest_trace_payload,
+                keys=("current_edge_reported_sequence", "event_sequence", "last_trusted_sequence"),
+            ),
+        )
+        checkpoint_sequence = self._coerce_int(
+            self._find_first_scalar(
+                latest_trace_payload,
+                keys=("last_trusted_sequence", "current_edge_reported_sequence", "event_sequence"),
+            ),
+        )
+        anchored_event_id = self._find_first_scalar(
+            latest_trace_payload,
+            keys=("current_edge_reported_anchor_event_id", "anchored_event_id", "last_trusted_anchor_event_id"),
+        )
+        checkpoint_anchor_id = self._find_first_scalar(
+            latest_trace_payload,
+            keys=("last_trusted_anchor_event_id", "current_edge_reported_anchor_event_id", "anchored_event_id"),
+        )
+        if gap_proof:
+            local_hash = gap_proof.get("head_hash") or local_hash
+            checkpoint_hash = gap_proof.get("base_anchor_hash") or checkpoint_hash
+            local_sequence = self._coerce_int(gap_proof.get("head_sequence")) or local_sequence
+            checkpoint_sequence = self._coerce_int(gap_proof.get("base_sequence")) or checkpoint_sequence
+            anchored_event_id = gap_proof.get("head_anchor_event_id") or anchored_event_id
+            checkpoint_anchor_id = gap_proof.get("base_anchor_event_id") or checkpoint_anchor_id
+        if not isinstance(local_hash, str) or not local_hash:
+            return {}
+        return self._post_security_center_api_json(
+            "/security-center/v1/recovery/handshake",
+            json={
+                "client_id": session_id,
+                "trace_id": f"explicit-gap-verification::{session_id}",
+                "local_hash": local_hash,
+                "checkpoint_hash": checkpoint_hash or local_hash,
+                "local_sequence": local_sequence,
+                "checkpoint_sequence": checkpoint_sequence,
+                "anchored_event_id": anchored_event_id,
+                "checkpoint_anchor_id": checkpoint_anchor_id or anchored_event_id,
+                "gap_proof": gap_proof,
+                "requested_at_ns": time.time_ns(),
+            },
+        )
 
     def verify_prompt_injection_guard_enforced(
         self,
@@ -1690,6 +1864,151 @@ class SecurityAuditHarness:
                 key=lambda path: path.stat().st_mtime,
             ),
         )
+
+    def _build_gap_anchor(self, payload: dict[str, Any]) -> dict[str, Any] | None:
+        event_type = str(payload.get("event_type") or "").strip()
+        current_hash = str(payload.get("current_hash") or "").strip()
+        if not current_hash:
+            return None
+
+        if event_type == "USER_CONFIRMATION":
+            chain_material = {
+                "prior_hash": str(payload.get("prior_hash") or "").strip(),
+                "confirmation_digest": str(payload.get("confirmation_digest") or "").strip(),
+                "run_id": str(payload.get("run_id") or "").strip(),
+                "confirmed_at": f"{float(payload.get('confirmed_at') or payload.get('created_at') or 0):.9f}",
+                "event_sequence": self._coerce_int(payload.get("event_sequence")),
+                "anchored_event_id": str(payload.get("anchored_event_id") or "").strip(),
+            }
+        elif event_type == "SECURITY_REJECTION":
+            chain_material = {
+                "run_id": str(payload.get("run_id") or "").strip(),
+                "session_id": str(payload.get("session_id") or "").strip(),
+                "user_id": str(payload.get("user_id") or "").strip(),
+                "tool_name": str(payload.get("tool_name") or "").strip(),
+                "prompt_text": str(payload.get("prompt_text") or "").strip(),
+                "prior_hash": str(payload.get("prior_hash") or "").strip(),
+                "event_sequence": self._coerce_int(payload.get("event_sequence")),
+                "anchored_event_id": str(payload.get("anchored_event_id") or "").strip(),
+                "created_at": f"{float(payload.get('created_at') or 0):.9f}",
+            }
+        elif event_type == "AUDIT_INTEGRITY_LOCKDOWN":
+            chain_material = {
+                "run_id": str(payload.get("run_id") or "").strip(),
+                "session_id": str(payload.get("session_id") or "").strip(),
+                "user_id": str(payload.get("user_id") or "").strip(),
+                "tool_name": str(payload.get("tool_name") or "").strip(),
+                "prompt_text": str(payload.get("prompt_text") or "").strip(),
+                "prior_hash": str(payload.get("prior_hash") or "").strip(),
+                "event_sequence": self._coerce_int(payload.get("event_sequence")),
+                "anchored_event_id": str(payload.get("anchored_event_id") or "").strip(),
+                "lock_mode": str(payload.get("lock_mode") or "UNTRUSTED").strip(),
+                "created_at": f"{float(payload.get('created_at') or 0):.9f}",
+            }
+        else:
+            return None
+
+        canonical_payload = {
+            "event_type": event_type,
+            "run_id": str(payload.get("run_id") or "").strip(),
+            "session_id": str(payload.get("session_id") or "").strip(),
+            "user_id": str(payload.get("user_id") or "").strip(),
+            "tool_name": str(payload.get("tool_name") or "").strip(),
+            "status": str(payload.get("status") or "").strip(),
+            "decision": str(payload.get("decision") or "").strip(),
+            "event_sequence": self._coerce_int(payload.get("event_sequence")),
+            "anchored_event_id": str(payload.get("anchored_event_id") or "").strip(),
+            "prior_hash": str(payload.get("prior_hash") or "").strip(),
+            "payload_hash": str(payload.get("payload_hash") or "").strip(),
+        }
+        anchor = {
+            "run_id": str(payload.get("run_id") or "").strip(),
+            "event_type": event_type,
+            "sequence": self._coerce_int(payload.get("event_sequence")),
+            "anchored_event_id": str(payload.get("anchored_event_id") or "").strip(),
+            "prior_hash": str(payload.get("prior_hash") or "").strip(),
+            "current_hash": current_hash,
+            "payload_hash": str(payload.get("payload_hash") or "").strip(),
+            "canonical_payload": canonical_payload,
+            "canonical_payload_digest": hashlib.sha256(_canonical_json(canonical_payload).encode("utf-8")).hexdigest(),
+            "chain_material": chain_material,
+        }
+        anchor["anchor_material_digest"] = hashlib.sha256(
+            _canonical_json(
+                {
+                    "label": "gap-anchor-material-v1",
+                    "payload": {
+                        "event_type": anchor["event_type"],
+                        "run_id": anchor["run_id"],
+                        "sequence": anchor["sequence"],
+                        "anchored_event_id": anchor["anchored_event_id"],
+                        "prior_hash": anchor["prior_hash"],
+                        "payload_hash": anchor["payload_hash"],
+                        "canonical_payload_digest": anchor["canonical_payload_digest"],
+                    },
+                },
+            ).encode("utf-8"),
+        ).hexdigest()
+        return anchor
+
+    def _build_gap_proof(self, *, session_id: str) -> dict[str, Any]:
+        checkpoint_path = self._app_server.working_dir / "audit_chain_checkpoint.json"
+        if not checkpoint_path.exists():
+            return {}
+        checkpoint = json.loads(checkpoint_path.read_text(encoding="utf-8"))
+        if not isinstance(checkpoint, dict):
+            return {}
+
+        base_anchor_hash = str(checkpoint.get("current_hash") or "").strip()
+        if not base_anchor_hash:
+            return {}
+        base_sequence = self._coerce_int(
+            checkpoint.get("confirmed_sequence") or checkpoint.get("event_sequence"),
+        ) or 0
+        base_anchor_event_id = str(
+            checkpoint.get("last_anchored_event_id")
+            or checkpoint.get("anchored_event_id")
+            or checkpoint.get("run_id")
+            or ""
+        ).strip()
+
+        anchors: list[dict[str, Any]] = []
+        for path in self._trace_files():
+            payload = json.loads(path.read_text(encoding="utf-8"))
+            if not isinstance(payload, dict):
+                continue
+            if session_id and str(payload.get("session_id") or "").strip() != session_id:
+                continue
+            sequence = self._coerce_int(payload.get("event_sequence"))
+            if sequence is None:
+                continue
+            if sequence <= base_sequence:
+                continue
+            anchor = self._build_gap_anchor(payload)
+            if anchor is None:
+                continue
+            anchor["sequence"] = sequence
+            if not anchor.get("anchored_event_id"):
+                anchor["anchored_event_id"] = path.stem
+            if not anchor.get("prior_hash"):
+                anchor["prior_hash"] = base_anchor_hash
+            anchors.append(anchor)
+
+        if not anchors:
+            return {}
+
+        head = anchors[-1]
+        proof_payload = {
+            "base_anchor_hash": base_anchor_hash,
+            "base_sequence": base_sequence,
+            "base_anchor_event_id": base_anchor_event_id,
+            "head_hash": head["current_hash"],
+            "head_sequence": head["sequence"],
+            "head_anchor_event_id": head["anchored_event_id"],
+            "anchors": anchors,
+        }
+        proof_payload["proof_digest"] = _canonical_hash("audit-gap-proof-v1", proof_payload)
+        return proof_payload
 
     def _read_json_response(
         self,
