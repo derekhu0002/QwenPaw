@@ -137,3 +137,4 @@ e2e/__pycache__/
 .pip-temp/
 /tmp_*/
 deploy/api/data/security-center-store.json
+.pytest_cache/
