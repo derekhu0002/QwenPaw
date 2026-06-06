@@ -18,24 +18,11 @@
 
     ```powershell
     .\.venv\Scripts\Activate.ps1
-    powershell -ExecutionPolicy Bypass -File .\scripts\reset-showcase-demo-state.ps1
+    . .\scripts\reset-showcase-demo-state.ps1
     ```
 
-  - 最小环境变量与其他安全审计 showcase 保持一致：
-
-    ```powershell
-    $env:QWENPAW_WORKING_DIR = "D:\QwenPawDemo\working2"
-    $env:QWENPAW_SECRET_DIR = "D:\QwenPawDemo\working2.secret"
-    $env:QWENPAW_BACKUP_DIR = "D:\QwenPawDemo\working2.backups"
-    $env:QWENPAW_SECURITY_CENTER_DATA_DIR = "D:\QwenPawDemo\security-center-data"
-    $env:QWENPAW_SECURITY_CENTER_API_URL = "http://127.0.0.1:8091"
-    $env:QWENPAW_SECURITY_CENTER_WEB_URL = "http://127.0.0.1:8092"
-    $env:QWENPAW_AUTH_ENABLED = "false"
-    $env:NO_PROXY = "*"
-    $env:PYTHONPATH = "D:\Projects\QwenPaw\src"
-    $env:PYTHONIOENCODING = "utf-8"
-    $env:SECURITY_CENTER_API_BASE = "http://127.0.0.1:8091"
-    ```
+  - 演示环境变量已内置到 reset 脚本。脚本默认使用 `D:\QwenPawDemo\working2`、`D:\QwenPawDemo\working2.secret`、`D:\QwenPawDemo\working2.backups`、`D:\QwenPawDemo\security-center-data`、`http://127.0.0.1:8091`、`http://127.0.0.1:8092` 等 showcase 默认值。
+  - 在仓库根目录执行 `. .\scripts\reset-showcase-demo-state.ps1` 即可一键停止旧进程、重建演示目录、清掉残留状态、设置当前 PowerShell 终端环境变量，并写入当前 Windows User 环境供新终端继承。脚本仍会生成 `D:\QwenPawDemo\showcase-demo-env.ps1`，仅用于刷新已经打开的其他终端；如果不希望写入 User 环境，可额外加 `-SkipUserEnvironmentPersist`。
 
 - QwenPaw Console 已正常启动。
 - Security Center backend API 已启动，默认地址为 `http://127.0.0.1:8091`。

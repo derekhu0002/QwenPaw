@@ -7,21 +7,13 @@
 ## 前置准备
 
 - 开始演示前，先将环境恢复到正常状态。
-	- 最小环境变量：
+	- 演示环境变量已内置到 reset 脚本。脚本默认使用 `D:\QwenPawDemo\working2`、`D:\QwenPawDemo\working2.secret`、`D:\QwenPawDemo\working2.backups`、`D:\QwenPawDemo\security-center-data`、`http://127.0.0.1:8091`、`http://127.0.0.1:8092` 等 showcase 默认值。
+	- 在仓库根目录执行：
 		```powershell
-		$env:QWENPAW_WORKING_DIR = "D:\QwenPawDemo\working2"
-		$env:QWENPAW_SECRET_DIR = "D:\QwenPawDemo\working2.secret"
-		$env:QWENPAW_BACKUP_DIR = "D:\QwenPawDemo\working2.backups"
-		$env:QWENPAW_SECURITY_CENTER_DATA_DIR = "D:\QwenPawDemo\security-center-data"
-		$env:QWENPAW_SECURITY_CENTER_API_URL = "http://127.0.0.1:8091"
-		$env:QWENPAW_SECURITY_CENTER_WEB_URL = "http://127.0.0.1:8092"
-		$env:QWENPAW_AUTH_ENABLED = "false"
-		$env:NO_PROXY = "*"
-		$env:PYTHONPATH = "D:\Projects\QwenPaw\src"
-		$env:PYTHONIOENCODING = "utf-8"
-		$env:SECURITY_CENTER_API_BASE = "http://127.0.0.1:8091"
+		.\.venv\Scripts\Activate.ps1
+		. .\scripts\reset-showcase-demo-state.ps1
 		```
-	- 在仓库根目录执行`.venv\Scripts\Activate.ps1` `powershell -ExecutionPolicy Bypass -File .\scripts\reset-showcase-demo-state.ps1`。该脚本会停止默认演示端口上的旧进程、重建干净的演示目录，并清掉残留状态；当前脚本也会额外打印一组建议直接复用的环境变量。
+		第二行是 dot-source 形式的一键准备命令：它会停止默认演示端口上的旧进程、重建干净的演示目录、清掉残留状态、设置当前 PowerShell 终端环境变量，并写入当前 Windows User 环境供新终端继承。脚本仍会生成 `D:\QwenPawDemo\showcase-demo-env.ps1`，仅用于刷新已经打开的其他终端；如果不希望写入 User 环境，可额外加 `-SkipUserEnvironmentPersist`。
 	- 环境变量说明：
 		- `QWENPAW_WORKING_DIR` 指向一个干净的演示目录。
 		- `QWENPAW_SECRET_DIR` 指向配套的 secret 目录。
