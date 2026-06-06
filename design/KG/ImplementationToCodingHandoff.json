@@ -1,0 +1,151 @@
+{
+  "stage": "implementation-to-coding",
+  "generatedAt": "2026-06-06",
+  "sourceIntentGraphPath": "design/KG/SystemArchitecture.json",
+  "summary": "sec-e2e-027 is now materialized as a frozen explicit acceptance entrypoint in the existing security entrypoint zone. Its first execution fails for the expected business reasons: the edge runtime does not yet project lease heartbeat evidence to the separate Security Center boundary, the Security Center does not downgrade the client to UNTRUSTED on heartbeat expiry, and reconnecting model access is not yet gated on missing-gap verification.",
+  "implementationContracts": [
+    "OVERALL_ARCHITECTURE.md",
+    "src/qwenpaw/ARCHITECTURE.md",
+    "src/qwenpaw/security/ARCHITECTURE.md",
+    "deploy/ARCHITECTURE.md",
+    "deploy/api/ARCHITECTURE.md",
+    "deploy/web/ARCHITECTURE.md",
+    "tests/ARCHITECTURE.md",
+    "tests/integration/security/ARCHITECTURE.md"
+  ],
+  "explicitEntrypoints": [
+    {
+      "testcaseName": "sec-e2e-027-lease-expiry-active-defense",
+      "entryPath": "tests/integration/security/test_audit_foundation.py::test_lease_expiry_blocks_untrusted_rejoin_until_gap_sync",
+      "controlPoint": "Let a previously trusted device session miss lease heartbeats, then attempt to resume model access through the real app subprocess before missing-gap verification is complete.",
+      "observationPoint": "Security Center must project lease heartbeat evidence, downgrade the client to UNTRUSTED, deny reconnecting model access until missing-gap verification succeeds, and only restore normal model access after continuity is proven.",
+      "initialExecutionStatus": "failed",
+      "initialExecutionCommand": ".\\.venv\\Scripts\\python.exe -m pytest tests/integration/security/test_audit_foundation.py::test_lease_expiry_blocks_untrusted_rejoin_until_gap_sync -q",
+      "failureReason": "The first sec-e2e-027 execution fails with category=Lease_Expiry_Active_Defense_Gap because the live runtime does not yet emit lease heartbeat or TTL evidence, Security Center keeps the client ALIGNED instead of downgrading it to UNTRUSTED, reconnecting model access is not denied before missing-gap verification, and no post-recovery restoration proof exists."
+    }
+  ],
+  "criticalNonExplicitTests": [
+    {
+      "name": "security-explicit-entrypoint-traceability",
+      "path": "tests/architecture/security-explicit-entrypoint-traceability.test.js",
+      "kind": "explicit-entrypoint-correctness-guard",
+      "controlPoint": "Read SystemArchitecture.json, ImplementationToCodingHandoff.json, test-failure-records.json, tests/integration/security/test_audit_foundation.py, and tests/integration/security/harness.py to confirm sec-e2e-027 remains mounted to the frozen explicit entrypoint with the required business-readable markers.",
+      "observationPoint": "The guard proves acceptanceCriteria, handoff entryPath, failure record path, GIVEN/WHEN/THEN markers, harness method names, and business failure category strings remain frozen for sec-e2e-027."
+    },
+    {
+      "name": "security-audit-contract-boundaries",
+      "path": "tests/architecture/security-audit-contract-boundaries.test.js",
+      "kind": "architecture-boundary-guard",
+      "controlPoint": "Read OVERALL_ARCHITECTURE.md, src/qwenpaw/security/ARCHITECTURE.md, deploy/ARCHITECTURE.md, deploy/api/ARCHITECTURE.md, deploy/web/ARCHITECTURE.md, tests/ARCHITECTURE.md, and tests/integration/security/ARCHITECTURE.md.",
+      "observationPoint": "The guard proves sec-e2e-027 is frozen into the runtime security boundary, the separate Security Center deployment boundary, the backend HTTP API lease registry and reconnect gate, the operator web lease-expiry view, and the tests architecture contract."
+    }
+  ],
+  "supportingNonExplicitTests": [
+    {
+      "name": "security-config-regression",
+      "path": "tests/integration/test_security_config.py",
+      "kind": "supporting-guardrail",
+      "controlPoint": "Exercise repository-owned security configuration surfaces while Coding/Repair adds heartbeat and recovery-gate behavior behind the frozen explicit entrypoint.",
+      "observationPoint": "Configuration regressions are caught without widening the explicit acceptance boundary for sec-e2e-027.",
+      "expectedStatus": "passed"
+    }
+  ],
+  "expectedFailureRecordsPath": "design/KG/test-failure-records.json",
+  "codingTargets": [
+    {
+      "testcaseName": "sec-e2e-027-lease-expiry-active-defense",
+      "path": "tests/integration/security/test_audit_foundation.py::test_lease_expiry_blocks_untrusted_rejoin_until_gap_sync",
+      "failureSignal": "Lease_Heartbeat_Projection_Missing; UNTRUSTED_Lease_Downgrade_Missing; Model_Access_Reconnect_Gate_Missing; Missing_Gap_Verification_Gate_Missing; Post_Recovery_Model_Access_Restore_Missing",
+      "nextAction": "Implement edge heartbeat/uplink evidence under src/qwenpaw/security, materialize TTL expiry and UNTRUSTED downgrade in deploy/api, then gate reconnecting model access on missing-gap verification before proving post-recovery restoration."
+    }
+  ],
+  "taskExecutionPlan": {
+    "executionStrategy": "Implement sec-e2e-027 from the edge security boundary inward to the separate Security Center boundary while preserving the frozen explicit entrypoint and guardrails.",
+    "tasks": [
+      {
+        "taskId": "lease-edge-001",
+        "title": "Emit lease heartbeat evidence",
+        "objective": "Materialize a repository-owned heartbeat or lease evidence emission seam inside src/qwenpaw/security without moving lease decisions into the edge runtime.",
+        "relatedTestcases": [
+          "sec-e2e-027-lease-expiry-active-defense"
+        ],
+        "targetPaths": [
+          "src/qwenpaw/security",
+          "tests/integration/security/harness.py"
+        ],
+        "steps": [
+          "Expose heartbeat or lease metadata from the live runtime that the explicit harness can observe without raw plumbing in the testcase body.",
+          "Project the client identity and lease evidence through the existing separate Security Center HTTP boundary.",
+          "Keep the explicit testcase path and GIVEN/WHEN/THEN wording unchanged."
+        ],
+        "completionSignal": "sec-e2e-027 no longer reports Lease_Heartbeat_Projection_Missing."
+      },
+      {
+        "taskId": "lease-cloud-002",
+        "title": "Implement lease expiry downgrade",
+        "objective": "Materialize TTL expiry, UNTRUSTED downgrade, and missing-gap recovery requirements in deploy/api and deploy/web.",
+        "dependsOn": [
+          "lease-edge-001"
+        ],
+        "relatedTestcases": [
+          "sec-e2e-027-lease-expiry-active-defense"
+        ],
+        "targetPaths": [
+          "deploy/api",
+          "deploy/web"
+        ],
+        "steps": [
+          "Add lease registry and expiry evaluation to the separate Security Center backend API.",
+          "Project UNTRUSTED downgrade and recovery requirements through operator overview and timeline seams.",
+          "Render lease-expiry recovery state in the operator web without changing the frozen observation boundary."
+        ],
+        "completionSignal": "sec-e2e-027 no longer reports UNTRUSTED_Lease_Downgrade_Missing or Security_Center_* projection gaps."
+      },
+      {
+        "taskId": "lease-gate-003",
+        "title": "Gate rejoin until gap sync",
+        "objective": "Refuse reconnecting model access for UNTRUSTED clients until missing-gap verification succeeds, then prove post-recovery restoration.",
+        "dependsOn": [
+          "lease-cloud-002"
+        ],
+        "relatedTestcases": [
+          "sec-e2e-027-lease-expiry-active-defense"
+        ],
+        "targetPaths": [
+          "src/qwenpaw/security",
+          "deploy/api"
+        ],
+        "steps": [
+          "Block model access when the Security Center marks the client UNTRUSTED and recovery_required remains true.",
+          "Require missing-gap verification before closing the reconnect gate.",
+          "Prove that normal model access is restored only after continuity validation completes."
+        ],
+        "completionSignal": "sec-e2e-027 passes and the failure record can be removed from design/KG/test-failure-records.json."
+      }
+    ]
+  },
+  "frozenFiles": [
+    "design/KG/SystemArchitecture.json",
+    "design/KG/IntentToImplementationHandoff.json",
+    "design/KG/ImplementationToCodingHandoff.json",
+    "design/KG/test-failure-records.json",
+    "OVERALL_ARCHITECTURE.md",
+    "src/qwenpaw/ARCHITECTURE.md",
+    "src/qwenpaw/security/ARCHITECTURE.md",
+    "deploy/ARCHITECTURE.md",
+    "deploy/api/ARCHITECTURE.md",
+    "deploy/web/ARCHITECTURE.md",
+    "tests/ARCHITECTURE.md",
+    "tests/integration/security/ARCHITECTURE.md",
+    "tests/integration/security/harness.py",
+    "tests/integration/security/test_audit_foundation.py",
+    "tests/architecture/security-audit-contract-boundaries.test.js",
+    "tests/architecture/security-explicit-entrypoint-traceability.test.js"
+  ],
+  "openGaps": [
+    "src/qwenpaw/security does not yet emit lease heartbeat or TTL evidence that deploy/api can evaluate for sec-e2e-027.",
+    "deploy/api does not yet materialize a lease registry and TTL-expiry downgrade path that marks the client UNTRUSTED.",
+    "The reconnecting edge runtime does not yet deny model access until missing-gap verification succeeds.",
+    "The repository does not yet prove post-recovery model-access restoration after continuity validation."
+  ]
+}

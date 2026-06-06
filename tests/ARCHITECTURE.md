@@ -43,6 +43,7 @@ element_path: tests
 - unit/routers/test_git.py::test_git_helper_uses_shared_command_runner
 - integration/security/test_audit_foundation.py::test_end_to_end_non_repudiation_evidence_chain
 - integration/security/test_audit_foundation.py::test_audit_integrity_self_healing_lockdown
+- integration/security/test_audit_foundation.py::test_lease_expiry_blocks_untrusted_rejoin_until_gap_sync
 - integration/security/test_audit_foundation.py::test_prompt_injection_cannot_bypass_high_risk_tool_guard
 
 ### Critical Non-Explicit Tests

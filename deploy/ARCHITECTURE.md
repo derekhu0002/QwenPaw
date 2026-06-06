@@ -12,8 +12,10 @@ element_path: deploy
 ### Responsibility
 - Own the stable repository deployment boundary for the physically separate Security Center process.
 - Preserve the cloud-side integrity mirror, rejected-event projection, and recovery-handshake bootstrap as an independent fact source reached only through audit uplink.
+- Preserve the cloud-side integrity mirror, lease registry, rejected-event projection, and recovery-handshake bootstrap as an independent fact source reached only through audit uplink.
 - Freeze the deploy-owned decomposition into a backend HTTP API service plus an operator-facing web frontend.
 - Freeze the real-time operator alert path: deploy/api must publish Security_Rejection_Nonce and hash-divergence updates to deploy/web through Server-Sent Events (SSE) or WebSocket rather than operator polling.
+- Freeze the real-time operator alert path: deploy/api must publish Security_Rejection_Nonce, lease-expiry trust-state changes, and hash-divergence updates to deploy/web through Server-Sent Events (SSE) or WebSocket rather than operator polling.
 - Freeze the boundary where container bootstrap assets, runtime configuration, cloud-side durable storage, HTTP ingress, and operator web delivery will be materialized during Coding/Repair.
 
 ### Out Of Scope

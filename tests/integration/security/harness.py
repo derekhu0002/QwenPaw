@@ -200,6 +200,45 @@ class AuditIntegrityLockdownObservation:
 
 
 @dataclass(frozen=True)
+class LeaseExpiryRecoveryRequest:
+    authenticated_employee: EmployeeIdentity
+    lease_monitor_name: str
+    security_center_backend_api_name: str
+    security_center_operator_web_name: str
+    missing_gap_verification_label: str
+    restored_model_access_label: str
+
+
+@dataclass(frozen=True)
+class LeaseExpiryRecoveryObservation:
+    baseline_client_registration_ready: bool
+    heartbeat_projection_ready: bool
+    lease_monitor_projection_ready: bool
+    backend_api_projection_ready: bool
+    operator_web_projection_ready: bool
+    reconnect_denied_ready: bool
+    missing_gap_verification_ready: bool
+    post_recovery_model_access_ready: bool
+    observed_trust_state: str | None
+    failure_reasons: tuple[str, ...]
+
+    def blocks_rejoin_until_gap_sync(self) -> bool:
+        return all(
+            (
+                self.baseline_client_registration_ready,
+                self.heartbeat_projection_ready,
+                self.lease_monitor_projection_ready,
+                self.backend_api_projection_ready,
+                self.operator_web_projection_ready,
+                self.reconnect_denied_ready,
+                self.missing_gap_verification_ready,
+                self.post_recovery_model_access_ready,
+                not self.failure_reasons,
+            ),
+        )
+
+
+@dataclass(frozen=True)
 class PromptInjectionAttempt:
     authenticated_employee: EmployeeIdentity
     deceptive_instruction_text: str
@@ -893,6 +932,255 @@ class SecurityAuditHarness:
         lines.append("security_center_operator_web_name=" + tamper_recovery_attempt.security_center_operator_web_name)
         lines.append("hash_break_curve_chart_name=" + tamper_recovery_attempt.hash_break_curve_chart_name)
         lines.append("tampered_artifact_path=" + lockdown_observation.tampered_artifact_path)
+        lines.append(
+            "runtime_console_status="
+            + (
+                str(self._latest_console_status)
+                if self._latest_console_status is not None
+                else "<missing>"
+            ),
+        )
+        if self._latest_console_error:
+            lines.append("runtime_console_error=" + self._latest_console_error)
+        lines.append("runtime_working_dir=" + str(self._app_server.working_dir))
+        return "\n".join(lines)
+
+    def verify_lease_expiry_blocks_untrusted_rejoin_until_gap_sync(
+        self,
+        request: LeaseExpiryRecoveryRequest,
+    ) -> LeaseExpiryRecoveryObservation:
+        if self._app_server.startup_error is not None:
+            try:
+                version_response = self._app_server.client.get(
+                    f"{self._app_server.base_url}/api/version",
+                    timeout=_HTTP_TIMEOUT,
+                )
+            except httpx.HTTPError:
+                version_response = None
+            if version_response is None or version_response.status_code != 200:
+                return LeaseExpiryRecoveryObservation(
+                    baseline_client_registration_ready=False,
+                    heartbeat_projection_ready=False,
+                    lease_monitor_projection_ready=False,
+                    backend_api_projection_ready=False,
+                    operator_web_projection_ready=False,
+                    reconnect_denied_ready=False,
+                    missing_gap_verification_ready=False,
+                    post_recovery_model_access_ready=False,
+                    observed_trust_state=None,
+                    failure_reasons=(
+                        "Real_Runtime_Bootstrap_Blocking_Dependency: the real app "
+                        "subprocess could not finish startup, so sec-e2e-027 could "
+                        "not drive a live lease-expiry recovery flow.",
+                    ),
+                )
+
+        before_trace_names = {path.name for path in self._trace_files()}
+        self._submit_console_prompt(
+            user_id=request.authenticated_employee.employee_id,
+            session_id=request.authenticated_employee.authenticated_session_id,
+            prompt=(
+                "Warm the runtime for lease heartbeat monitoring before the "
+                "Security Center lease window expires."
+            ),
+        )
+        self._collect_runtime_artifacts(
+            session_id=request.authenticated_employee.authenticated_session_id,
+            before_trace_names=before_trace_names,
+        )
+
+        initial_trace_payload = self._load_latest_trace_payload()
+        overview_before_rejoin = self._read_security_center_api_json(
+            "/security-center/v1/operator/overview",
+        )
+        timeline_before_rejoin = self._read_security_center_api_json(
+            f"/security-center/v1/operator/timelines/{quote(request.authenticated_employee.authenticated_session_id, safe='')}",
+        )
+        overview_client_before_rejoin = self._find_client_state(
+            overview_before_rejoin,
+            client_id=request.authenticated_employee.authenticated_session_id,
+        )
+
+        rejoin_prompt = (
+            "Resume normal model access for the previously trusted device "
+            "after the lease window elapsed, without providing missing-gap "
+            "verification evidence."
+        )
+        before_rejoin_trace_names = {path.name for path in self._trace_files()}
+        self._submit_console_prompt(
+            user_id=request.authenticated_employee.employee_id,
+            session_id=request.authenticated_employee.authenticated_session_id,
+            prompt=rejoin_prompt,
+        )
+        self._collect_runtime_artifacts(
+            session_id=request.authenticated_employee.authenticated_session_id,
+            before_trace_names=before_rejoin_trace_names,
+        )
+
+        latest_trace_payload = self._load_latest_trace_payload()
+        overview_after_rejoin = self._read_security_center_api_json(
+            "/security-center/v1/operator/overview",
+        )
+        timeline_after_rejoin = self._read_security_center_api_json(
+            f"/security-center/v1/operator/timelines/{quote(request.authenticated_employee.authenticated_session_id, safe='')}",
+        )
+        security_center_web_html = self._read_security_center_web_text("/")
+        security_center_web_app = self._read_security_center_web_text("/app.js")
+        overview_client_after_rejoin = self._find_client_state(
+            overview_after_rejoin,
+            client_id=request.authenticated_employee.authenticated_session_id,
+        )
+        observed_trust_state = self._find_first_scalar(
+            timeline_after_rejoin,
+            keys=("trust_state",),
+        ) or self._find_first_scalar(
+            overview_client_after_rejoin if isinstance(overview_client_after_rejoin, dict) else {},
+            keys=("trust_state",),
+        )
+
+        baseline_client_registration_ready = isinstance(
+            overview_client_before_rejoin,
+            dict,
+        ) or isinstance(timeline_before_rejoin, dict)
+        heartbeat_projection_ready = self._contains_any_key(
+            initial_trace_payload,
+            candidate_keys=(
+                "heartbeat_emitted_at",
+                "heartbeat_interval_seconds",
+                "security_heartbeat",
+                "lease_client_id",
+            ),
+        ) or self._contains_any_key(
+            overview_client_before_rejoin if isinstance(overview_client_before_rejoin, dict) else {},
+            candidate_keys=("last_heartbeat_at", "lease_expires_at", "lease_ttl_seconds"),
+        )
+        lease_monitor_projection_ready = all(
+            (
+                isinstance(timeline_after_rejoin, dict),
+                observed_trust_state == "UNTRUSTED",
+                timeline_after_rejoin.get("recovery_required") is True,
+            ),
+        )
+        backend_api_projection_ready = all(
+            (
+                isinstance(overview_client_after_rejoin, dict),
+                isinstance(timeline_after_rejoin, dict),
+                timeline_after_rejoin.get("client_id") == request.authenticated_employee.authenticated_session_id,
+            ),
+        )
+        operator_web_projection_ready = all(
+            (
+                backend_api_projection_ready,
+                "Security Center Operator Web" in security_center_web_html,
+                "UNTRUSTED" in security_center_web_html,
+                "renderTimeline" in security_center_web_app,
+                "/security-center/v1/operator/timelines/" in security_center_web_app,
+            ),
+        )
+        reconnect_denied_ready = self._latest_console_status in {401, 403, 409, 423}
+        missing_gap_verification_ready = all(
+            (
+                timeline_after_rejoin.get("recovery_required") is True,
+                str(timeline_after_rejoin.get("gap_status") or "") in {"REQUIRED", "GAP_VALIDATION_REQUIRED"},
+            ),
+        ) or self._contains_any_key(
+            latest_trace_payload,
+            candidate_keys=(
+                "missing_gap_verification_required",
+                "resume_handshake_status",
+                "recovery_required",
+            ),
+        )
+        post_recovery_model_access_ready = all(
+            (
+                timeline_after_rejoin.get("recovery_required") is False,
+                str(observed_trust_state or "") in {"ALIGNED", "TRUSTED"},
+                self._latest_console_status == 200,
+            ),
+        )
+
+        failure_reasons: list[str] = []
+        if not baseline_client_registration_ready:
+            failure_reasons.append(
+                "Lease_Monitor_Client_Registration_Missing: the separate "
+                "Security Center boundary did not register any client record "
+                "for the live device session before lease-expiry evaluation."
+            )
+        if not heartbeat_projection_ready:
+            failure_reasons.append(
+                "Lease_Heartbeat_Projection_Missing: the live runtime did not "
+                "emit any heartbeat or lease TTL evidence that the Security "
+                "Center lease monitor can evaluate."
+            )
+        if not lease_monitor_projection_ready:
+            failure_reasons.append(
+                "UNTRUSTED_Lease_Downgrade_Missing: the Security Center lease "
+                "monitor did not downgrade the client to UNTRUSTED after the "
+                "expected heartbeat gap."
+            )
+        if not backend_api_projection_ready:
+            failure_reasons.append(
+                "Security_Center_Backend_Api_Missing: the live runtime did not "
+                "surface lease-expiry trust state through the frozen backend "
+                "API service boundary."
+            )
+        if not operator_web_projection_ready:
+            failure_reasons.append(
+                "Security_Center_Operator_Web_Missing: the operator web did "
+                "not surface the UNTRUSTED device recovery view for the lease "
+                "expiry scenario."
+            )
+        if not reconnect_denied_ready:
+            failure_reasons.append(
+                "Model_Access_Reconnect_Gate_Missing: the reconnecting device "
+                "was not denied at model-access scope before missing-gap "
+                "verification completed."
+            )
+        if not missing_gap_verification_ready:
+            failure_reasons.append(
+                "Missing_Gap_Verification_Gate_Missing: the live runtime did "
+                "not require a readable missing-gap verification step before "
+                "allowing recovery from UNTRUSTED state."
+            )
+        if not post_recovery_model_access_ready:
+            failure_reasons.append(
+                "Post_Recovery_Model_Access_Restore_Missing: the repository "
+                "does not yet prove that normal model access is restored only "
+                "after continuity has been validated."
+            )
+
+        return LeaseExpiryRecoveryObservation(
+            baseline_client_registration_ready=baseline_client_registration_ready,
+            heartbeat_projection_ready=heartbeat_projection_ready,
+            lease_monitor_projection_ready=lease_monitor_projection_ready,
+            backend_api_projection_ready=backend_api_projection_ready,
+            operator_web_projection_ready=operator_web_projection_ready,
+            reconnect_denied_ready=reconnect_denied_ready,
+            missing_gap_verification_ready=missing_gap_verification_ready,
+            post_recovery_model_access_ready=post_recovery_model_access_ready,
+            observed_trust_state=str(observed_trust_state) if observed_trust_state is not None else None,
+            failure_reasons=tuple(failure_reasons),
+        )
+
+    def render_lease_expiry_failure_report(
+        self,
+        *,
+        lease_expiry_request: LeaseExpiryRecoveryRequest,
+        lease_expiry_observation: LeaseExpiryRecoveryObservation,
+    ) -> str:
+        lines = ['category="Lease_Expiry_Active_Defense_Gap"']
+        for failure in dict.fromkeys(lease_expiry_observation.failure_reasons):
+            lines.append(f"- {failure}")
+        lines.append("employee_id=" + lease_expiry_request.authenticated_employee.employee_id)
+        lines.append("lease_monitor_name=" + lease_expiry_request.lease_monitor_name)
+        lines.append("security_center_backend_api_name=" + lease_expiry_request.security_center_backend_api_name)
+        lines.append("security_center_operator_web_name=" + lease_expiry_request.security_center_operator_web_name)
+        lines.append("missing_gap_verification_label=" + lease_expiry_request.missing_gap_verification_label)
+        lines.append("restored_model_access_label=" + lease_expiry_request.restored_model_access_label)
+        lines.append(
+            "observed_trust_state="
+            + (lease_expiry_observation.observed_trust_state or "<missing>")
+        )
         lines.append(
             "runtime_console_status="
             + (

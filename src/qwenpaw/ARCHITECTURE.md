@@ -14,6 +14,7 @@ element_path: src/qwenpaw
 - Contain the stable backend slices that realize routing, agents, channels, config, security, providers, and shared utilities.
 - Expose stable sub-elements rather than forcing callers to reason from individual files.
 - Keep the `src/qwenpaw/security` child contract as the owner of the `sec-e2e-024` audit-foundation acceptance boundary while transport/orchestration remains in `app/`.
+- Keep the `src/qwenpaw/security` child contract as the owner of the `sec-e2e-024`, `sec-e2e-025`, `sec-e2e-027`, and `sec-e2e-021` audit-foundation acceptance boundaries while transport/orchestration remains in `app/`.
 
 ### Out Of Scope
 - Owning the browser console bundle under console/.
@@ -47,6 +48,7 @@ element_path: src/qwenpaw
 - tests/unit/routers/test_git.py::test_git_helper_uses_shared_command_runner
 - tests/integration/security/test_audit_foundation.py::test_end_to_end_non_repudiation_evidence_chain
 - tests/integration/security/test_audit_foundation.py::test_audit_integrity_self_healing_lockdown
+- tests/integration/security/test_audit_foundation.py::test_lease_expiry_blocks_untrusted_rejoin_until_gap_sync
 - tests/integration/security/test_audit_foundation.py::test_prompt_injection_cannot_bypass_high_risk_tool_guard
 
 ### Supporting Non-Explicit Tests
@@ -108,4 +110,4 @@ element_path: src/qwenpaw
 
 ### Notes
 - The CLI and backend runtime are kept in one stable element because both surfaces ship from the Python package and share config, orchestration, and runtime support modules.
-- Current evidence for `sec-e2e-024`, `sec-e2e-025`, and `sec-e2e-021` is intentionally split across `app/agent_context.py`, `app/approvals/service.py`, `app/inbox_trace_store.py`, `agents/tools/delegate_external_agent.py`, `security/tool_guard/`, and deployment bootstrap assets under `deploy/`; Coding/Repair must converge those seams behind `src/qwenpaw/security/ARCHITECTURE.md` and `deploy/ARCHITECTURE.md` without moving the explicit entrypoints.
+- Current evidence for `sec-e2e-024`, `sec-e2e-025`, `sec-e2e-027`, and `sec-e2e-021` is intentionally split across `app/agent_context.py`, `app/approvals/service.py`, `app/inbox_trace_store.py`, `agents/tools/delegate_external_agent.py`, `security/tool_guard/`, and deployment bootstrap assets under `deploy/`; Coding/Repair must converge those seams behind `src/qwenpaw/security/ARCHITECTURE.md` and `deploy/ARCHITECTURE.md` without moving the explicit entrypoints.

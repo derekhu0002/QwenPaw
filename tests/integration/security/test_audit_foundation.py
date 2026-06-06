@@ -7,6 +7,7 @@ from .harness import (
     AuditIntegrityTamperRequest,
     EmployeeIdentity,
     HighRiskDelegationRequest,
+    LeaseExpiryRecoveryRequest,
     PromptInjectionAttempt,
     SecurityAuditHarness,
 )
@@ -212,4 +213,74 @@ def test_prompt_injection_cannot_bypass_high_risk_tool_guard(app_server) -> None
     assert guard_observation.denies_execution(), harness.render_prompt_injection_guard_failure_report(
         prompt_injection_attempt=deceptive_tool_bypass_attempt,
         guard_observation=guard_observation,
+    )
+
+
+@pytest.mark.integration
+@pytest.mark.p0
+def test_lease_expiry_blocks_untrusted_rejoin_until_gap_sync(app_server) -> None:
+    """Control point: let a previously trusted device miss lease heartbeats,
+    then attempt to resume model access before missing-gap verification.
+
+    Observation point: the resulting cloud-visible evidence must show the
+    Security Center lease monitor downgrade the client to UNTRUSTED, deny the
+    reconnecting client at model-access scope until missing-gap verification is
+    complete, and only allow normal model access to resume after continuity is
+    proven.
+    """
+
+    harness = SecurityAuditHarness.for_app_server(app_server)
+
+    # // GIVEN
+    trusted_device_operator = EmployeeIdentity(
+        employee_id="employee_field_device_owner",
+        channel_name="local_console",
+        authenticated_session_id="session_lease_expiry_recovery",
+    )
+    expired_lease_rejoin_attempt = LeaseExpiryRecoveryRequest(
+        authenticated_employee=trusted_device_operator,
+        lease_monitor_name="audit_lease_monitor",
+        security_center_backend_api_name="security_center_backend_api",
+        security_center_operator_web_name="security_center_operator_web",
+        missing_gap_verification_label="missing_gap_verification",
+        restored_model_access_label="restored_model_access",
+    )
+
+    # // WHEN
+    lease_expiry_observation = harness.verify_lease_expiry_blocks_untrusted_rejoin_until_gap_sync(
+        expired_lease_rejoin_attempt,
+    )
+
+    # // THEN
+    assert lease_expiry_observation.heartbeat_projection_ready, harness.render_lease_expiry_failure_report(
+        lease_expiry_request=expired_lease_rejoin_attempt,
+        lease_expiry_observation=lease_expiry_observation,
+    )
+    assert lease_expiry_observation.lease_monitor_projection_ready, harness.render_lease_expiry_failure_report(
+        lease_expiry_request=expired_lease_rejoin_attempt,
+        lease_expiry_observation=lease_expiry_observation,
+    )
+    assert lease_expiry_observation.backend_api_projection_ready, harness.render_lease_expiry_failure_report(
+        lease_expiry_request=expired_lease_rejoin_attempt,
+        lease_expiry_observation=lease_expiry_observation,
+    )
+    assert lease_expiry_observation.operator_web_projection_ready, harness.render_lease_expiry_failure_report(
+        lease_expiry_request=expired_lease_rejoin_attempt,
+        lease_expiry_observation=lease_expiry_observation,
+    )
+    assert lease_expiry_observation.reconnect_denied_ready, harness.render_lease_expiry_failure_report(
+        lease_expiry_request=expired_lease_rejoin_attempt,
+        lease_expiry_observation=lease_expiry_observation,
+    )
+    assert lease_expiry_observation.missing_gap_verification_ready, harness.render_lease_expiry_failure_report(
+        lease_expiry_request=expired_lease_rejoin_attempt,
+        lease_expiry_observation=lease_expiry_observation,
+    )
+    assert lease_expiry_observation.post_recovery_model_access_ready, harness.render_lease_expiry_failure_report(
+        lease_expiry_request=expired_lease_rejoin_attempt,
+        lease_expiry_observation=lease_expiry_observation,
+    )
+    assert lease_expiry_observation.blocks_rejoin_until_gap_sync(), harness.render_lease_expiry_failure_report(
+        lease_expiry_request=expired_lease_rejoin_attempt,
+        lease_expiry_observation=lease_expiry_observation,
     )

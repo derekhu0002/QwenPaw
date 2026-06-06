@@ -12,6 +12,7 @@ element_path: deploy/web
 ### Responsibility
 - Own the operator-facing web frontend for Security Center.
 - Present anomaly, rejected-event, trust-state, and recovery-progress views to human operators.
+- Present anomaly, lease-expiry `UNTRUSTED` state, rejected-event, trust-state, and recovery-progress views to human operators.
 - Present a hash-break curve chart that shows the local hash and cloud shadow hash as separate lines and visually marks the fork point when divergence occurs.
 - Present Security_Rejection_Nonce as a Voucher that administrators can cross-check against physical or exported logs.
 - Auto-pop a red alert in under 500ms after deploy/api receives Security_Rejection_Nonce, using Server-Sent Events (SSE) or WebSocket rather than manual refresh.
@@ -31,6 +32,7 @@ element_path: deploy/web
 - anomaly dashboard
 - rejected-event evidence view
 - trust-state and UNTRUSTED recovery view
+- trust-state, lease-expiry downgrade, and UNTRUSTED recovery view
 - recovery-handshake progress view
 - hash-break curve chart with explicit fork point marker
 - nonce Voucher display for Security_Rejection_Nonce verification

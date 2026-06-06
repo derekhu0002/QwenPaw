@@ -64,6 +64,12 @@ assert.ok(
 );
 assert.ok(
     securityArchitecture.includes(
+        'tests/integration/security/test_audit_foundation.py::test_lease_expiry_blocks_untrusted_rejoin_until_gap_sync',
+    ),
+    'Security contract must name the sec-e2e-027 explicit entrypoint.',
+);
+assert.ok(
+    securityArchitecture.includes(
         'tests/integration/security/test_audit_foundation.py::test_prompt_injection_cannot_bypass_high_risk_tool_guard',
     ),
     'Security contract must name the sec-e2e-021 explicit entrypoint.',
@@ -79,6 +85,12 @@ assert.ok(
         'integration/security/test_audit_foundation.py::test_audit_integrity_self_healing_lockdown',
     ),
     'tests/ARCHITECTURE.md must list the sec-e2e-025 explicit entrypoint.',
+);
+assert.ok(
+    testsArchitecture.includes(
+        'integration/security/test_audit_foundation.py::test_lease_expiry_blocks_untrusted_rejoin_until_gap_sync',
+    ),
+    'tests/ARCHITECTURE.md must list the sec-e2e-027 explicit entrypoint.',
 );
 assert.ok(
     testsArchitecture.includes(
@@ -107,6 +119,14 @@ assert.ok(
     'deploy/api/ARCHITECTURE.md must freeze an SSE or WebSocket operator alert stream.',
 );
 assert.ok(
+    deployApiArchitecture.includes('lease registry'),
+    'deploy/api/ARCHITECTURE.md must freeze the lease registry role.',
+);
+assert.ok(
+    deployApiArchitecture.includes('missing-gap verification'),
+    'deploy/api/ARCHITECTURE.md must freeze the reconnect recovery gate.',
+);
+assert.ok(
     deployApiArchitecture.includes('under 500ms'),
     'deploy/api/ARCHITECTURE.md must freeze sub-500ms operator alert delivery.',
 );
@@ -117,6 +137,10 @@ assert.ok(
 assert.ok(
     deployWebArchitecture.includes('hash-break curve chart'),
     'deploy/web/ARCHITECTURE.md must freeze the hash-break curve chart requirement.',
+);
+assert.ok(
+    deployWebArchitecture.includes('lease-expiry downgrade'),
+    'deploy/web/ARCHITECTURE.md must freeze the lease-expiry downgrade view.',
 );
 assert.ok(
     deployWebArchitecture.includes('Voucher'),

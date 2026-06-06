@@ -13,8 +13,10 @@ element_path: deploy/api
 - Own the backend HTTP API service for Security Center.
 - Receive edge-side uplinks from src/qwenpaw/security through repository-owned HTTP endpoints only.
 - Expose operator-facing query APIs for anomaly state, rejected-event evidence, recovery-handshake status, and shadow-hash continuity.
+- Expose operator-facing query APIs for anomaly state, lease expiry and trust state, rejected-event evidence, recovery-handshake status, and shadow-hash continuity.
 - Expose a realtime operator push channel over Server-Sent Events (SSE) or WebSocket for Security_Rejection_Nonce receipt, hash-divergence updates, and trust-state escalation.
 - Own cloud-side shadow-state comparison, rejected-event intake, and recovery-handshake orchestration.
+- Own cloud-side lease registry, TTL-expiry downgrade decisions, shadow-state comparison, rejected-event intake, and recovery-handshake orchestration.
 
 ### Out Of Scope
 - Owning edge runtime behavior or local audit files.
@@ -32,9 +34,10 @@ element_path: deploy/api
 - rejected-event evidence API
 - recovery-handshake API
 - operator query API for anomaly and trust state
+- operator query API for anomaly, lease expiry, and trust state
 - shadow-hash divergence timeline API that returns local-hash and cloud-shadow-hash curve series plus the fork point marker
 - nonce voucher API surface that exposes Security_Rejection_Nonce as a human-verifiable operator artifact
 - realtime operator alert stream over Server-Sent Events (SSE) or WebSocket
 
 ### Notes
-- Coding/Repair may choose concrete framework and route layout, but must preserve HTTP as the edge transport, keep this backend as the only cloud-side control point for edge interactions, and publish Security_Rejection_Nonce-triggered operator alerts to deploy/web in under 500ms from uplink receipt without requiring manual refresh.
+- Coding/Repair may choose concrete framework and route layout, but must preserve HTTP as the edge transport, keep this backend as the only cloud-side control point for edge interactions, require missing-gap verification before an `UNTRUSTED` client regains model access, and publish Security_Rejection_Nonce-triggered operator alerts to deploy/web in under 500ms from uplink receipt without requiring manual refresh.

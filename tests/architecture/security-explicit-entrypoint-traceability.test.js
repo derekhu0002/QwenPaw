@@ -19,17 +19,17 @@ const frozenExplicitTestcases = [
         entryPath: 'tests/integration/security/test_audit_foundation.py::test_prompt_injection_cannot_bypass_high_risk_tool_guard',
         requiredTestMarker: 'def test_prompt_injection_cannot_bypass_high_risk_tool_guard',
     },
+    {
+        testcaseName: 'sec-e2e-027-lease-expiry-active-defense',
+        entryPath: 'tests/integration/security/test_audit_foundation.py::test_lease_expiry_blocks_untrusted_rejoin_until_gap_sync',
+        requiredTestMarker: 'def test_lease_expiry_blocks_untrusted_rejoin_until_gap_sync',
+    },
 ];
 const codingQueueTestcases = [
     {
-        testcaseName: 'sec-e2e-025-audit-integrity-self-healing-lockdown',
-        entryPath: 'tests/integration/security/test_audit_foundation.py::test_audit_integrity_self_healing_lockdown',
-        initialExecutionStatus: 'passed',
-    },
-    {
-        testcaseName: 'sec-e2e-021-prompt-injection-tool-guard-enforced',
-        entryPath: 'tests/integration/security/test_audit_foundation.py::test_prompt_injection_cannot_bypass_high_risk_tool_guard',
-        initialExecutionStatus: 'passed',
+        testcaseName: 'sec-e2e-027-lease-expiry-active-defense',
+        entryPath: 'tests/integration/security/test_audit_foundation.py::test_lease_expiry_blocks_untrusted_rejoin_until_gap_sync',
+        initialExecutionStatus: 'failed',
     },
 ];
 
@@ -120,6 +120,7 @@ for (const marker of [
     'app_server',
     'def test_end_to_end_non_repudiation_evidence_chain',
     'def test_audit_integrity_self_healing_lockdown',
+    'def test_lease_expiry_blocks_untrusted_rejoin_until_gap_sync',
     'def test_prompt_injection_cannot_bypass_high_risk_tool_guard',
     'for_app_server',
     'expect_context_propagation',
@@ -127,12 +128,16 @@ for (const marker of [
     'verify_local_hash_chain_integrity',
     'verify_confirmation_precedes_high_risk_tool_effect',
     'verify_tamper_evidence_forces_lockdown',
+    'verify_lease_expiry_blocks_untrusted_rejoin_until_gap_sync',
     'verify_prompt_injection_guard_enforced',
     'render_non_repudiation_failure_report',
     'render_audit_integrity_lockdown_failure_report',
+    'render_lease_expiry_failure_report',
     'render_prompt_injection_guard_failure_report',
     'security_center_backend_api_name',
     'security_center_operator_web_name',
+    'lease_monitor_name',
+    'missing_gap_verification_label',
     'backend_api_projection_ready',
     'operator_web_projection_ready',
     'backend_api_rejection_ready',
@@ -147,10 +152,12 @@ for (const marker of [
 for (const categoryMarker of [
     'category="Non_Repudiation_Gap"',
     'category="Audit_Integrity_Lockdown_Gap"',
+    'category="Lease_Expiry_Active_Defense_Gap"',
     'category="Prompt_Injection_Guard_Gap"',
     'Security_Rejection_Nonce',
     'Security_Center_Backend_Api_Missing',
     'Security_Center_Operator_Web_Missing',
+    'Lease_Heartbeat_Projection_Missing',
 ]) {
     assert.ok(
         harnessBody.includes(categoryMarker),
@@ -165,9 +172,11 @@ for (const harnessMethod of [
     'verify_local_hash_chain_integrity',
     'verify_confirmation_precedes_high_risk_tool_effect',
     'verify_tamper_evidence_forces_lockdown',
+    'verify_lease_expiry_blocks_untrusted_rejoin_until_gap_sync',
     'verify_prompt_injection_guard_enforced',
     'render_non_repudiation_failure_report',
     'render_audit_integrity_lockdown_failure_report',
+    'render_lease_expiry_failure_report',
     'render_prompt_injection_guard_failure_report',
 ]) {
     assert.ok(
