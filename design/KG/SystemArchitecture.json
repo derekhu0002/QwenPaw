@@ -20,7 +20,7 @@
       "archimate_layer": "Business",
       "archimate_aspect": "Composite",
       "browser_path": "QwenPaw Platform",
-      "description": "Repository-backed personal AI assistant platform spanning backend runtime, local operator CLI, operator console, documentation website, architecture validation assets, and the P0 security audit foundation required for local safe operation.\n#file:README.md\n#file:pyproject.toml\n#file:prd/企业级个人助理平台安全基础设施设计方案 (基于 QwenPaw/AgentScope).md"
+      "description": "Repository-backed personal AI assistant platform spanning backend runtime, local operator CLI, operator console, documentation website, architecture validation assets, and the P0 security audit foundation required for local safe operation.\n#file:README.md\n#file:pyproject.toml\n#file:design/prd/企业级个人助理平台安全基础设施设计方案 (基于 QwenPaw/AgentScope.md"
     },
     {
       "id": "intent-backend-runtime",
@@ -40,7 +40,7 @@
       "archimate_layer": "Application",
       "archimate_aspect": "Active Structure",
       "browser_path": "QwenPaw Platform/Backend Runtime/Local Security Audit Foundation",
-      "description": "Backend-owned P0 security foundation that standardizes implicit SecurityContext propagation, defines the canonical AuditEvent envelope, persists append-only local audit records with a hash chain, anchors continuity through a restricted checkpoint store, verifies startup consistency against configuration hashes, enforces security lock mode after integrity failures, supports human-in-the-loop confirmation for high-risk tool execution, resists prompt-driven guard bypass at the tool-call layer, and supports tiered audit durability for critical versus informational events. This element is intentionally limited to the minimum closure needed for end-to-end non-repudiation evidence chains, audit-integrity self-healing lock mode, bounded TTFT impact, active liveness defense, replay-resistant session continuity, and behavior-anomaly evidence generation rather than the full later audit pipeline.\n#file:prd/企业级个人助理平台安全基础设施设计方案 (基于 QwenPaw/AgentScope).md\n#file:src/qwenpaw/app/auth.py\n#file:src/qwenpaw/app/agent_context.py\n#file:src/qwenpaw/app/runner/utils.py\n#file:src/qwenpaw/app/routers/config.py\n#file:src/qwenpaw/app/routers/settings.py\n#file:src/qwenpaw/security",
+      "description": "Backend-owned P0 security foundation that standardizes implicit SecurityContext propagation, defines the canonical AuditEvent envelope, persists append-only local audit records with a hash chain, anchors continuity through a restricted checkpoint store, verifies startup consistency against configuration hashes, enforces security lock mode after integrity failures, supports human-in-the-loop confirmation for high-risk tool execution, resists prompt-driven guard bypass at the tool-call layer, and supports tiered audit durability for critical versus informational events. This element is intentionally limited to the minimum closure needed for end-to-end non-repudiation evidence chains, audit-integrity self-healing lock mode, bounded TTFT impact, active liveness defense, replay-resistant session continuity, and behavior-anomaly evidence generation rather than the full later audit pipeline.\n#file:design/prd/企业级个人助理平台安全基础设施设计方案 (基于 QwenPaw/AgentScope.md\n#file:src/qwenpaw/app/auth.py\n#file:src/qwenpaw/app/agent_context.py\n#file:src/qwenpaw/app/runner/utils.py\n#file:src/qwenpaw/app/routers/config.py\n#file:src/qwenpaw/app/routers/settings.py\n#file:src/qwenpaw/security",
       "attributes": [
         {
           "name": "verification_focus",
@@ -140,7 +140,7 @@
       "archimate_layer": "Application",
       "archimate_aspect": "Passive Structure",
       "browser_path": "QwenPaw Platform/Backend Runtime/Local Security Audit Foundation/Security Context",
-      "description": "Canonical runtime context carried across request entry, agent execution, tool execution, and security-configuration mutation so that audit and policy decisions share one stable identity envelope. The minimum P0 payload includes trace_id, user_id, session_id, root_session_id, agent_id, channel, the acted-on security scope when present, and enough trusted provenance metadata to distinguish audited runtime continuity from replayed or cloned session usage.\n#file:prd/企业级个人助理平台安全基础设施设计方案 (基于 QwenPaw/AgentScope).md",
+      "description": "Canonical runtime context carried across request entry, agent execution, tool execution, and security-configuration mutation so that audit and policy decisions share one stable identity envelope. The minimum P0 payload includes trace_id, user_id, session_id, root_session_id, agent_id, channel, the acted-on security scope when present, and enough trusted provenance metadata to distinguish audited runtime continuity from replayed or cloned session usage.\n#file:design/prd/企业级个人助理平台安全基础设施设计方案 (基于 QwenPaw/AgentScope.md",
       "attributes": [
         {
           "name": "integrity_binding",
@@ -156,7 +156,7 @@
       "archimate_layer": "Application",
       "archimate_aspect": "Passive Structure",
       "browser_path": "QwenPaw Platform/Backend Runtime/Local Security Audit Foundation/Audit Event",
-      "description": "Canonical append-only security audit record that captures event identity, event type, actor, session, agent, resource or configuration scope, decision or result metadata, prior_hash, current_hash, and sufficient fields to support integrity verification, remote integrity mirroring, replay detection, and basic operator query.\n#file:prd/企业级个人助理平台安全基础设施设计方案 (基于 QwenPaw/AgentScope).md",
+      "description": "Canonical append-only security audit record that captures event identity, event type, actor, session, agent, resource or configuration scope, decision or result metadata, prior_hash, current_hash, and sufficient fields to support integrity verification, remote integrity mirroring, replay detection, and basic operator query.\n#file:design/prd/企业级个人助理平台安全基础设施设计方案 (基于 QwenPaw/AgentScope.md",
       "attributes": [
         {
           "name": "sync_status",
@@ -188,7 +188,7 @@
       "archimate_layer": "Application",
       "archimate_aspect": "Passive Structure",
       "browser_path": "QwenPaw Platform/Backend Runtime/Local Security Audit Foundation/Audit Checkpoint Anchor",
-      "description": "Restricted checkpoint record stored outside the primary audit-event log so tail truncation becomes detectable. The minimum P0 payload includes anchored_event_id, global_hash, checkpoint_reason, checkpoint_timestamp, and the protected storage location metadata used during startup integrity verification.\n#file:prd/企业级个人助理平台安全基础设施设计方案 (基于 QwenPaw/AgentScope).md"
+      "description": "Restricted checkpoint record stored outside the primary audit-event log so tail truncation becomes detectable. The minimum P0 payload includes anchored_event_id, global_hash, checkpoint_reason, checkpoint_timestamp, and the protected storage location metadata used during startup integrity verification.\n#file:design/prd/企业级个人助理平台安全基础设施设计方案 (基于 QwenPaw/AgentScope.md"
     },
     {
       "id": "intent-tiered-audit-stream",
@@ -198,7 +198,7 @@
       "archimate_layer": "Application",
       "archimate_aspect": "Active Structure",
       "browser_path": "QwenPaw Platform/Backend Runtime/Local Security Audit Foundation/Tiered Audit Stream",
-      "description": "Audit write orchestration that separates L1 critical events from L2 informational reasoning events. L1 uses synchronous durable writes and checkpoint updates before sensitive actions continue, while L2 batches asynchronously and remains operator-visible as pending verification until anchored.\n#file:prd/企业级个人助理平台安全基础设施设计方案 (基于 QwenPaw/AgentScope).md"
+      "description": "Audit write orchestration that separates L1 critical events from L2 informational reasoning events. L1 uses synchronous durable writes and checkpoint updates before sensitive actions continue, while L2 batches asynchronously and remains operator-visible as pending verification until anchored.\n#file:design/prd/企业级个人助理平台安全基础设施设计方案 (基于 QwenPaw/AgentScope.md"
     },
     {
       "id": "intent-high-risk-tool-guard",
@@ -208,7 +208,7 @@
       "archimate_layer": "Application",
       "archimate_aspect": "Active Structure",
       "browser_path": "QwenPaw Platform/Backend Runtime/Local Security Audit Foundation/High Risk Tool Guard",
-      "description": "Interceptor that evaluates every tool invocation against the configured risk policy at the tool-call boundary. Whenever an agent attempts to invoke a tool marked with High risk level, it pauses execution, requires trusted Security Context provenance plus a user-provided confirmation token or signature, records the confirmation as a synchronous L1 USER_CONFIRMATION audit event, and only then releases the blocked tool execution path. Prompt content, nested instructions, or claimed test-mode narratives cannot bypass this enforcement.\n#file:prd/企业级个人助理平台安全基础设施设计方案 (基于 QwenPaw/AgentScope).md"
+      "description": "Interceptor that evaluates every tool invocation against the configured risk policy at the tool-call boundary. Whenever an agent attempts to invoke a tool marked with High risk level, it pauses execution, requires trusted Security Context provenance plus a user-provided confirmation token or signature, records the confirmation as a synchronous L1 USER_CONFIRMATION audit event, and only then releases the blocked tool execution path. Prompt content, nested instructions, or claimed test-mode narratives cannot bypass this enforcement.\n#file:design/prd/企业级个人助理平台安全基础设施设计方案 (基于 QwenPaw/AgentScope.md"
     },
     {
       "id": "intent-audit-uplink-manager",
@@ -218,7 +218,7 @@
       "archimate_layer": "Application",
       "archimate_aspect": "Active Structure",
       "browser_path": "QwenPaw Platform/Backend Runtime/Local Security Audit Foundation/Audit Uplink Manager",
-      "description": "Manager responsible for asynchronously pushing the local ledger tail state, including last event id and global hash, plus L1 critical audit records to the cloud situational awareness platform. The DEMO path uses fire-and-forget with retries, supports resume after reconnect, and must perform a pre-upload handshake against the cloud mirror before sending new data.\n#file:prd/企业级个人助理平台安全基础设施设计方案 (基于 QwenPaw/AgentScope).md"
+      "description": "Manager responsible for asynchronously pushing the local ledger tail state, including last event id and global hash, plus L1 critical audit records to the cloud situational awareness platform. The DEMO path uses fire-and-forget with retries, supports resume after reconnect, and must perform a pre-upload handshake against the cloud mirror before sending new data.\n#file:design/prd/企业级个人助理平台安全基础设施设计方案 (基于 QwenPaw/AgentScope.md"
     },
     {
       "id": "intent-heartbeat-emitter",
@@ -228,7 +228,7 @@
       "archimate_layer": "Application",
       "archimate_aspect": "Active Structure",
       "browser_path": "QwenPaw Platform/Backend Runtime/Local Security Audit Foundation/Audit Uplink Manager/Heartbeat Emitter",
-      "description": "Emitter that periodically reads the most recent EventID and GlobalHash from the local audit ledger and sends them, together with client identity proof, to the Security Center as a lease heartbeat. The DEMO cadence is periodic, for example every five minutes.\n#file:prd/企业级个人助理平台安全基础设施设计方案 (基于 QwenPaw/AgentScope).md"
+      "description": "Emitter that periodically reads the most recent EventID and GlobalHash from the local audit ledger and sends them, together with client identity proof, to the Security Center as a lease heartbeat. The DEMO cadence is periodic, for example every five minutes.\n#file:design/prd/企业级个人助理平台安全基础设施设计方案 (基于 QwenPaw/AgentScope.md"
     },
     {
       "id": "intent-audit-uplink-service",
@@ -238,7 +238,7 @@
       "archimate_layer": "Application",
       "archimate_aspect": "Active Structure",
       "browser_path": "QwenPaw Platform/Backend Runtime/Local Security Audit Foundation/Audit Uplink Service",
-      "description": "Edge-side transport adapter that implements secure audit uplink. Whenever an L1 audit record or critical anchor is durably written, it triggers an asynchronous HTTPS or gRPC call that sends an encrypted audit summary toward the Security Center while preserving retry and resume semantics under intermittent connectivity.\n#file:prd/企业级个人助理平台安全基础设施设计方案 (基于 QwenPaw/AgentScope).md"
+      "description": "Edge-side transport adapter that implements secure audit uplink. Whenever an L1 audit record or critical anchor is durably written, it triggers an asynchronous HTTPS or gRPC call that sends an encrypted audit summary toward the Security Center while preserving retry and resume semantics under intermittent connectivity.\n#file:design/prd/企业级个人助理平台安全基础设施设计方案 (基于 QwenPaw/AgentScope.md"
     },
     {
       "id": "intent-security-schema-contract",
@@ -248,7 +248,7 @@
       "archimate_layer": "Motivation",
       "archimate_aspect": "Motivation",
       "browser_path": "QwenPaw Platform/Backend Runtime/Security Schema Contract",
-      "description": "Shared contract that fixes the hash algorithm, canonical JSON field ordering, and serialization rules used by both edge-side uplink and cloud-side verification. Its purpose is to prevent false integrity failures caused by formatting drift rather than real tampering.\n#file:prd/企业级个人助理平台安全基础设施设计方案 (基于 QwenPaw/AgentScope).md"
+      "description": "Shared contract that fixes the hash algorithm, canonical JSON field ordering, and serialization rules used by both edge-side uplink and cloud-side verification. Its purpose is to prevent false integrity failures caused by formatting drift rather than real tampering.\n#file:design/prd/企业级个人助理平台安全基础设施设计方案 (基于 QwenPaw/AgentScope.md"
     },
     {
       "id": "intent-security-center",
@@ -258,7 +258,7 @@
       "archimate_layer": "Application",
       "archimate_aspect": "Active Structure",
       "browser_path": "QwenPaw Platform/Security Center",
-      "description": "Security hub deployed in a controlled environment such as cloud or server infrastructure. It aggregates audit uplinks from multiple QwenPaw nodes, maintains per-client shadow audit chains, reconstructs end-to-end evidence chains for operator review, triggers real-time data continuity alerts whenever incoming integrity state diverges from the stored cloud expectation, blocks replayed session lineages, and surfaces abnormal behavior patterns such as covert low-risk data sweeps in a business-facing visual console.\n#file:prd/企业级个人助理平台安全基础设施设计方案 (基于 QwenPaw/AgentScope).md"
+      "description": "Security hub deployed in a controlled environment such as cloud or server infrastructure. It aggregates audit uplinks from multiple QwenPaw nodes, maintains per-client shadow audit chains, reconstructs end-to-end evidence chains for operator review, triggers real-time data continuity alerts whenever incoming integrity state diverges from the stored cloud expectation, blocks replayed session lineages, and surfaces abnormal behavior patterns such as covert low-risk data sweeps in a business-facing visual console.\n#file:design/prd/企业级个人助理平台安全基础设施设计方案 (基于 QwenPaw/AgentScope.md"
     },
     {
       "id": "intent-audit-lease-monitor",
@@ -268,7 +268,7 @@
       "archimate_layer": "Application",
       "archimate_aspect": "Active Structure",
       "browser_path": "QwenPaw Platform/Security Center/Audit Lease Monitor",
-      "description": "Monitor that maintains the lease registry for all connected clients. It applies a TTL threshold, for example thirty minutes, marks devices UNTRUSTED when no valid heartbeat is received within the threshold, and drives dashboard state plus forced-recovery requirements on reconnect.\n#file:prd/企业级个人助理平台安全基础设施设计方案 (基于 QwenPaw/AgentScope).md"
+      "description": "Monitor that maintains the lease registry for all connected clients. It applies a TTL threshold, for example thirty minutes, marks devices UNTRUSTED when no valid heartbeat is received within the threshold, and drives dashboard state plus forced-recovery requirements on reconnect.\n#file:design/prd/企业级个人助理平台安全基础设施设计方案 (基于 QwenPaw/AgentScope.md"
     },
     {
       "id": "intent-cloud-integrity-stub",
@@ -278,7 +278,7 @@
       "archimate_layer": "Application",
       "archimate_aspect": "Active Structure",
       "browser_path": "QwenPaw Platform/Security Center/Cloud Integrity Stub",
-      "description": "Logical verification stub inside the Security Center used for the DEMO. It receives critical audit anchors and L1 events from one QwenPaw client, maintains a shadow hash chain for that client, validates each uplink by comparing incoming prior_hash against the cloud-stored current_hash, and rejects replayed or cloned session activity when the presented trace lineage does not match the next expected sequence.\n#file:prd/企业级个人助理平台安全基础设施设计方案 (基于 QwenPaw/AgentScope).md",
+      "description": "Logical verification stub inside the Security Center used for the DEMO. It receives critical audit anchors and L1 events from one QwenPaw client, maintains a shadow hash chain for that client, validates each uplink by comparing incoming prior_hash against the cloud-stored current_hash, and rejects replayed or cloned session activity when the presented trace lineage does not match the next expected sequence.\n#file:design/prd/企业级个人助理平台安全基础设施设计方案 (基于 QwenPaw/AgentScope.md",
       "attributes": [
         {
           "name": "external_scope",
