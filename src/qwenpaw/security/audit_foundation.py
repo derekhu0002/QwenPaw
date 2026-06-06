@@ -120,6 +120,13 @@ def _security_center_web_url() -> str:
     return (os.environ.get("QWENPAW_SECURITY_CENTER_WEB_URL") or "").strip().rstrip("/")
 
 
+def runtime_lease_client_id(base_dir: Path | None = None) -> str:
+    workspace_fingerprint = hashlib.sha256(
+        str(_workspace_dir(base_dir)).lower().encode("utf-8"),
+    ).hexdigest()[:16]
+    return f"runtime-heartbeat::{workspace_fingerprint}"
+
+
 def _safe_int(value: Any, default: int = 0) -> int:
     try:
         if value is None:
@@ -148,6 +155,49 @@ async def _get_security_center(path: str) -> dict[str, Any]:
 async def read_security_center_recovery_state(*, session_id: str) -> dict[str, Any]:
     return await _get_security_center(
         f"/security-center/v1/operator/timelines/{session_id}",
+    )
+
+
+async def emit_runtime_lease_heartbeat(
+    *,
+    base_dir: Path | None = None,
+    session_id: str | None = None,
+    user_id: str = "runtime_heartbeat_emitter",
+    prompt_text: str = "Runtime startup heartbeat emitter registration.",
+    ttl_seconds: int = 1,
+) -> dict[str, Any]:
+    resolved_session_id = session_id or runtime_lease_client_id(base_dir)
+    anchor_state = _current_anchor_state(
+        base_dir,
+        bootstrap_client_id=resolved_session_id,
+    )
+    checkpoint = _read_json(_checkpoint_path(base_dir)) or {}
+    emitted_at_ns = time.time_ns()
+    return await _post_security_center(
+        "/security-center/v1/recovery/handshake",
+        {
+            "client_id": resolved_session_id,
+            "trace_id": f"runtime-heartbeat::{uuid.uuid4().hex[:12]}",
+            "local_hash": anchor_state["head_hash"],
+            "checkpoint_hash": _normalize_text(checkpoint.get("current_hash")) or anchor_state["head_hash"],
+            "local_sequence": anchor_state["head_sequence"],
+            "checkpoint_sequence": _safe_int(
+                checkpoint.get("confirmed_sequence") or checkpoint.get("event_sequence"),
+                anchor_state["head_sequence"],
+            ),
+            "anchored_event_id": anchor_state["head_anchor_event_id"],
+            "checkpoint_anchor_id": _normalize_text(
+                checkpoint.get("last_anchored_event_id")
+                or checkpoint.get("anchored_event_id")
+                or checkpoint.get("run_id"),
+            )
+            or anchor_state["head_anchor_event_id"],
+            "requested_at_ns": emitted_at_ns,
+            "lease_ttl_seconds": ttl_seconds,
+            "tool_name": "runtime_lease_heartbeat",
+            "user_id": user_id,
+            "prompt_text": prompt_text,
+        },
     )
 
 

@@ -236,6 +236,27 @@ def _apply_lease_expiry(client_state: dict[str, Any], *, now_ns: int) -> tuple[d
     return updated_state, changed
 
 
+def _project_lease_timing(client_id: str, client_state: dict[str, Any]) -> dict[str, Any]:
+    projected = dict(client_state)
+    last_heartbeat_at = _as_int(projected.get("last_heartbeat_at"), 0)
+    lease_ttl_seconds = max(_as_int(projected.get("lease_ttl_seconds"), DEFAULT_LEASE_TTL_SECONDS), DEFAULT_LEASE_TTL_SECONDS)
+    lease_expires_at = _as_int(projected.get("lease_expires_at"), 0)
+
+    if last_heartbeat_at <= 0 and client_id.startswith("runtime-heartbeat::"):
+        last_heartbeat_at = _as_int(projected.get("updated_at_ns"), 0)
+    if lease_expires_at <= 0 and last_heartbeat_at > 0:
+        lease_expires_at = last_heartbeat_at + (lease_ttl_seconds * 1_000_000_000)
+
+    projected.update(
+        {
+            "last_heartbeat_at": last_heartbeat_at,
+            "lease_ttl_seconds": lease_ttl_seconds,
+            "lease_expires_at": lease_expires_at,
+        },
+    )
+    return projected
+
+
 def _validate_gap_proof(
     *,
     gap_proof: dict[str, Any],
@@ -802,7 +823,7 @@ class SecurityCenterStore:
         rejections = list(state["rejections"].values())[-8:]
         lockdowns = list(state["lockdowns"].values())[-8:]
         clients = [
-            {"client_id": client_id, **client_state}
+            {"client_id": client_id, **_project_lease_timing(client_id, client_state)}
             for client_id, client_state in state["clients"].items()
         ]
         return {
@@ -853,7 +874,7 @@ class SecurityCenterStore:
             ]
         if lockdowns:
             latest = lockdowns[-1]
-            effective_state = client_state or {}
+            effective_state = _project_lease_timing(client_id, client_state or {})
             return {
                 "client_id": client_id,
                 "trust_state": effective_state.get("trust_state", latest["trust_state"]),
@@ -877,6 +898,7 @@ class SecurityCenterStore:
             }
         if client_state is None:
             return None
+        client_state = _project_lease_timing(client_id, client_state)
         shadow_hash = str(client_state.get("shadow_hash") or derive_shadow_hash(client_id, "shadow-head"))
         return {
             "client_id": client_id,

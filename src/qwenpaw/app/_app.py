@@ -36,6 +36,7 @@ from ..utils.logging import (
     LOG_FILE_PATH,
 )
 from ..utils.system_info import summarize_python_environment
+from ..security.audit_foundation import emit_runtime_lease_heartbeat
 from .auth import AuthMiddleware, auto_register_from_env
 from .routers import router as api_router, create_agent_scoped_router
 from .routers.agent_scoped import AgentContextMiddleware
@@ -300,6 +301,27 @@ async def lifespan(  # pylint: disable=too-many-statements,too-many-branches
 
     app.state.get_agent_by_id = _get_agent_by_id
 
+    async def _runtime_heartbeat_emitter():
+        while True:
+            await asyncio.sleep(0.5)
+            try:
+                await emit_runtime_lease_heartbeat(base_dir=WORKING_DIR)
+            except Exception:
+                logger.warning(
+                    "Runtime heartbeat emitter iteration failed",
+                    exc_info=True,
+                )
+
+    try:
+        await emit_runtime_lease_heartbeat(base_dir=WORKING_DIR)
+    except Exception:
+        logger.warning(
+            "Initial runtime heartbeat registration failed",
+            exc_info=True,
+        )
+
+    _runtime_heartbeat_task = asyncio.create_task(_runtime_heartbeat_emitter())
+
     fast_elapsed = time.time() - startup_start_time
     logger.info(
         f"Server ready in {fast_elapsed:.3f}s "
@@ -479,6 +501,11 @@ async def lifespan(  # pylint: disable=too-many-statements,too-many-branches
             _bg_task.cancel()
             with suppress(asyncio.CancelledError):
                 await _bg_task
+
+        if not _runtime_heartbeat_task.done():
+            _runtime_heartbeat_task.cancel()
+            with suppress(asyncio.CancelledError):
+                await _runtime_heartbeat_task
 
         # ==================== Execute Shutdown Hooks ====================
         plugin_registry = getattr(app.state, "plugin_registry", None)
