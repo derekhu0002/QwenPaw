@@ -2,7 +2,7 @@
   "stage": "intent-to-implementation",
   "generatedAt": "2026-06-06",
   "sourceIntentGraphPath": "design/KG/SystemArchitecture.json",
-  "summary": "sec-e2e-027 is already defined in the intent graph. No intent-side semantic change is required. The next stage must materialize the frozen explicit testcase entrypoint and the corresponding implementation-architecture contracts for lease-expiry-driven active defense across the edge heartbeat path and the separate Security Center boundary.",
+  "summary": "sec-e2e-027 is already defined in the intent graph and no intent-side semantic change is required. A new implementation-architecture GAP was found during delivery showcase validation: lease heartbeat emission is currently reachable through a prompt-scripted warmup path, but the intent requires a product background Heartbeat Emitter that starts automatically with the edge runtime, sends an initial lease heartbeat without user action, continues periodically, and lets Security Center downgrade clients when those background heartbeats are missed.",
   "intentElementIds": [
     "intent-local-security-audit-foundation",
     "intent-audit-event",
@@ -27,11 +27,11 @@
       "mountedElementId": "intent-local-security-audit-foundation",
       "mountedElementName": "Local Security Audit Foundation",
       "type": "Acceptance Test",
-      "controlPoint": "Allow a previously trusted client to miss lease heartbeats past the configured TTL, observe the Security Center downgrade the node to UNTRUSTED, then reconnect the same client and attempt to resume model access before completing the required missing-gap verification.",
-      "observationPoint": "The separate Security Center projection shows the client as UNTRUSTED after lease expiry, reconnect attempts are denied at model-access scope until full missing-gap verification succeeds, and normal model access is restored only after continuity is proven against the cloud-side shadow state.",
-      "acceptanceBoundary": "Freeze the explicit testcase to tests/integration/security/test_audit_foundation.py::test_lease_expiry_blocks_untrusted_rejoin_until_gap_sync, executed through the real app_server fixture and observed through the separate deploy/api and deploy/web Security Center boundary rather than in-process shortcuts.",
+      "controlPoint": "Start a QwenPaw edge runtime and let the product background Heartbeat Emitter register an initial lease heartbeat without any user prompt or showcase-specific warmup phrase, then stop or miss subsequent heartbeat emission past the configured TTL, reconnect the same client, and attempt to resume model access before completing the required missing-gap verification.",
+      "observationPoint": "The separate Security Center projection first shows nonzero last_heartbeat_at and lease_expires_at for the automatically registered client, then shows the client as UNTRUSTED after lease expiry; reconnect attempts are denied at model-access scope until full missing-gap verification succeeds, and normal model access is restored only after continuity is proven against the cloud-side shadow state.",
+      "acceptanceBoundary": "Freeze the explicit testcase to tests/integration/security/test_audit_foundation.py::test_lease_expiry_blocks_untrusted_rejoin_until_gap_sync, executed through the real app_server fixture and observed through the separate deploy/api and deploy/web Security Center boundary. The testcase must not require a normal user to send prompt text that mentions lease heartbeat monitoring or lease window expiry merely to register the lease heartbeat.",
       "requiredEntryKind": "explicit-testcase-entry",
-      "implementationNotes": "Implementation Design must mount this testcase in the existing explicit security entrypoint zone, preserve the current cloud-edge collaboration boundary, and define the backend, operator-web, and harness observation seams needed to prove lease expiry, UNTRUSTED downgrade, reconnect denial, missing-gap verification, and post-recovery access restoration."
+      "implementationNotes": "Implementation Design must preserve the current cloud-edge collaboration boundary and update the architecture contract so src/qwenpaw/security owns a product background heartbeat emitter: startup must send one lease heartbeat automatically, periodic emission must continue while the runtime is alive, and the explicit testcase or supporting contract guard must fail if lease registration depends on classify_lease_prompt warmup wording in src/qwenpaw/app/routers/console.py. Prompt-triggered warmup may remain only as a compatibility/test helper, not as the product control point."
     }
   ],
   "frozenBaselines": [
@@ -49,29 +49,37 @@
     "tests/integration/security/ARCHITECTURE.md",
     "tests/integration/security/harness.py",
     "tests/integration/security/test_audit_foundation.py",
+    "src/qwenpaw/security",
+    "src/qwenpaw/app/routers/console.py",
     "tests/architecture/security-explicit-entrypoint-traceability.test.js",
     "design/KG/ImplementationToCodingHandoff.json"
   ],
   "openQuestions": [
     {
-      "question": "Should sec-e2e-027 be materialized as a new explicit security acceptance entrypoint before any code repair starts?",
-      "recommendedAnswer": "Yes. Mount sec-e2e-027 in the existing tests/integration/security explicit-entrypoint zone and propagate that path through the implementation contracts before code changes.",
-      "reason": "The intent graph already freezes the acceptance path, but the current implementation architecture and traceability guard do not yet materialize it. Coding first would continue acceptance-boundary drift."
+      "question": "Should lease heartbeat registration be triggered by a normal user's prompt text?",
+      "recommendedAnswer": "No. The product control point must be edge runtime startup plus background periodic emission; prompt-triggered warmup may remain only as a non-product compatibility helper if needed.",
+      "reason": "The intent graph models Heartbeat Emitter as an application component under Audit Uplink Manager, not as a user-visible conversational command. A user who does not know this security feature must still receive active-defense protection."
     },
     {
-      "question": "What reconnect gate should apply after lease expiry?",
-      "recommendedAnswer": "Block all model access until the missing-gap verification succeeds.",
-      "reason": "The intent testcase input and expected result both use resume model access and regain normal model access, which is stronger than only blocking high-risk tools and is the controlling acceptance boundary for sec-e2e-027."
+      "question": "What startup behavior should Implementation Design freeze for sec-e2e-027?",
+      "recommendedAnswer": "On edge runtime startup, emit one lease heartbeat automatically using a stable client identity, then continue emitting periodically while the runtime is alive.",
+      "reason": "The live showcase found an ALIGNED client with trusted anchors but last_heartbeat_at and lease_expires_at still zero. That state proves high-risk actions can establish trust evidence without registering the lease needed for active defense."
     },
     {
       "question": "Should lease expiry, UNTRUSTED state, and gap verification remain owned by the separate Security Center boundary?",
       "recommendedAnswer": "Yes. Keep the decision and observation path in the separate deploy/api and deploy/web Security Center boundary.",
       "reason": "The current intent graph models Security Center, Audit Lease Monitor, and Cloud Integrity Stub as a cross-boundary collaboration. Moving that behavior into the edge runtime would redefine both the architecture boundary and the testcase observation point."
+    },
+    {
+      "question": "What reconnect gate should apply after lease expiry?",
+      "recommendedAnswer": "Block all model access until the missing-gap verification succeeds.",
+      "reason": "The intent testcase input and expected result both use resume model access and regain normal model access, which is stronger than only blocking high-risk tools and is the controlling acceptance boundary for sec-e2e-027."
     }
   ],
   "notes": [
     "No SystemArchitecture.json edit was required because sec-e2e-027, the Heartbeat Emitter, the Audit Lease Monitor, and the trust-recovery rule are already present in the intent graph.",
-    "Current repository implementation evidence does not yet materialize the sec-e2e-027 explicit testcase entrypoint, its harness vocabulary, or the corresponding implementation-architecture traceability guard.",
-    "Implementation Design should treat sec-e2e-027 as the next frozen explicit acceptance baseline to mount before Coding/Repair begins."
+    "Delivery-showcase validation found the current product behavior incomplete: a user can perform high-risk operations and establish trusted anchors while Security Center still reports last_heartbeat_at=0 and lease_expires_at=0, so a subsequent offline action may not downgrade through the lease-expiry active-defense path.",
+    "Implementation Design must revise the implementation contracts and handoff so the heartbeat emitter is a runtime-owned background capability, not a prompt-classified security scenario hidden behind warmup wording.",
+    "The updated testcase control point is runtime startup plus missed background heartbeat. The observation point is automatic lease registration followed by Security Center UNTRUSTED downgrade and recovery gating after TTL expiry."
   ]
 }
