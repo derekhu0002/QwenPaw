@@ -119,7 +119,7 @@ src/.hypothesis/
 .qoder/
 
 # Cursor IDE
-.cursor/
+# .cursor/
 
 # Worktrees
 .worktrees/
