@@ -2,6 +2,7 @@
 name: arch-viewer
 description: "Open the SystemArchitecture.json knowledge graph in a schema-driven web viewer. Use when: viewing architecture, browsing elements, exploring relationships, inspecting views, reading KG, open arch viewer, architecture browser, show knowledge graph."
 argument-hint: "(optional) port number, default 7432"
+disable-model-invocation: true
 ---
 
 # Architecture Knowledge Graph Viewer

@@ -2,6 +2,7 @@
 name: handoff
 description: Hand off the current Argo workflow stage to the next stage. Use when the user asks to hand off work, continue in the next stage, move from Intent Design to Implementation Design, or move from Implementation Design to Coding/Repair.
 argument-hint: What should the next stage focus on?
+disable-model-invocation: true
 ---
 
 Write a short handoff for the next agent in Argo's staged workflow.

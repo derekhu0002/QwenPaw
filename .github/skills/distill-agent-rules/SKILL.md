@@ -2,6 +2,7 @@
 name: distill-agent-rules
 description: 在会话过程中，当 coding agent 的行为偏离预期时，提炼可复用的原则、约束、触发条件和落地位置。Use when user wants to retro agent behavior drift, distill rules, extract constraints, or turn a bad session into reusable guidance.
 argument-hint: 本次偏航现象、期望行为、相关回合或文件
+disable-model-invocation: true
 ---
 
 # Distill Agent Rules
