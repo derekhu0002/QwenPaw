@@ -7,6 +7,8 @@ from pathlib import Path
 
 import pytest
 
+from tests.integration.conftest import app_server  # noqa: F401
+
 from deploy.api.store import (
     GAP_STATUS_REQUIRED,
     RECOVERY_GATE_OPEN,
@@ -165,4 +167,52 @@ def test_security_center_rejects_hash_only_recovery_shortcut(
     assert recovery_response["recovery_required"] is True, (
         "Recovery must remain required until a full missing-gap proof is "
         "accepted by the cloud-side validator."
+    )
+
+
+@pytest.mark.contract
+@pytest.mark.p0
+def test_runtime_startup_registers_lease_heartbeat_without_prompt(app_server) -> None:
+    """Control point: start a real QwenPaw runtime and observe Security Center
+    before any user prompt mentions lease warmup or lease expiry.
+
+    Observation point: Security Center must already show at least one client
+    lease registration with nonzero last_heartbeat_at and lease_expires_at so
+    active defense does not depend on prompt-scripted warmup wording.
+    """
+
+    if app_server.startup_error is not None:
+        raise AssertionError(app_server.startup_error)
+
+    # // GIVEN
+    security_center_api_url = app_server.security_center_api_url
+    assert security_center_api_url, (
+        "Security Center API must be available so startup lease registration "
+        "can be observed through the cloud-side boundary."
+    )
+
+    # // WHEN
+    overview_response = app_server.client.get(
+        f"{security_center_api_url}/security-center/v1/operator/overview",
+        timeout=45.0,
+    )
+    overview_response.raise_for_status()
+    overview = overview_response.json()
+    clients = overview.get("clients") if isinstance(overview, dict) else []
+
+    # // THEN
+    assert isinstance(clients, list) and clients, (
+        "Security Center must register a lease client automatically at runtime "
+        "startup; registration must not wait for a user warmup prompt."
+    )
+    assert any(
+        int(client.get("last_heartbeat_at") or 0) > 0
+        and int(client.get("lease_expires_at") or 0) > 0
+        and int(client.get("lease_ttl_seconds") or 0) > 0
+        for client in clients
+        if isinstance(client, dict)
+    ), (
+        "Security Center must project nonzero last_heartbeat_at, "
+        "lease_expires_at, and lease_ttl_seconds for a startup-registered "
+        "client before any user prompt drives the lease flow."
     )

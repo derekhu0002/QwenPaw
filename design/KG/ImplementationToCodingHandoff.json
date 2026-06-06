@@ -2,7 +2,7 @@
   "stage": "implementation-to-coding",
   "generatedAt": "2026-06-06",
   "sourceIntentGraphPath": "design/KG/SystemArchitecture.json",
-  "summary": "sec-e2e-027 now passes as a frozen explicit acceptance entrypoint with two control points plus two distinct console observation points inside one testcase. That executable baseline proves the controlled pre-recovery denial frame, the recovery control point, and the post-recovery restored-access frame without reusing one mutable final console status across both phases. The previously open intent-semantic gaps are now closed in repository evidence as well: Security Center projects lease timing and autonomously downgrades expired clients from a cloud-side lease registry, and recovery no longer returns clients to ALIGNED through a hash-only explicit-gap-verification shortcut without full-chain cloud validation.",
+  "summary": "Implementation architecture acceptance now passes for handoff to Coding/Repair: sec-e2e-027 remains frozen on one explicit entrypoint with two control points plus two distinct console observation points, and the previously open TTL-downgrade plus full-chain gap-validation semantics are already closed underneath that path. The only approved coding focus left from the updated intent-to-implementation handoff is startup-heartbeat-emitter-002: replace prompt-scripted lease warmup with a runtime-owned background Heartbeat Emitter that registers lease state automatically at startup and continues periodically without user prompt wording.",
   "implementationContracts": [
     "OVERALL_ARCHITECTURE.md",
     "src/qwenpaw/ARCHITECTURE.md",
@@ -63,6 +63,14 @@
       "controlPoint": "Seed an UNTRUSTED client with an open recovery gate, then call recovery_handshake through the explicit-gap-verification trace path using only hash, sequence, and anchor identifiers but no full gap proof.",
       "observationPoint": "Recovery must remain required and trust must not return to ALIGNED until the cloud mirror validates a full-chain missing-gap proof. Current repository state is expected to pass this test.",
       "expectedStatus": "passed"
+    },
+    {
+      "name": "runtime-startup-background-heartbeat-semantics",
+      "path": "tests/contract/security/test_lease_recovery_semantics_contract.py",
+      "kind": "supporting-guardrail",
+      "controlPoint": "Start a real QwenPaw runtime and observe Security Center before any user prompt mentions lease warmup or lease expiry.",
+      "observationPoint": "Security Center must already show at least one client lease registration with nonzero last_heartbeat_at and lease_expires_at so active defense does not depend on prompt-scripted warmup wording. Current repository state is expected to fail this test.",
+      "expectedStatus": "failed"
     }
   ],
   "expectedFailureRecordsPath": "design/KG/test-failure-records.json",
@@ -70,32 +78,38 @@
     {
       "testcaseName": "sec-e2e-027-lease-expiry-active-defense",
       "path": "tests/integration/security/test_audit_foundation.py::test_lease_expiry_blocks_untrusted_rejoin_until_gap_sync",
-      "failureSignal": "Regression signal if sec-e2e-027 loses TTL-driven UNTRUSTED downgrade, split pre/post recovery observations, or cloud-validated recovery gate semantics.",
-      "nextAction": "Preserve the frozen dual-frame observation contract for sec-e2e-027 and keep the lease-registry plus full-chain validation semantics green in both explicit and supporting contract tests."
+      "failureSignal": "Regression signal if sec-e2e-027 loses TTL-driven UNTRUSTED downgrade, split pre/post recovery observations, cloud-validated recovery gate semantics, or eventually the startup background heartbeat registration semantics once that GAP is closed.",
+      "nextAction": "Treat the explicit sec-e2e-027 path as read-only acceptance baseline, keep its existing dual-frame observations green, and focus all new coding work on startup-heartbeat-emitter-002 so lease registration no longer depends on prompt-scripted warmup wording."
+    },
+    {
+      "path": "tests/contract/security/test_lease_recovery_semantics_contract.py::test_runtime_startup_registers_lease_heartbeat_without_prompt",
+      "failureSignal": "Security Center overview still shows zero registered lease clients at runtime startup before any user warmup prompt is sent.",
+      "nextAction": "Implement a product background Heartbeat Emitter that registers an initial lease heartbeat automatically on runtime startup and continues periodic emission while the edge runtime is alive."
     }
   ],
   "taskExecutionPlan": {
-    "executionStrategy": "Keep sec-e2e-027 on one frozen explicit entrypoint with two sequential control points and two distinct console observation points. Downstream changes must preserve the denied rejoin frame, the recovery-control frame, and the restored-access frame as separately observable states, and must keep the TTL-driven lease downgrade plus full-chain cloud validation semantics passing in the supporting contract guards.",
+    "executionStrategy": "Implementation architecture is accepted for coding handoff. Keep sec-e2e-027 on its one frozen explicit entrypoint with two sequential control points and two distinct console observation points, preserve the already-green TTL-driven lease downgrade plus full-chain cloud validation semantics, and concentrate downstream coding on startup-heartbeat-emitter-002 until the startup heartbeat contract turns green.",
     "tasks": [
       {
-        "taskId": "lease-recovery-observation-001",
-        "title": "Preserve split recovery observations",
-        "objective": "Keep sec-e2e-027 executable as one explicit entrypoint with two control points and two frozen console observation fields while adjacent runtime code evolves.",
+        "taskId": "startup-heartbeat-emitter-002",
+        "title": "Start background heartbeat emitter",
+        "objective": "Move lease registration from prompt-scripted warmup into a runtime-owned background Heartbeat Emitter that sends an initial heartbeat automatically at startup and continues periodically.",
         "relatedTestcases": [
           "sec-e2e-027-lease-expiry-active-defense"
         ],
         "targetPaths": [
-          "tests/integration/security/harness.py",
-          "tests/integration/security/test_audit_foundation.py",
-          "src/qwenpaw/security",
-          "src/qwenpaw/app/routers/console.py"
+          "src/qwenpaw/app/_app.py",
+          "src/qwenpaw/security/audit_foundation.py",
+          "src/qwenpaw/app/routers/console.py",
+          "tests/contract/security/test_lease_recovery_semantics_contract.py"
         ],
         "steps": [
-          "Keep `pre_recovery_console_status` bound to the denied rejoin control point and `post_recovery_console_status` bound to the restored-access control point.",
-          "Do not rewrite the frozen testcase path, GIVEN/WHEN/THEN body, or harness business vocabulary when surrounding recovery flow code changes.",
-          "Treat any future reuse of one mutable final console status across both frames as an architecture regression."
+          "Register one initial lease heartbeat automatically during runtime startup without requiring any user prompt text.",
+          "Continue periodic heartbeat emission while the runtime is alive using a stable client identity that Security Center can track across expiry and reconnect.",
+          "Keep prompt-triggered warmup only as a compatibility or test helper if needed, but do not let product lease registration depend on classify_lease_prompt warmup wording.",
+          "Do not rewrite the frozen sec-e2e-027 explicit entrypoint, GIVEN/WHEN/THEN body, or the split pre_recovery_console_status/post_recovery_console_status observation contract while implementing this task."
         ],
-        "completionSignal": "sec-e2e-027 continues to pass while preserving separate pre-recovery and post-recovery console observations."
+        "completionSignal": "tests/contract/security/test_lease_recovery_semantics_contract.py::test_runtime_startup_registers_lease_heartbeat_without_prompt passes and Security Center shows a startup-registered lease client before any user prompt drives the lease flow."
       }
     ]
   },
@@ -118,5 +132,7 @@
     "tests/architecture/security-audit-contract-boundaries.test.js",
     "tests/architecture/security-explicit-entrypoint-traceability.test.js"
   ],
-  "openGaps": []
+  "openGaps": [
+    "Runtime startup still does not auto-register a lease heartbeat through a product background Heartbeat Emitter; Security Center shows zero registered lease clients before any user prompt mentions lease warmup or lease expiry."
+  ]
 }
