@@ -181,7 +181,9 @@ async def emit_runtime_lease_heartbeat(
     prompt_text: str = "Runtime startup heartbeat emitter registration.",
     ttl_seconds: int = 1,
 ) -> dict[str, Any]:
-    client_id = security_center_client_id(session_id=session_id or "", base_dir=base_dir)
+    latest_payload = _latest_trace_payload(base_dir) if not session_id else {}
+    resolved_session_id = session_id or _normalize_text(latest_payload.get("session_id"))
+    client_id = security_center_client_id(session_id=resolved_session_id or "", base_dir=base_dir)
     anchor_state = _current_anchor_state(
         base_dir,
         bootstrap_client_id=client_id,
@@ -192,7 +194,7 @@ async def emit_runtime_lease_heartbeat(
         "/security-center/v1/recovery/handshake",
         {
             "client_id": client_id,
-            "session_id": session_id or "",
+            "session_id": resolved_session_id or "",
             "trace_id": f"runtime-heartbeat::{uuid.uuid4().hex[:12]}",
             "local_hash": anchor_state["head_hash"],
             "checkpoint_hash": _normalize_text(checkpoint.get("current_hash")) or anchor_state["head_hash"],
@@ -1215,12 +1217,12 @@ def _gap_anchor_from_trace_payload(payload: dict[str, Any]) -> dict[str, Any] | 
     return anchor
 
 
-async def _project_trusted_anchor(payload: dict[str, Any]) -> None:
+async def _project_trusted_anchor(payload: dict[str, Any]) -> dict[str, Any]:
     anchor = _gap_anchor_from_trace_payload(payload)
     if anchor is None:
-        return
+        return {}
     client_id = security_center_client_id(session_id=str(payload.get("session_id") or ""))
-    await _post_security_center(
+    return await _post_security_center(
         "/security-center/v1/uplinks/trusted-anchors",
         {
             "client_id": client_id,
@@ -1536,7 +1538,14 @@ async def write_confirmation_record(
         anchored_event_id=anchored_event_id,
         confirmed_at=confirmed_at,
     )
-    await _project_trusted_anchor(payload)
+    projection = await _project_trusted_anchor(payload)
+    if str(projection.get("ack_status") or "") != "received":
+        await emit_runtime_lease_heartbeat(
+            base_dir=base_dir,
+            session_id=confirmation_context["authenticated_session_id"],
+            user_id=confirmation_context["employee_id"],
+            prompt_text="Trusted confirmation heartbeat sync.",
+        )
     return payload
 
 

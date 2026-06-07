@@ -252,11 +252,15 @@ def _apply_lease_expiry(client_state: dict[str, Any], *, now_ns: int) -> tuple[d
             lease_expires_at = computed_expiry
             changed = True
 
+        current_trust_state = str(updated_state.get("trust_state") or TRUST_STATE_UNKNOWN)
         if (
             now_ns >= lease_expires_at
-            and str(updated_state.get("trust_state") or TRUST_STATE_UNKNOWN) == TRUST_STATE_ALIGNED
+            and current_trust_state not in {TRUST_STATE_UNTRUSTED, TRUST_STATE_REJECTED}
         ):
-            if updated_state.get("trust_state") != TRUST_STATE_UNTRUSTED:
+            if (
+                updated_state.get("trust_state") != TRUST_STATE_UNTRUSTED
+                or updated_state.get("divergence_reason") != "lease_ttl_expired"
+            ):
                 changed = True
             updated_state.update(
                 {
@@ -291,8 +295,6 @@ def _project_lease_timing(client_id: str, client_state: dict[str, Any]) -> dict[
     lease_ttl_seconds = max(_as_int(projected.get("lease_ttl_seconds"), DEFAULT_LEASE_TTL_SECONDS), DEFAULT_LEASE_TTL_SECONDS)
     lease_expires_at = _as_int(projected.get("lease_expires_at"), 0)
 
-    if last_heartbeat_at <= 0 and str(projected.get("last_handshake_trace_id") or "").startswith("runtime-heartbeat::"):
-        last_heartbeat_at = _as_int(projected.get("updated_at_ns"), 0)
     if lease_expires_at <= 0 and last_heartbeat_at > 0:
         lease_expires_at = last_heartbeat_at + (lease_ttl_seconds * 1_000_000_000)
 
@@ -471,6 +473,17 @@ class SecurityCenterStore:
             expected_reported_hash = str(client_state.get("last_edge_reported_hash") or "")
             expected_anchor_hash = str(client_state.get("last_trusted_anchor_hash") or trusted_anchor_hash)
 
+            if (
+                not established_trusted_anchor
+                and not expected_reported_hash
+                and not recovery_gate_open
+                and local_hash
+            ):
+                shadow_hash = checkpoint_hash or local_hash
+                trusted_anchor_hash = shadow_hash
+                expected_anchor_hash = shadow_hash
+                client_state["shadow_hash"] = shadow_hash
+
             if recovery_gate_open and gap_validation["accepted"]:
                 aligned_head_hash = local_hash
                 if expected_reported_hash and checkpoint_hash == expected_anchor_hash:
@@ -490,6 +503,30 @@ class SecurityCenterStore:
                         "last_trusted_anchor_source": "recovery_handshake_gap_validation",
                         "last_trusted_anchor_trace_id": trace_id or client_state.get("last_handshake_trace_id"),
                         "last_trusted_anchor_event_type": "GAP_VALIDATION",
+                    },
+                )
+            elif (
+                not established_trusted_anchor
+                and local_hash
+                and checkpoint_hash == local_hash
+                and checkpoint_sequence > 0
+                and bool(checkpoint_anchor_id)
+            ):
+                trust_state = TRUST_STATE_ALIGNED
+                recovery_required = False
+                gap_status = GAP_STATUS_CLEAR
+                recovery_gate_status = RECOVERY_GATE_CLOSED
+                divergence_reason = ""
+                shadow_hash = local_hash
+                client_state.update(
+                    {
+                        "shadow_hash": shadow_hash,
+                        "last_trusted_anchor_hash": checkpoint_hash,
+                        "last_trusted_sequence": max(local_sequence, checkpoint_sequence, trusted_sequence),
+                        "last_trusted_anchor_event_id": checkpoint_anchor_id,
+                        "last_trusted_anchor_source": "recovery_handshake_direct",
+                        "last_trusted_anchor_trace_id": trace_id or client_state.get("last_handshake_trace_id"),
+                        "last_trusted_anchor_event_type": "DIRECT_ALIGNMENT",
                     },
                 )
             elif local_hash and local_hash == shadow_hash:

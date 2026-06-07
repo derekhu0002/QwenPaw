@@ -16,9 +16,11 @@ from .store import SecurityCenterStore
 
 class RecoveryHandshakeRequest(BaseModel):
     client_id: str = Field(..., min_length=1)
+    session_id: str | None = None
     trace_id: str | None = None
     local_hash: str = Field(..., min_length=1)
     checkpoint_hash: str | None = None
+    lease_ttl_seconds: int | None = Field(None, ge=1)
     local_sequence: int | None = Field(None, ge=0)
     checkpoint_sequence: int | None = Field(None, ge=0)
     anchored_event_id: str | None = None
