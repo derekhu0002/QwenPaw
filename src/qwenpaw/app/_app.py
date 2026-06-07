@@ -476,7 +476,7 @@ async def lifespan(  # pylint: disable=too-many-statements,too-many-branches
 
         while True:
             await asyncio.to_thread(verify_default_builtin_rule_files)
-            await asyncio.sleep(30)
+            await asyncio.sleep(5)
 
     _bg_task = asyncio.create_task(_background_startup())
     _rule_integrity_task = asyncio.create_task(

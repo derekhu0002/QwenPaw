@@ -27,6 +27,17 @@ export function useToolGuard() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  const fetchRulesIntegrity = useCallback(async () => {
+    try {
+      setRulesIntegrity(await api.getToolGuardRulesIntegrity());
+    } catch (integrityErr) {
+      console.warn(
+        "Failed to load tool guard rule integrity status:",
+        integrityErr,
+      );
+    }
+  }, []);
+
   const fetchAll = useCallback(async () => {
     setLoading(true);
     setError(null);
@@ -42,15 +53,7 @@ export function useToolGuard() {
       setDisabledRules(new Set(cfg.disabled_rules ?? []));
       setAutoDenyRules(new Set(cfg.auto_denied_rules ?? []));
       setShellEvasionChecks(cfg.shell_evasion_checks ?? {});
-      try {
-        setRulesIntegrity(await api.getToolGuardRulesIntegrity());
-      } catch (integrityErr) {
-        console.warn(
-          "Failed to load tool guard rule integrity status:",
-          integrityErr,
-        );
-        setRulesIntegrity(null);
-      }
+      await fetchRulesIntegrity();
     } catch (err) {
       const msg =
         err instanceof Error ? err.message : "Failed to load security config";
@@ -59,11 +62,16 @@ export function useToolGuard() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [fetchRulesIntegrity]);
 
   useEffect(() => {
     fetchAll();
   }, [fetchAll]);
+
+  useEffect(() => {
+    const timer = window.setInterval(fetchRulesIntegrity, 5000);
+    return () => window.clearInterval(timer);
+  }, [fetchRulesIntegrity]);
 
   const toggleRule = useCallback(
     (ruleId: string, currentlyDisabled: boolean) => {
