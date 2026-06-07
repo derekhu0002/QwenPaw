@@ -2,7 +2,7 @@
   "stage": "implementation-to-coding",
   "generatedAt": "2026-06-07",
   "sourceIntentGraphPath": "design/KG/SystemArchitecture.json",
-  "summary": "Implementation architecture is reopened for sec-e2e-027 live reconnect recovery. The explicit entrypoint remains frozen and green, and the startup-heartbeat, canonical-runtime-client-identity, durable lease-persistence, startup-normal-admission, and stopped-runtime downgrade guards remain valuable. However, live acceptance now shows a post-expiry runtime can remain blocked after coming back online: local evidence can produce an accepted full missing-gap proof when posted explicitly, but the real runtime re-online and端侧 operation path does not yet prove an automatic restored frame that closes the recovery gate and keeps the canonical client alive with fresh heartbeat.",
+  "summary": "Implementation architecture is reopened for sec-e2e-027 live reconnect recovery. The explicit entrypoint remains frozen and green, and the startup-heartbeat, canonical-runtime-client-identity, durable lease-persistence, startup-normal-admission, and stopped-runtime downgrade guards remain valuable. The live reconnect supporting guard is now physically mounted and executes against a reset-state API/Web/runtime stack. Its current expected-failing signal is more precise than a generic blocked restore: after lease-expired downgrade and runtime restart, the real runtime path still does not materialize a locally constructible full missing-gap proof for the restarted session, so it cannot yet prove an automatic restored frame that closes the recovery gate and keeps the canonical client alive with fresh heartbeat.",
   "implementationContracts": [
     "OVERALL_ARCHITECTURE.md",
     "src/qwenpaw/ARCHITECTURE.md",
@@ -115,7 +115,7 @@
       "path": "tests/contract/security/test_lease_recovery_semantics_contract.py",
       "kind": "supporting-guardrail",
       "controlPoint": "Start Security Center API/Web and one real QwenPaw runtime from a reset state, establish a trusted anchor, stop or isolate the runtime until the same canonical client is UNTRUSTED with divergence_reason lease_ttl_expired, then restart the same runtime and attempt a端侧 model or sensitive operation without manually posting a proof to deploy/api.",
-      "observationPoint": "The runtime re-online path must automatically submit a full missing-gap proof equivalent to the proof accepted by deploy/api/store.py, Security Center must project the same canonical client as ALIGNED or TRUSTED with gap_status VALIDATED or CLEAR, recovery_gate_status CLEAR, recovery_required=false, durable lease timing refreshed beyond the observation time, and the端侧 operation must return success instead of 423 recovery-gated blocking.",
+      "observationPoint": "The runtime re-online path must automatically submit a full missing-gap proof equivalent to the proof accepted by deploy/api/store.py, Security Center must project the same canonical client as ALIGNED or TRUSTED with gap_status VALIDATED or CLEAR, recovery_gate_status CLEAR, recovery_required=false, durable lease timing refreshed beyond the observation time, and the端侧 operation must return success instead of 423 recovery-gated blocking. Current repository state is expected to fail this guard because the restarted runtime still does not materialize a locally constructible reconnect gap-proof anchor set for the same session.",
       "expectedStatus": "failed"
     }
   ],
@@ -159,8 +159,8 @@
     },
     {
       "path": "tests/contract/security/test_lease_recovery_semantics_contract.py::test_security_center_live_reconnect_gap_proof_restores_access",
-      "failureSignal": "Expected-failing regression signal for the newly observed live GAP: after Security Center downgrades a stopped runtime to UNTRUSTED/lease_ttl_expired, restarting the same runtime and attempting端侧 access must not remain blocked when a full local missing-gap proof can be constructed and accepted by deploy/api.",
-      "nextAction": "Add a behavior-level guard and implementation repair so the real runtime re-online path posts the same full missing-gap proof that the explicit API proof accepts, refreshes the canonical runtime lease heartbeat immediately after gate closure, and restores端侧 model or sensitive operation access only after Security Center projects recovery_required=false."
+      "failureSignal": "Expected-failing regression signal for the newly observed live GAP: after Security Center downgrades a stopped runtime to UNTRUSTED/lease_ttl_expired, restarting the same runtime and attempting端侧 access must not remain blocked when a full local missing-gap proof can be constructed and accepted by deploy/api. The current physically mounted guard fails earlier: the restarted session still does not materialize a locally constructible gap-proof anchor set for the same reconnect session.",
+      "nextAction": "Add a behavior-level guard and implementation repair so the real runtime re-online path first materializes the same full missing-gap proof that the explicit API proof accepts, then posts it automatically, refreshes the canonical runtime lease heartbeat immediately after gate closure, and restores端侧 model or sensitive operation access only after Security Center projects recovery_required=false."
     }
   ],
   "taskExecutionPlan": {
@@ -205,7 +205,7 @@
         ],
         "steps": [
           "Add an expected-failing behavior guard that starts API/Web/runtime, establishes a trusted anchor, stops or isolates runtime until deploy/api marks the canonical client UNTRUSTED with divergence_reason lease_ttl_expired, restarts the same runtime, and attempts端侧 access without a manual /recovery/handshake proof injection.",
-          "In src/qwenpaw/security/audit_foundation.py, ensure the runtime re-online or preflight path builds and posts the same full missing-gap proof that _build_gap_proof can construct from checkpoint plus trace evidence, and that the payload uses the canonical runtime client id plus session alias consistently.",
+          "In src/qwenpaw/security/audit_foundation.py, ensure the runtime re-online or preflight path first materializes the same full missing-gap proof that _build_gap_proof can construct from checkpoint plus trace evidence for the restarted session, then posts that proof automatically, and that the payload uses the canonical runtime client id plus session alias consistently.",
           "After deploy/api accepts gap validation, immediately refresh the same canonical client's lease heartbeat so the restored ALIGNED/CLEAR or VALIDATED/CLEAR state survives beyond the one-second TTL observation window while the runtime is actually online.",
           "Preserve the rule that no端侧 model or sensitive operation succeeds before Security Center returns recovery_required=false and recovery_gate_status CLEAR; after that state is observed, the operation must no longer return a 423 recovery-gated response.",
           "Keep the already-green startup admission and stopped-runtime TTL downgrade guards green so clean startup is not mistaken for recovery, and true offline clients still downgrade when heartbeat stops."
