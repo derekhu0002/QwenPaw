@@ -506,6 +506,20 @@ class SecurityCenterStore:
                     },
                 )
             elif (
+                recovery_gate_open
+                and not established_trusted_anchor
+                and str(client_state.get("divergence_reason") or "") == "lease_ttl_expired"
+                and trace_id.startswith("runtime-heartbeat::")
+                and local_hash
+                and local_hash == expected_reported_hash
+                and checkpoint_hash == expected_anchor_hash
+            ):
+                trust_state = TRUST_STATE_ALIGNED
+                recovery_required = False
+                gap_status = GAP_STATUS_CLEAR
+                recovery_gate_status = RECOVERY_GATE_CLOSED
+                divergence_reason = ""
+            elif (
                 not established_trusted_anchor
                 and local_hash
                 and checkpoint_hash == local_hash
