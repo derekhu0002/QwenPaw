@@ -2,7 +2,7 @@
   "stage": "implementation-to-coding",
   "generatedAt": "2026-06-07",
   "sourceIntentGraphPath": "design/KG/SystemArchitecture.json",
-  "summary": "Implementation architecture is reopened for sec-e2e-027. The explicit entrypoint remains frozen and currently green, the startup-heartbeat and canonical-runtime-client-identity guards remain green, but a new expected-failing lease-persistence guard now proves deploy/api can still project lease timing through overview and timeline while the durable Security Center store keeps zero lease fields for the canonical runtime client. Coding/Repair must preserve the repaired single-terminal identity while carrying lease_ttl_seconds through deploy/api/app.py into deploy/api/store.py so a stopped runtime downgrades through the true durable TTL path to UNTRUSTED with divergence_reason=lease_ttl_expired.",
+  "summary": "Coding delivery now matches the implementation architecture contract for sec-e2e-027. The explicit entrypoint remains frozen and green, the startup-heartbeat and canonical-runtime-client-identity guards remain green, and the durable lease-persistence guard now also passes: deploy/api carries lease_ttl_seconds through deploy/api/app.py into deploy/api/store.py, persists last_heartbeat_at, lease_ttl_seconds, and lease_expires_at for the canonical runtime client, and downgrades a stopped runtime through the true durable TTL path to UNTRUSTED with divergence_reason=lease_ttl_expired.",
   "implementationContracts": [
     "OVERALL_ARCHITECTURE.md",
     "src/qwenpaw/ARCHITECTURE.md",
@@ -50,7 +50,7 @@
       "path": "tests/architecture/security-runtime-lease-persistence-boundary.test.js",
       "kind": "key-implementation-traceability-guard",
       "controlPoint": "Read deploy/api/app.py and deploy/api/store.py to confirm the recovery-handshake HTTP contract carries lease_ttl_seconds and the durable Security Center store writes last_heartbeat_at, lease_ttl_seconds, and lease_expires_at for the canonical runtime client instead of relying on projection-only fallback.",
-      "observationPoint": "The guard proves sec-e2e-027 still freezes durable lease persistence into the API/store seam. Current repository state is expected to fail this guard until Coding/Repair removes projection-only runtime-heartbeat fallback as the acceptance mechanism and makes the durable store the source of truth for TTL expiry."
+      "observationPoint": "The guard proves sec-e2e-027 still freezes durable lease persistence into the API/store seam: RecoveryHandshakeRequest carries lease_ttl_seconds, deploy/api/store.py writes durable heartbeat lease fields, and overview/timeline do not rely on projection-only runtime-heartbeat fallback from updated_at_ns as the source of truth for TTL expiry. Current repository state passes this guard."
     }
   ],
   "supportingNonExplicitTests": [
@@ -99,8 +99,8 @@
       "path": "tests/contract/security/test_lease_recovery_semantics_contract.py",
       "kind": "supporting-guardrail",
       "controlPoint": "Start a real QwenPaw runtime, observe a projected lease-bearing canonical client, inspect the durable Security Center store for that same canonical client, then stop the runtime and wait past the TTL window.",
-      "observationPoint": "Before runtime stop, the durable store must already hold nonzero last_heartbeat_at, lease_ttl_seconds, and lease_expires_at for the canonical runtime client; after TTL expiry, overview and timeline must expose that same client as UNTRUSTED with divergence_reason=lease_ttl_expired and recovery_required=true. Current repository state is expected to fail until Coding/Repair closes the durable lease-persistence gap.",
-      "expectedStatus": "failed"
+      "observationPoint": "Before runtime stop, the durable store must already hold nonzero last_heartbeat_at, lease_ttl_seconds, and lease_expires_at for the canonical runtime client; after TTL expiry, overview and timeline must expose that same client as UNTRUSTED with divergence_reason=lease_ttl_expired and recovery_required=true. Current repository state passes and this guard remains as regression protection.",
+      "expectedStatus": "passed"
     }
   ],
   "expectedFailureRecordsPath": "design/KG/test-failure-records.json",
@@ -128,22 +128,22 @@
     },
     {
       "path": "tests/contract/security/test_lease_recovery_semantics_contract.py::test_security_center_persists_runtime_lease_fields_and_downgrades_after_stop",
-      "failureSignal": "Reopened delivery signal if Security Center overview or timeline can project lease timing for the canonical runtime client while the durable store still persists last_heartbeat_at=0 or lease_expires_at=0, or if that same stopped runtime remains ALIGNED instead of downgrading to UNTRUSTED with divergence_reason=lease_ttl_expired.",
-      "nextAction": "Extend deploy/api/app.py RecoveryHandshakeRequest to carry lease_ttl_seconds end-to-end, durably write last_heartbeat_at, lease_ttl_seconds, and lease_expires_at in deploy/api/store.py for the canonical runtime client, and keep overview/timeline reading those stored lease fields when TTL expiry is evaluated after runtime stop."
+      "failureSignal": "Regression signal if Security Center overview or timeline can project lease timing for the canonical runtime client while the durable store persists last_heartbeat_at=0 or lease_expires_at=0, or if that same stopped runtime remains ALIGNED instead of downgrading to UNTRUSTED with divergence_reason=lease_ttl_expired.",
+      "nextAction": "Preserve deploy/api/app.py RecoveryHandshakeRequest lease_ttl_seconds passthrough, deploy/api/store.py durable last_heartbeat_at, lease_ttl_seconds, and lease_expires_at writes for the canonical runtime client, and overview/timeline evaluation against those stored lease fields after runtime stop."
     },
     {
       "path": "tests/architecture/security-runtime-lease-persistence-boundary.test.js",
-      "failureSignal": "Static architecture signal if the Security Center API contract drops lease_ttl_seconds, if the store stops durably writing lease timing, or if projection-only runtime-heartbeat fallback remains in place as the apparent source of truth.",
-      "nextAction": "Keep the deploy/api request-model and store-write seam aligned with the durable lease registry contract before closing the reopened sec-e2e-027 delivery gap."
+      "failureSignal": "Static architecture regression signal if the Security Center API contract drops lease_ttl_seconds, if the store stops durably writing lease timing, or if projection-only runtime-heartbeat fallback returns as the apparent source of truth.",
+      "nextAction": "Keep the deploy/api request-model and store-write seam aligned with the durable lease registry contract."
     }
   ],
   "taskExecutionPlan": {
-    "executionStrategy": "Coding delivery is reopened against the current implementation architecture. Keep sec-e2e-027 on its one frozen explicit entrypoint with two sequential control points and two distinct console observation points, preserve the already-green startup-heartbeat and single-terminal runtime identity guards, and close the reopened deploy/api lease-persistence gap by making the durable Security Center store rather than projection-only read models the source of truth for TTL expiry after runtime stop.",
+    "executionStrategy": "Coding delivery is accepted against the current implementation architecture. Keep sec-e2e-027 on its one frozen explicit entrypoint with two sequential control points and two distinct console observation points, preserve the startup-heartbeat, single-terminal runtime identity, and durable lease-persistence guards, and treat the durable Security Center store as the source of truth for TTL expiry after runtime stop.",
     "tasks": [
       {
         "taskId": "security-center-durable-lease-persistence-004",
-        "title": "Persist canonical runtime lease timing",
-        "objective": "Keep the repaired single-terminal runtime identity intact while carrying canonical runtime heartbeat TTL through the Security Center API contract into the durable lease registry so a stopped runtime downgrades through the true TTL path instead of a projection-only read-model approximation.",
+        "title": "Preserve canonical runtime lease timing",
+        "objective": "Keep the repaired single-terminal runtime identity intact while preserving canonical runtime heartbeat TTL flow through the Security Center API contract into the durable lease registry so a stopped runtime continues to downgrade through the true TTL path instead of a projection-only read-model approximation.",
         "relatedTestcases": [
           "sec-e2e-027-lease-expiry-active-defense"
         ],
@@ -155,13 +155,13 @@
           "tests/contract/security/test_lease_recovery_semantics_contract.py"
         ],
         "steps": [
-          "Extend deploy/api/app.py RecoveryHandshakeRequest so runtime heartbeat traffic cannot drop lease_ttl_seconds before payloads reach deploy/api/store.py.",
+          "Keep deploy/api/app.py RecoveryHandshakeRequest carrying lease_ttl_seconds so runtime heartbeat traffic cannot drop TTL before payloads reach deploy/api/store.py.",
           "In deploy/api/store.py, keep resolving one canonical runtime client id, then durably write last_heartbeat_at, lease_ttl_seconds, and lease_expires_at for that same canonical client whenever runtime heartbeat lease registration occurs.",
-          "Remove or stop depending on projection-only runtime-heartbeat fallback from updated_at_ns as the apparent source of lease timing; overview and timeline must reflect durable store state rather than hiding zero lease fields.",
+          "Keep overview and timeline reflecting durable store state rather than hiding zero lease fields through projection-only runtime-heartbeat fallback from updated_at_ns.",
           "Preserve the already-repaired single-terminal runtime identity so this lease-persistence fix does not reintroduce multiple canonical clients or false DIVERGED/OPEN bootstrap-shadow mismatches.",
           "Do not rewrite the frozen sec-e2e-027 explicit entrypoint, GIVEN/WHEN/THEN body, or the split pre_recovery_console_status/post_recovery_console_status observation contract while closing this gap."
         ],
-        "completionSignal": "tests/contract/security/test_lease_recovery_semantics_contract.py::test_security_center_persists_runtime_lease_fields_and_downgrades_after_stop and tests/architecture/security-runtime-lease-persistence-boundary.test.js turn green while the previously green startup-heartbeat and single-terminal runtime identity guards remain green."
+        "completionSignal": "tests/contract/security/test_lease_recovery_semantics_contract.py::test_security_center_persists_runtime_lease_fields_and_downgrades_after_stop and tests/architecture/security-runtime-lease-persistence-boundary.test.js remain green while the startup-heartbeat and single-terminal runtime identity guards also remain green."
       }
     ]
   },
@@ -187,7 +187,5 @@
     "tests/architecture/security-audit-contract-boundaries.test.js",
     "tests/architecture/security-explicit-entrypoint-traceability.test.js"
   ],
-  "openGaps": [
-    "deploy/api overview and timeline can still project nonzero lease timing for the canonical runtime client while the durable Security Center store persists last_heartbeat_at=0 and lease_expires_at=0, so a stopped runtime may remain ALIGNED instead of downgrading through the true TTL path to UNTRUSTED with divergence_reason=lease_ttl_expired."
-  ]
+  "openGaps": []
 }
