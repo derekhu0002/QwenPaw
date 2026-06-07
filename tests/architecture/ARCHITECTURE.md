@@ -28,6 +28,9 @@ element_path: tests/architecture
 - path: security-explicit-entrypoint-traceability.test.js
   kind: critical-non-explicit-test
   role: verifies `sec-e2e-024` remains mounted to the declared explicit entrypoint, keeps its real-environment runtime-inspection shape, and preserves failure-record traceability
+- path: security-runtime-client-identity-boundary.test.js
+  kind: critical-non-explicit-test
+  role: verifies sec-e2e-027 still uses one canonical Security Center client id across startup heartbeat, recovery, lockdown, and restored-access projection instead of splitting one live runtime into multiple cloud clients
 
 ### Test Guardrails
 #### critical_non_explicit_tests
@@ -102,4 +105,18 @@ element_path: tests/architecture
     - ../../tests/integration/security/test_audit_foundation.py
     - ../../tests/integration/security/harness.py
   rationale: keep sec-e2e-024 pointed at one read-only entrypoint, freeze the real-app runtime-inspection assertions plus readable startup-failure surface that make the testcase harder to bypass, and preserve the first expected-failure signal handed to Coding/Repair
+  frozen_by_stage: implementationdesign
+- test_id: security-runtime-client-identity-boundary
+  critical_kind: implementation-traceability
+  test_path: security-runtime-client-identity-boundary.test.js
+  execution_entry: security-runtime-client-identity-boundary.test.js
+  guards_elements:
+    - ../../src/qwenpaw/security/audit_foundation.py
+    - ../../deploy/api/store.py
+    - ../../design/KG/ImplementationToCodingHandoff.json
+  protected_baselines:
+    - ARCHITECTURE.md
+    - ../../src/qwenpaw/security/ARCHITECTURE.md
+    - ../../deploy/api/ARCHITECTURE.md
+  rationale: keep one live runtime bound to one canonical Security Center client id so lease heartbeat, recovery, lockdown, and restored-access projection do not create a false DIVERGED fork for sec-e2e-027
   frozen_by_stage: implementationdesign

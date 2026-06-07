@@ -52,6 +52,7 @@ element_path: tests
 - architecture/validator-bootstrap-traceability.test.js
 - architecture/security-audit-contract-boundaries.test.js
 - architecture/security-explicit-entrypoint-traceability.test.js
+- architecture/security-runtime-client-identity-boundary.test.js
 
 ### Supporting Non-Explicit Tests
 - integration/test_security_config.py
@@ -66,4 +67,5 @@ element_path: tests
 - For `sec-e2e-027`, that protected fixture now freezes two separate console observation points, `pre_recovery_console_status` and `post_recovery_console_status`, so the denied rejoin frame and restored-access frame remain independently observable.
 - `tests/contract/security/test_lease_recovery_semantics_contract.py` is a supporting contract-test entrypoint that now guards the closed sec-e2e-027 intent semantics beneath the explicit acceptance path: Security Center must keep a true TTL-driven lease downgrade path and a full-chain cloud-side gap-validation path. These tests are now expected to pass and serve as regression guards.
 - That same contract-test entrypoint now also guards the closed startup-heartbeat requirement from the updated intent handoff: a real runtime must register a lease heartbeat automatically before any user prompt mentions lease warmup or lease expiry. That startup-heartbeat contract is now expected to pass and serves as a regression guard for the product background Heartbeat Emitter.
+- `tests/architecture/security-runtime-client-identity-boundary.test.js` is a critical non-explicit architecture guard for sec-e2e-027. Its control point is static code-boundary inspection of `src/qwenpaw/security/audit_foundation.py` and `deploy/api/store.py`; its observation point is that startup heartbeat, recovery preflight, lockdown, and restored-access projection must share one canonical Security Center client id instead of splitting a live runtime across `runtime-heartbeat::<fingerprint>` and browser-session ids.
 - `tests/integration/conftest.py` now carries the shared real-app subprocess bootstrap baseline for integration entrypoints; when runtime startup fails, it must surface a readable `startup_error` to test bodies instead of terminating those entrypoints during fixture setup.
