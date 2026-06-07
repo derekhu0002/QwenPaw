@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import asyncio
+import json
 import time
 from pathlib import Path
 from urllib.parse import quote
@@ -106,6 +107,62 @@ def _poll_runtime_identity_projection(app_server) -> tuple[dict[str, object], li
             return overview, canonical_client_ids
         time.sleep(0.25)
     return last_overview, last_canonical_client_ids
+
+
+def _read_security_center_store_snapshot(app_server) -> dict[str, object]:
+    security_center_data_dir = app_server.security_center_data_dir
+    assert security_center_data_dir is not None, (
+        "Security Center durable data dir must be exposed by the shared app "
+        "fixture so contract tests can inspect the persisted lease registry."
+    )
+    store_path = security_center_data_dir / "security-center-store.json"
+    assert store_path.exists(), (
+        "Security Center durable store must exist once the runtime heartbeat "
+        "has registered through the cloud-side boundary."
+    )
+    payload = json.loads(store_path.read_text(encoding="utf-8"))
+    return payload if isinstance(payload, dict) else {}
+
+
+def _poll_projected_lease_client(app_server) -> tuple[dict[str, object], dict[str, object]]:
+    deadline = time.time() + 15.0
+    last_overview: dict[str, object] = {}
+    last_client: dict[str, object] = {}
+    while time.time() < deadline:
+        overview = _read_security_center_overview(app_server)
+        clients = overview.get("clients") if isinstance(overview, dict) else []
+        if isinstance(clients, list):
+            for client in clients:
+                if not isinstance(client, dict):
+                    continue
+                if (
+                    str(client.get("canonical_client_id") or "").strip()
+                    and int(client.get("last_heartbeat_at") or 0) > 0
+                    and int(client.get("lease_expires_at") or 0) > 0
+                    and int(client.get("lease_ttl_seconds") or 0) > 0
+                ):
+                    return overview, client
+        last_overview = overview
+        last_client = clients[-1] if isinstance(clients, list) and clients else {}
+        time.sleep(0.25)
+    return last_overview, last_client
+
+
+def _poll_ttl_expired_timeline(app_server, *, client_id: str) -> dict[str, object] | None:
+    deadline = time.time() + 15.0
+    last_timeline: dict[str, object] | None = None
+    while time.time() < deadline:
+        timeline = _read_security_center_timeline(app_server, client_id=client_id)
+        if isinstance(timeline, dict):
+            last_timeline = timeline
+            if (
+                timeline.get("trust_state") == TRUST_STATE_UNTRUSTED
+                and timeline.get("divergence_reason") == "lease_ttl_expired"
+                and timeline.get("recovery_required") is True
+            ):
+                return timeline
+        time.sleep(0.25)
+    return last_timeline
 
 
 def _seed_client_state(
@@ -367,4 +424,99 @@ def test_security_center_projects_one_online_runtime_as_one_canonical_terminal(
         "A live online runtime with no fork point must not be projected as a "
         "false local-hash DIVERGED/OPEN recovery gate in Security Center; "
         f"observed false divergence timelines={false_diverged_timelines!r}."
+    )
+
+
+@pytest.mark.contract
+@pytest.mark.p0
+def test_security_center_persists_runtime_lease_fields_and_downgrades_after_stop(
+    app_server,
+) -> None:
+    """Control point: start a real QwenPaw runtime, observe a projected
+    lease-bearing canonical client, inspect the durable Security Center store,
+    then stop the runtime and wait for the same canonical client to miss the
+    TTL window.
+
+    Observation point: the durable store must already persist nonzero
+    last_heartbeat_at, lease_ttl_seconds, and lease_expires_at for that same
+    canonical client before the stop, and overview/timeline must later expose
+    UNTRUSTED with divergence_reason=lease_ttl_expired after heartbeat loss.
+    """
+
+    if app_server.startup_error is not None:
+        raise AssertionError(app_server.startup_error)
+
+    # // GIVEN
+    projected_overview, projected_client = _poll_projected_lease_client(app_server)
+    canonical_client_id = str(projected_client.get("canonical_client_id") or "").strip()
+    assert canonical_client_id, (
+        "Security Center must project one canonical runtime client with "
+        "nonzero lease timing before durable lease persistence can be "
+        f"validated; observed overview={projected_overview!r}."
+    )
+
+    durable_store = _read_security_center_store_snapshot(app_server)
+    durable_clients = durable_store.get("clients") if isinstance(durable_store, dict) else {}
+    durable_client = durable_clients.get(canonical_client_id, {}) if isinstance(durable_clients, dict) else {}
+
+    # // WHEN
+    assert int(durable_client.get("last_heartbeat_at") or 0) > 0, (
+        "Lease_Persistence_Gap: Security Center overview can already project a "
+        "lease-bearing canonical runtime client, but the durable store still "
+        "persists last_heartbeat_at=0 for that client."
+    )
+    assert int(durable_client.get("lease_ttl_seconds") or 0) > 0, (
+        "Lease_Persistence_Gap: Security Center must durably persist "
+        "lease_ttl_seconds for the canonical runtime client instead of keeping "
+        "TTL only in read-model projection."
+    )
+    assert int(durable_client.get("lease_expires_at") or 0) > 0, (
+        "Lease_Persistence_Gap: Security Center overview can project lease "
+        "expiry, but the durable store still persists lease_expires_at=0 for "
+        "the canonical runtime client."
+    )
+
+    if app_server.process.poll() is None:
+        app_server.process.terminate()
+        app_server.process.wait(timeout=15)
+    expired_timeline = _poll_ttl_expired_timeline(
+        app_server,
+        client_id=canonical_client_id,
+    )
+    expired_overview = _read_security_center_overview(app_server)
+
+    # // THEN
+    assert isinstance(expired_timeline, dict), (
+        "Security Center must keep exposing the canonical runtime timeline "
+        "after runtime stop so TTL expiry can be observed through the cloud-side boundary."
+    )
+    assert expired_timeline.get("trust_state") == TRUST_STATE_UNTRUSTED, (
+        "Lease_Persistence_Gap: after runtime stop and TTL expiry, Security "
+        "Center must downgrade the canonical runtime client to UNTRUSTED. "
+        f"Observed timeline={expired_timeline!r}."
+    )
+    assert expired_timeline.get("divergence_reason") == "lease_ttl_expired", (
+        "Lease_Persistence_Gap: runtime stop must surface through the canonical "
+        "client as divergence_reason=lease_ttl_expired, not as an ALIGNED or "
+        f"projection-only state. Observed timeline={expired_timeline!r}."
+    )
+    assert expired_timeline.get("recovery_required") is True, (
+        "Lease_Persistence_Gap: an expired runtime lease must reopen recovery "
+        "before model access is restored."
+    )
+    overview_clients = expired_overview.get("clients") if isinstance(expired_overview, dict) else []
+    matching_clients = [
+        client
+        for client in overview_clients
+        if isinstance(client, dict)
+        and str(client.get("canonical_client_id") or "").strip() == canonical_client_id
+    ]
+    assert any(
+        client.get("trust_state") == TRUST_STATE_UNTRUSTED
+        and client.get("divergence_reason") == "lease_ttl_expired"
+        for client in matching_clients
+    ), (
+        "Lease_Persistence_Gap: operator overview must expose the same stopped "
+        "canonical runtime client as UNTRUSTED with lease_ttl_expired after TTL loss; "
+        f"observed overview={expired_overview!r}."
     )

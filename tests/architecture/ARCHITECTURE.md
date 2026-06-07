@@ -31,6 +31,9 @@ element_path: tests/architecture
 - path: security-runtime-client-identity-boundary.test.js
   kind: critical-non-explicit-test
   role: verifies sec-e2e-027 still uses one canonical Security Center client id across startup heartbeat, recovery, lockdown, and restored-access projection instead of splitting one live runtime into multiple cloud clients; the complementary live behavior guard lives in ../../tests/contract/security/test_lease_recovery_semantics_contract.py
+- path: security-runtime-lease-persistence-boundary.test.js
+  kind: critical-non-explicit-test
+  role: verifies sec-e2e-027 still freezes lease_ttl_seconds into the Security Center API request contract and durable store instead of allowing overview/timeline to hide zero lease fields through projection-only fallback
 
 ### Test Guardrails
 #### critical_non_explicit_tests
@@ -119,4 +122,18 @@ element_path: tests/architecture
     - ../../src/qwenpaw/security/ARCHITECTURE.md
     - ../../deploy/api/ARCHITECTURE.md
   rationale: keep the static identity boundary frozen while the complementary live supporting contract proves that one online runtime must not surface as multiple canonical terminals or a false DIVERGED fork for sec-e2e-027
+  frozen_by_stage: implementationdesign
+- test_id: security-runtime-lease-persistence-boundary
+  critical_kind: implementation-traceability
+  test_path: security-runtime-lease-persistence-boundary.test.js
+  execution_entry: security-runtime-lease-persistence-boundary.test.js
+  guards_elements:
+    - ../../deploy/api/app.py
+    - ../../deploy/api/store.py
+    - ../../design/KG/ImplementationToCodingHandoff.json
+  protected_baselines:
+    - ARCHITECTURE.md
+    - ../../deploy/api/ARCHITECTURE.md
+    - ../../tests/contract/security/test_lease_recovery_semantics_contract.py
+  rationale: keep the lease-persistence boundary frozen so Coding/Repair must carry lease_ttl_seconds through the HTTP contract into the durable Security Center store rather than masking zero lease fields with projection-only read-model fallback
   frozen_by_stage: implementationdesign

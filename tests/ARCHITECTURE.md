@@ -53,6 +53,7 @@ element_path: tests
 - architecture/security-audit-contract-boundaries.test.js
 - architecture/security-explicit-entrypoint-traceability.test.js
 - architecture/security-runtime-client-identity-boundary.test.js
+- architecture/security-runtime-lease-persistence-boundary.test.js
 
 ### Supporting Non-Explicit Tests
 - integration/test_security_config.py
@@ -70,6 +71,10 @@ element_path: tests
 - That same contract-test entrypoint now also owns the live supporting guard `contract/security/test_lease_recovery_semantics_contract.py::test_security_center_projects_one_online_runtime_as_one_canonical_terminal`.
 - Control point: start a real runtime, allow automatic startup heartbeat registration, then drive one session-scoped lease warmup through the live console without forking the runtime.
 - Observation point: Security Center must still project exactly one canonical terminal for that online runtime and must not show a false `DIVERGED`/`OPEN` local-hash mismatch when no fork point exists. Current repository state is expected to pass, and this entrypoint remains the behavior-level regression guard for canonical-runtime-client-id-003.
+- That same contract-test entrypoint now also owns the reopened supporting guard `contract/security/test_lease_recovery_semantics_contract.py::test_security_center_persists_runtime_lease_fields_and_downgrades_after_stop`.
+- Control point: start a real runtime, observe a projected lease-bearing canonical client, inspect the durable Security Center store exposed by `tests/integration/conftest.py`, stop the runtime, then wait past the TTL window.
+- Observation point: the durable store must already persist nonzero `last_heartbeat_at`, `lease_ttl_seconds`, and `lease_expires_at` for that same canonical client before runtime stop, and operator overview plus timeline must later expose `UNTRUSTED` with `divergence_reason=lease_ttl_expired`. Current repository state is expected to fail until Coding/Repair closes the durable lease-persistence gap.
 - Live acceptance prerequisite: before reading operator overview or replaying the live guard against repository-local processes, reset the demo state with `scripts/reset-showcase-demo-state.ps1` and restart Security Center plus the QwenPaw runtime so stale store contents or stale processes do not create false positives.
 - `tests/architecture/security-runtime-client-identity-boundary.test.js` is a critical non-explicit architecture guard for sec-e2e-027. Its control point is static code-boundary inspection of `src/qwenpaw/security/audit_foundation.py` and `deploy/api/store.py`; its observation point is that startup heartbeat, recovery preflight, lockdown, and restored-access projection must share one canonical Security Center client id instead of splitting a live runtime across `runtime-heartbeat::<fingerprint>` and browser-session ids.
+- `tests/architecture/security-runtime-lease-persistence-boundary.test.js` is a critical non-explicit architecture guard for the reopened sec-e2e-027 lease-persistence gap. Its control point is static code-boundary inspection of `deploy/api/app.py` and `deploy/api/store.py`; its observation point is that the RecoveryHandshakeRequest contract must carry `lease_ttl_seconds`, the Security Center store must durably write `last_heartbeat_at`, `lease_ttl_seconds`, and `lease_expires_at`, and the implementation must not rely on projection-only fallback from `updated_at_ns` to hide zero lease fields.
 - `tests/integration/conftest.py` now carries the shared real-app subprocess bootstrap baseline for integration entrypoints; when runtime startup fails, it must surface a readable `startup_error` to test bodies instead of terminating those entrypoints during fixture setup.

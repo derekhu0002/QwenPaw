@@ -280,6 +280,7 @@ class AppServer:
     # backups, etc.) write directly under this path. The subprocess re-reads
     # these files on each HTTP request, so no restart is needed after seeding.
     working_dir: Path
+    security_center_data_dir: Path | None = None
     startup_error: str | None = None
     security_center_api_url: str | None = None
     security_center_web_url: str | None = None
@@ -581,6 +582,7 @@ def app_server(  # pylint: disable=too-many-statements,too-many-branches
                 logs=logs,
                 log_thread=log_thread,
                 working_dir=working_dir,
+                security_center_data_dir=security_center_data_dir,
                 startup_error=startup_error,
                 security_center_api_url=security_center_api_url,
                 security_center_web_url=security_center_web_url,
