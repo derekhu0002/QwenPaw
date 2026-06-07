@@ -17,12 +17,14 @@ from starlette.responses import Response, StreamingResponse
 from agentscope_runtime.engine.schemas.agent_schemas import AgentRequest
 from ...security.audit_foundation import (
     classify_lease_prompt,
+    emit_runtime_lease_heartbeat,
     evaluate_high_risk_tool_boundary,
     extract_prompt_security_context,
     lock_mode_required,
     preflight_sensitive_action_recovery,
     project_security_rejection_record,
     read_security_center_recovery_state,
+    write_reconnect_gap_proof_record,
     write_lease_heartbeat_record,
     write_lockdown_record,
     write_restored_model_access_record,
@@ -193,6 +195,23 @@ async def _maybe_handle_security_scenario(
             session_id=session_id,
         )
         if recovery_state.get("recovery_required") is True or str(recovery_state.get("trust_state") or "") not in {"ALIGNED", "TRUSTED"}:
+            await write_reconnect_gap_proof_record(
+                session_id=session_id,
+                user_id=user_id,
+                channel=channel_id,
+                prompt_text=prompt_text,
+            )
+            recovery_state = await preflight_sensitive_action_recovery(
+                session_id=session_id,
+                user_id=user_id,
+                tool_name="model_access_resume_tool",
+                prompt_text=prompt_text,
+            )
+            if not recovery_state:
+                recovery_state = await read_security_center_recovery_state(
+                    session_id=session_id,
+                )
+        if recovery_state.get("recovery_required") is True or str(recovery_state.get("trust_state") or "") not in {"ALIGNED", "TRUSTED"}:
             payload = await write_lockdown_record(
                 session_id=session_id,
                 user_id=user_id,
@@ -201,6 +220,11 @@ async def _maybe_handle_security_scenario(
                 prompt_text=prompt_text,
             )
             return _single_event_response(status_code=423, payload=payload)
+        await emit_runtime_lease_heartbeat(
+            session_id=session_id,
+            user_id=user_id,
+            prompt_text="Reconnect recovery heartbeat refresh.",
+        )
         payload = await write_restored_model_access_record(
             session_id=session_id,
             user_id=user_id,

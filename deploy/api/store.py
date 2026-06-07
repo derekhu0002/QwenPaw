@@ -107,6 +107,7 @@ def _event_chain_label(event_type: str) -> str:
         "USER_CONFIRMATION": "user-confirmation-chain-v2",
         "SECURITY_REJECTION": "security-rejection-chain-v1",
         "AUDIT_INTEGRITY_LOCKDOWN": "audit-lockdown-chain-v1",
+        "RECOVERY_RECONNECT_PROOF": "recovery-reconnect-proof-chain-v1",
     }.get(event_type, "")
 
 
@@ -472,6 +473,16 @@ class SecurityCenterStore:
             )
             expected_reported_hash = str(client_state.get("last_edge_reported_hash") or "")
             expected_anchor_hash = str(client_state.get("last_trusted_anchor_hash") or trusted_anchor_hash)
+            pristine_startup_client = all(
+                (
+                    not established_trusted_anchor,
+                    not expected_reported_hash,
+                    not recovery_gate_open,
+                    _as_int(client_state.get("last_heartbeat_at"), 0) <= 0,
+                    _as_int(client_state.get("lease_expires_at"), 0) <= 0,
+                    str(client_state.get("divergence_reason") or "") == "",
+                ),
+            )
 
             if (
                 not established_trusted_anchor
@@ -484,7 +495,25 @@ class SecurityCenterStore:
                 expected_anchor_hash = shadow_hash
                 client_state["shadow_hash"] = shadow_hash
 
-            if recovery_gate_open and gap_validation["accepted"]:
+            if pristine_startup_client and local_hash:
+                trust_state = TRUST_STATE_ALIGNED
+                recovery_required = False
+                gap_status = GAP_STATUS_CLEAR
+                recovery_gate_status = RECOVERY_GATE_CLOSED
+                divergence_reason = ""
+                shadow_hash = checkpoint_hash or local_hash
+                client_state.update(
+                    {
+                        "shadow_hash": shadow_hash,
+                        "last_trusted_anchor_hash": shadow_hash,
+                        "last_trusted_sequence": max(local_sequence, checkpoint_sequence, trusted_sequence),
+                        "last_trusted_anchor_event_id": checkpoint_anchor_id or anchored_event_id,
+                        "last_trusted_anchor_source": "recovery_handshake_startup",
+                        "last_trusted_anchor_trace_id": trace_id or client_state.get("last_handshake_trace_id"),
+                        "last_trusted_anchor_event_type": "STARTUP_ALIGNMENT",
+                    },
+                )
+            elif recovery_gate_open and gap_validation["accepted"]:
                 aligned_head_hash = local_hash
                 if expected_reported_hash and checkpoint_hash == expected_anchor_hash:
                     aligned_head_hash = expected_reported_hash
@@ -505,20 +534,6 @@ class SecurityCenterStore:
                         "last_trusted_anchor_event_type": "GAP_VALIDATION",
                     },
                 )
-            elif (
-                recovery_gate_open
-                and not established_trusted_anchor
-                and str(client_state.get("divergence_reason") or "") == "lease_ttl_expired"
-                and trace_id.startswith("runtime-heartbeat::")
-                and local_hash
-                and local_hash == expected_reported_hash
-                and checkpoint_hash == expected_anchor_hash
-            ):
-                trust_state = TRUST_STATE_ALIGNED
-                recovery_required = False
-                gap_status = GAP_STATUS_CLEAR
-                recovery_gate_status = RECOVERY_GATE_CLOSED
-                divergence_reason = ""
             elif (
                 not established_trusted_anchor
                 and local_hash
@@ -541,6 +556,30 @@ class SecurityCenterStore:
                         "last_trusted_anchor_source": "recovery_handshake_direct",
                         "last_trusted_anchor_trace_id": trace_id or client_state.get("last_handshake_trace_id"),
                         "last_trusted_anchor_event_type": "DIRECT_ALIGNMENT",
+                    },
+                )
+            elif (
+                trace_id.startswith("runtime-heartbeat::")
+                and not session_id
+                and not _session_aliases(client_state)
+                and str(client_state.get("divergence_reason") or "") != "lease_ttl_expired"
+                and local_hash
+            ):
+                trust_state = TRUST_STATE_ALIGNED
+                recovery_required = False
+                gap_status = GAP_STATUS_CLEAR
+                recovery_gate_status = RECOVERY_GATE_CLOSED
+                divergence_reason = ""
+                shadow_hash = checkpoint_hash or local_hash
+                client_state.update(
+                    {
+                        "shadow_hash": shadow_hash,
+                        "last_trusted_anchor_hash": shadow_hash,
+                        "last_trusted_sequence": max(local_sequence, checkpoint_sequence, trusted_sequence),
+                        "last_trusted_anchor_event_id": checkpoint_anchor_id or anchored_event_id,
+                        "last_trusted_anchor_source": "runtime_heartbeat_online",
+                        "last_trusted_anchor_trace_id": trace_id or client_state.get("last_handshake_trace_id"),
+                        "last_trusted_anchor_event_type": "RUNTIME_HEARTBEAT",
                     },
                 )
             elif local_hash and local_hash == shadow_hash:

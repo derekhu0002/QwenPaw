@@ -179,7 +179,7 @@ async def emit_runtime_lease_heartbeat(
     session_id: str | None = None,
     user_id: str = "runtime_heartbeat_emitter",
     prompt_text: str = "Runtime startup heartbeat emitter registration.",
-    ttl_seconds: int = 1,
+    ttl_seconds: int = 3,
 ) -> dict[str, Any]:
     latest_payload = _latest_trace_payload(base_dir) if not session_id else {}
     resolved_session_id = session_id or _normalize_text(latest_payload.get("session_id"))
@@ -504,7 +504,7 @@ async def write_lease_heartbeat_record(
     head_hash = anchor_state["head_hash"]
     head_sequence = anchor_state["head_sequence"]
     head_anchor_event_id = anchor_state["head_anchor_event_id"]
-    ttl_seconds = 1
+    ttl_seconds = 3
     emitted_at_ns = time.time_ns()
     handshake = await _post_security_center(
         "/security-center/v1/recovery/handshake",
@@ -1157,6 +1157,18 @@ def _gap_anchor_chain_material(payload: dict[str, Any]) -> dict[str, Any] | None
             "lock_mode": _normalize_text(payload.get("lock_mode")) or "UNTRUSTED",
             "created_at": f"{float(payload.get('created_at') or 0):.9f}",
         }
+    if event_type == "RECOVERY_RECONNECT_PROOF":
+        return {
+            "run_id": _normalize_text(payload.get("run_id")),
+            "session_id": _normalize_text(payload.get("session_id")),
+            "user_id": _normalize_text(payload.get("user_id")),
+            "tool_name": _normalize_text(payload.get("tool_name")),
+            "prompt_text": _normalize_text(payload.get("prompt_text")),
+            "prior_hash": _normalize_text(payload.get("prior_hash")),
+            "event_sequence": _safe_int(payload.get("event_sequence"), 0),
+            "anchored_event_id": _normalize_text(payload.get("anchored_event_id")),
+            "created_at": f"{float(payload.get('created_at') or 0):.9f}",
+        }
     return None
 
 
@@ -1546,6 +1558,69 @@ async def write_confirmation_record(
             user_id=confirmation_context["employee_id"],
             prompt_text="Trusted confirmation heartbeat sync.",
         )
+    return payload
+
+
+async def write_reconnect_gap_proof_record(
+    *,
+    session_id: str,
+    user_id: str,
+    prompt_text: str,
+    tool_name: str = "model_access_resume_tool",
+    channel: str = "console",
+    base_dir: Path | None = None,
+) -> dict[str, Any]:
+    created_at = time.time()
+    run_id = str(uuid.uuid4())
+    client_id = security_center_client_id(session_id=session_id, base_dir=base_dir)
+    anchor_state = _current_anchor_state(
+        base_dir,
+        trace_session_id=session_id,
+        bootstrap_client_id=client_id,
+    )
+    prior_hash = anchor_state["head_hash"]
+    prior_sequence = anchor_state["head_sequence"]
+    prior_anchored_event_id = anchor_state["head_anchor_event_id"]
+    event_sequence = anchor_state["next_sequence"]
+    anchored_event_id = anchor_state["next_anchor_event_id"]
+    current_hash = _canonical_hash(
+        "recovery-reconnect-proof-chain-v1",
+        {
+            "run_id": run_id,
+            "session_id": session_id,
+            "user_id": user_id,
+            "tool_name": tool_name,
+            "prompt_text": prompt_text,
+            "prior_hash": prior_hash,
+            "event_sequence": event_sequence,
+            "anchored_event_id": anchored_event_id,
+            "created_at": f"{created_at:.9f}",
+        },
+    )
+    payload = {
+        "run_id": run_id,
+        "event_type": "RECOVERY_RECONNECT_PROOF",
+        "status": "pending",
+        "decision": "reconnect_recovery",
+        "created_at": created_at,
+        "verified_at": created_at,
+        "user_id": user_id,
+        "request_user_id": user_id,
+        "session_id": session_id,
+        "channel": channel,
+        "tool_name": tool_name,
+        "high_risk_tool_name": tool_name,
+        "event_sequence": event_sequence,
+        "anchored_event_id": anchored_event_id,
+        "prior_event_sequence": prior_sequence,
+        "prior_anchored_event_id": prior_anchored_event_id,
+        "prompt_text": prompt_text,
+        "prior_hash": prior_hash,
+        "current_hash": current_hash,
+        "payload_hash": current_hash,
+        "lease_client_id": client_id,
+    }
+    _atomic_write(_trace_path(run_id, base_dir), payload)
     return payload
 
 
