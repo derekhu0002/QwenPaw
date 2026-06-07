@@ -13,7 +13,9 @@ import pytest
 from tests.integration.conftest import app_server  # noqa: F401
 
 from deploy.api.store import (
+    GAP_STATUS_CLEAR,
     GAP_STATUS_REQUIRED,
+    RECOVERY_GATE_CLOSED,
     RECOVERY_GATE_OPEN,
     TRUST_STATE_ALIGNED,
     TRUST_STATE_DIVERGED,
@@ -351,6 +353,112 @@ def test_runtime_startup_registers_lease_heartbeat_without_prompt(app_server) ->
         "Security Center must project nonzero last_heartbeat_at, "
         "lease_expires_at, and lease_ttl_seconds for a startup-registered "
         "client before any user prompt drives the lease flow."
+    )
+
+
+@pytest.mark.contract
+@pytest.mark.p0
+def test_security_center_projects_fresh_runtime_startup_as_aligned_clear_terminal(
+    app_server,
+) -> None:
+    """Control point: start a real QwenPaw runtime from a fresh app_server
+    bootstrap and observe Security Center before any intentional runtime stop,
+    offline lease-expiry demonstration, or session-scoped recovery workflow.
+
+    Observation point: Security Center must project exactly one canonical
+    runtime terminal with nonzero durable lease fields, trust_state ALIGNED,
+    gap_status CLEAR, recovery_gate_status CLEAR, recovery_required=false,
+    and no missing_gap_proof or other recovery-gated startup state.
+    """
+
+    if app_server.startup_error is not None:
+        raise AssertionError(app_server.startup_error)
+
+    # // GIVEN
+    projected_overview, projected_client = _poll_projected_lease_client(app_server)
+    canonical_client_id = str(projected_client.get("canonical_client_id") or "").strip()
+    assert canonical_client_id, (
+        "Security Center must project one canonical runtime client with "
+        "nonzero durable lease timing before startup normal-admission can be "
+        f"validated; observed overview={projected_overview!r}."
+    )
+    overview_clients = projected_overview.get("clients") if isinstance(projected_overview, dict) else []
+    canonical_client_ids = sorted(
+        {
+            str(client.get("canonical_client_id") or "").strip()
+            for client in overview_clients
+            if isinstance(client, dict)
+            and str(client.get("canonical_client_id") or "").strip()
+        },
+    )
+    durable_store = _read_security_center_store_snapshot(app_server)
+    durable_clients = durable_store.get("clients") if isinstance(durable_store, dict) else {}
+    durable_client = durable_clients.get(canonical_client_id, {}) if isinstance(durable_clients, dict) else {}
+
+    # // WHEN
+    startup_timeline = _read_security_center_timeline(
+        app_server,
+        client_id=canonical_client_id,
+    )
+
+    # // THEN
+    assert len(canonical_client_ids) == 1, (
+        "Startup_Admission_Gap: a fresh online runtime must project as one "
+        "canonical Security Center terminal before any lease-expiry or recovery "
+        f"workflow begins; observed canonical terminals={canonical_client_ids!r} from overview={projected_overview!r}."
+    )
+    assert int(durable_client.get("last_heartbeat_at") or 0) > 0, (
+        "Startup_Admission_Gap: the canonical startup terminal must already "
+        "persist last_heartbeat_at in the durable Security Center store."
+    )
+    assert int(durable_client.get("lease_expires_at") or 0) > 0, (
+        "Startup_Admission_Gap: the canonical startup terminal must already "
+        "persist lease_expires_at in the durable Security Center store."
+    )
+    assert projected_client.get("trust_state") == TRUST_STATE_ALIGNED, (
+        "Startup_Admission_Gap: a fresh online runtime must start as ALIGNED, "
+        "not as a recovery-gated terminal. "
+        f"Observed overview client={projected_client!r}."
+    )
+    assert projected_client.get("gap_status") == GAP_STATUS_CLEAR, (
+        "Startup_Admission_Gap: a fresh online runtime must not open a missing "
+        f"gap on startup. Observed overview client={projected_client!r}."
+    )
+    assert projected_client.get("recovery_gate_status") == RECOVERY_GATE_CLOSED, (
+        "Startup_Admission_Gap: startup heartbeat must not be treated as a "
+        f"recovery-gated missing-gap attempt. Observed overview client={projected_client!r}."
+    )
+    assert projected_client.get("recovery_required") is False, (
+        "Startup_Admission_Gap: a normally online startup terminal must not "
+        "require recovery before any offline lease-expiry event has occurred."
+    )
+    assert (projected_client.get("divergence_reason") or "") == "", (
+        "Startup_Admission_Gap: a fresh online startup terminal must not be "
+        f"tagged with a startup divergence reason. Observed overview client={projected_client!r}."
+    )
+    assert isinstance(startup_timeline, dict), (
+        "Security Center must expose the canonical startup terminal timeline "
+        "through the cloud-side boundary."
+    )
+    assert startup_timeline.get("trust_state") == TRUST_STATE_ALIGNED, (
+        "Startup_Admission_Gap: the canonical startup timeline must be ALIGNED "
+        f"before any offline lease expiry occurs. Observed timeline={startup_timeline!r}."
+    )
+    assert startup_timeline.get("gap_status") == GAP_STATUS_CLEAR, (
+        "Startup_Admission_Gap: the canonical startup timeline must remain CLEAR "
+        f"before any missing-gap recovery workflow is triggered. Observed timeline={startup_timeline!r}."
+    )
+    assert startup_timeline.get("recovery_gate_status") == RECOVERY_GATE_CLOSED, (
+        "Startup_Admission_Gap: the canonical startup timeline must not open a "
+        f"recovery gate on fresh startup. Observed timeline={startup_timeline!r}."
+    )
+    assert startup_timeline.get("recovery_required") is False, (
+        "Startup_Admission_Gap: a fresh online runtime must not require recovery "
+        f"at startup. Observed timeline={startup_timeline!r}."
+    )
+    assert (startup_timeline.get("divergence_reason") or "") == "", (
+        "Startup_Admission_Gap: a fresh online startup timeline must not be "
+        f"tagged with missing_gap_proof or any other divergence reason. Observed timeline={startup_timeline!r}."
     )
 
 

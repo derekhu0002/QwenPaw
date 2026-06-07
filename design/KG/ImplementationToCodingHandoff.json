@@ -2,7 +2,7 @@
   "stage": "implementation-to-coding",
   "generatedAt": "2026-06-07",
   "sourceIntentGraphPath": "design/KG/SystemArchitecture.json",
-  "summary": "Coding delivery now matches the implementation architecture contract for sec-e2e-027. The explicit entrypoint remains frozen and green, the startup-heartbeat and canonical-runtime-client-identity guards remain green, and the durable lease-persistence guard now also passes: deploy/api carries lease_ttl_seconds through deploy/api/app.py into deploy/api/store.py, persists last_heartbeat_at, lease_ttl_seconds, and lease_expires_at for the canonical runtime client, and downgrades a stopped runtime through the true durable TTL path to UNTRUSTED with divergence_reason=lease_ttl_expired.",
+  "summary": "Implementation architecture is reopened for sec-e2e-027. The explicit entrypoint remains frozen and green, the startup-heartbeat, canonical-runtime-client-identity, and durable lease-persistence guards remain green, but a new expected-failing startup-normal-admission guard now proves a freshly started online runtime can still be projected as GAP_VALIDATION_REQUIRED with gap_status REQUIRED, recovery_gate_status OPEN, and divergence_reason missing_gap_proof before any offline lease-expiry event has occurred. Coding/Repair must preserve the repaired single-terminal identity plus durable lease timing while admitting clean startup heartbeat as ALIGNED/CLEAR normal online state.",
   "implementationContracts": [
     "OVERALL_ARCHITECTURE.md",
     "src/qwenpaw/ARCHITECTURE.md",
@@ -101,6 +101,14 @@
       "controlPoint": "Start a real QwenPaw runtime, observe a projected lease-bearing canonical client, inspect the durable Security Center store for that same canonical client, then stop the runtime and wait past the TTL window.",
       "observationPoint": "Before runtime stop, the durable store must already hold nonzero last_heartbeat_at, lease_ttl_seconds, and lease_expires_at for the canonical runtime client; after TTL expiry, overview and timeline must expose that same client as UNTRUSTED with divergence_reason=lease_ttl_expired and recovery_required=true. Current repository state passes and this guard remains as regression protection.",
       "expectedStatus": "passed"
+    },
+    {
+      "name": "security-center-startup-normal-admission-semantics",
+      "path": "tests/contract/security/test_lease_recovery_semantics_contract.py",
+      "kind": "supporting-guardrail",
+      "controlPoint": "Start a real QwenPaw runtime from a fresh bootstrap and observe Security Center before any intentional runtime stop, offline lease-expiry demonstration, or session-scoped recovery workflow.",
+      "observationPoint": "Overview and timeline must show one canonical startup terminal with nonzero durable lease fields, trust_state ALIGNED, gap_status CLEAR, recovery_gate_status CLEAR, recovery_required=false, and no missing_gap_proof or other startup divergence reason. Current repository state is expected to fail until Coding/Repair closes the startup normal-admission gap.",
+      "expectedStatus": "passed"
     }
   ],
   "expectedFailureRecordsPath": "design/KG/test-failure-records.json",
@@ -135,33 +143,35 @@
       "path": "tests/architecture/security-runtime-lease-persistence-boundary.test.js",
       "failureSignal": "Static architecture regression signal if the Security Center API contract drops lease_ttl_seconds, if the store stops durably writing lease timing, or if projection-only runtime-heartbeat fallback returns as the apparent source of truth.",
       "nextAction": "Keep the deploy/api request-model and store-write seam aligned with the durable lease registry contract."
+    },
+    {
+      "path": "tests/contract/security/test_lease_recovery_semantics_contract.py::test_security_center_projects_fresh_runtime_startup_as_aligned_clear_terminal",
+      "failureSignal": "Reopened delivery signal if a freshly started online runtime is projected as GAP_VALIDATION_REQUIRED, gap_status REQUIRED, recovery_gate_status OPEN, recovery_required=true, or divergence_reason missing_gap_proof before any offline lease-expiry event has occurred.",
+      "nextAction": "Adjust startup-heartbeat admission in deploy/api/store.py and the runtime heartbeat payload contract so a clean canonical startup heartbeat converges to ALIGNED/CLEAR normal online state while true post-expiry or post-gap rejoin still requires missing-gap validation."
     }
   ],
   "taskExecutionPlan": {
-    "executionStrategy": "Coding delivery is accepted against the current implementation architecture. Keep sec-e2e-027 on its one frozen explicit entrypoint with two sequential control points and two distinct console observation points, preserve the startup-heartbeat, single-terminal runtime identity, and durable lease-persistence guards, and treat the durable Security Center store as the source of truth for TTL expiry after runtime stop.",
+    "executionStrategy": "Coding delivery is reopened against the current implementation architecture. Keep sec-e2e-027 on its one frozen explicit entrypoint with two sequential control points and two distinct console observation points, preserve the already-green startup-heartbeat, single-terminal runtime identity, and durable lease-persistence guards, and close the reopened startup normal-admission gap by making a clean canonical startup heartbeat converge to ALIGNED/CLEAR before any offline lease-expiry or recovery workflow begins.",
     "tasks": [
       {
-        "taskId": "security-center-durable-lease-persistence-004",
-        "title": "Preserve canonical runtime lease timing",
-        "objective": "Keep the repaired single-terminal runtime identity intact while preserving canonical runtime heartbeat TTL flow through the Security Center API contract into the durable lease registry so a stopped runtime continues to downgrade through the true TTL path instead of a projection-only read-model approximation.",
+        "taskId": "security-center-startup-normal-admission-005",
+        "title": "Admit clean startup as aligned",
+        "objective": "Keep the repaired single-terminal runtime identity and durable lease timing intact while ensuring a fresh canonical startup heartbeat is admitted as ALIGNED/CLEAR normal online state instead of a recovery-gated missing-gap terminal.",
         "relatedTestcases": [
           "sec-e2e-027-lease-expiry-active-defense"
         ],
         "targetPaths": [
-          "deploy/api/app.py",
           "deploy/api/store.py",
           "src/qwenpaw/security/audit_foundation.py",
-          "tests/architecture/security-runtime-lease-persistence-boundary.test.js",
           "tests/contract/security/test_lease_recovery_semantics_contract.py"
         ],
         "steps": [
-          "Keep deploy/api/app.py RecoveryHandshakeRequest carrying lease_ttl_seconds so runtime heartbeat traffic cannot drop TTL before payloads reach deploy/api/store.py.",
-          "In deploy/api/store.py, keep resolving one canonical runtime client id, then durably write last_heartbeat_at, lease_ttl_seconds, and lease_expires_at for that same canonical client whenever runtime heartbeat lease registration occurs.",
-          "Keep overview and timeline reflecting durable store state rather than hiding zero lease fields through projection-only runtime-heartbeat fallback from updated_at_ns.",
-          "Preserve the already-repaired single-terminal runtime identity so this lease-persistence fix does not reintroduce multiple canonical clients or false DIVERGED/OPEN bootstrap-shadow mismatches.",
+          "In deploy/api/store.py, distinguish clean startup heartbeat admission from true recovery-gated rejoin paths so a fresh canonical runtime heartbeat does not inherit missing_gap_proof or GAP_VALIDATION_REQUIRED by default.",
+          "Preserve one canonical runtime client id and the already-green durable lease timing path while adjusting startup trust-state convergence; this fix must not reintroduce multiple canonical terminals or zeroed lease fields.",
+          "Keep missing-gap validation semantics reserved for real post-expiry or post-gap recovery attempts. Fresh startup must converge to trust_state ALIGNED, gap_status CLEAR, recovery_gate_status CLEAR, and recovery_required=false unless Security Center has already observed a real expired lease, fork, tamper event, or continuity gap.",
           "Do not rewrite the frozen sec-e2e-027 explicit entrypoint, GIVEN/WHEN/THEN body, or the split pre_recovery_console_status/post_recovery_console_status observation contract while closing this gap."
         ],
-        "completionSignal": "tests/contract/security/test_lease_recovery_semantics_contract.py::test_security_center_persists_runtime_lease_fields_and_downgrades_after_stop and tests/architecture/security-runtime-lease-persistence-boundary.test.js remain green while the startup-heartbeat and single-terminal runtime identity guards also remain green."
+        "completionSignal": "tests/contract/security/test_lease_recovery_semantics_contract.py::test_security_center_projects_fresh_runtime_startup_as_aligned_clear_terminal turns green while tests/contract/security/test_lease_recovery_semantics_contract.py::test_runtime_startup_registers_lease_heartbeat_without_prompt, tests/contract/security/test_lease_recovery_semantics_contract.py::test_security_center_projects_one_online_runtime_as_one_canonical_terminal, and tests/contract/security/test_lease_recovery_semantics_contract.py::test_security_center_persists_runtime_lease_fields_and_downgrades_after_stop remain green."
       }
     ]
   },
@@ -187,5 +197,7 @@
     "tests/architecture/security-audit-contract-boundaries.test.js",
     "tests/architecture/security-explicit-entrypoint-traceability.test.js"
   ],
-  "openGaps": []
+  "openGaps": [
+    "A freshly started online runtime can still be projected as GAP_VALIDATION_REQUIRED with gap_status REQUIRED, recovery_gate_status OPEN, recovery_required=true, and divergence_reason missing_gap_proof before any offline lease-expiry event has occurred, so clean startup admission is not yet aligned with the sec-e2e-027 intent baseline."
+  ]
 }

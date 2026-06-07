@@ -25,7 +25,7 @@
 - QwenPaw 已正常启动。
 - 控制台页面可正常打开。
 	- Security Center backend API 已启动并可访问。最小启动方式与本次通过用例一致：在仓库根目录执行 `python -m deploy.api.app`，默认监听 `http://127.0.0.1:8091`；若需改端口，可设置 `SECURITY_CENTER_API_HOST` 与 `SECURITY_CENTER_API_PORT`。
-	- Security Center operator web 已启动并可访问。最小启动方式与本次通过用例一致：在仓库根目录执行 `python -m deploy.web.server`，默认监听 `http://127.0.0.1:8092`；若 API 不在默认地址，需要同时设置 `SECURITY_CENTER_API_BASE` 指向 deploy/api。
+	- Security Center operator web 已启动并可访问。最小启动方式与本次通过用例一致：在仓库根目录执行 `实现和意图之间还存在GAP，见上一次GIT提交，你需要基于GAP调整实现架构（如果涉及）并下发开发任务给开发团队`，默认监听 `http://127.0.0.1:8092`；若 API 不在默认地址，需要同时设置 `SECURITY_CENTER_API_BASE` 指向 deploy/api。
 	- 当前环境可以观察到本地审计工作目录。这里指 edge runtime 的 `QWENPAW_WORKING_DIR`；本次通过用例里，关键文件是 `<QWENPAW_WORKING_DIR>/audit_chain_checkpoint.json` 和 `<QWENPAW_WORKING_DIR>/inbox_traces/*.json`。不需要单独预制目录，但必须先完成一次正常高风险动作，让这两个位置已经产生基线审计文件。
 - 已启用高风险工具保护(推荐shell 删除文件之类的现有 builtin tool)。
 
