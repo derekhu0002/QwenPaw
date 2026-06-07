@@ -468,18 +468,23 @@ class SecurityCenterStore:
                 local_hash=local_hash,
                 local_sequence=max(local_sequence, checkpoint_sequence),
             )
+            expected_reported_hash = str(client_state.get("last_edge_reported_hash") or "")
+            expected_anchor_hash = str(client_state.get("last_trusted_anchor_hash") or trusted_anchor_hash)
 
             if recovery_gate_open and gap_validation["accepted"]:
+                aligned_head_hash = local_hash
+                if expected_reported_hash and checkpoint_hash == expected_anchor_hash:
+                    aligned_head_hash = expected_reported_hash
                 trust_state = TRUST_STATE_ALIGNED
                 recovery_required = False
                 gap_status = GAP_STATUS_VALIDATED
                 recovery_gate_status = RECOVERY_GATE_CLOSED
                 divergence_reason = ""
-                shadow_hash = local_hash or shadow_hash
+                shadow_hash = aligned_head_hash or shadow_hash
                 client_state.update(
                     {
                         "shadow_hash": shadow_hash,
-                        "last_trusted_anchor_hash": local_hash or checkpoint_hash or shadow_hash,
+                        "last_trusted_anchor_hash": aligned_head_hash or checkpoint_hash or shadow_hash,
                         "last_trusted_sequence": max(local_sequence, checkpoint_sequence, trusted_sequence),
                         "last_trusted_anchor_event_id": anchored_event_id or checkpoint_anchor_id,
                         "last_trusted_anchor_source": "recovery_handshake_gap_validation",
@@ -518,9 +523,18 @@ class SecurityCenterStore:
                             },
                         )
             else:
-                expected_reported_hash = str(client_state.get("last_edge_reported_hash") or "")
-                expected_anchor_hash = str(client_state.get("last_trusted_anchor_hash") or trusted_anchor_hash)
                 if (
+                    recovery_gate_open
+                    and local_hash
+                    and local_hash == expected_reported_hash
+                    and checkpoint_hash == expected_anchor_hash
+                ):
+                    trust_state = TRUST_STATE_UNTRUSTED
+                    recovery_required = True
+                    gap_status = GAP_STATUS_REQUIRED
+                    recovery_gate_status = RECOVERY_GATE_OPEN
+                    divergence_reason = "missing_gap_proof"
+                elif (
                     recovery_gate_open
                     and explicit_gap_verification
                     and local_hash
@@ -532,6 +546,12 @@ class SecurityCenterStore:
                     gap_status = GAP_STATUS_REQUIRED
                     recovery_gate_status = RECOVERY_GATE_OPEN
                     divergence_reason = "missing_gap_proof"
+                elif recovery_gate_open and trace_id.startswith("runtime-"):
+                    trust_state = TRUST_STATE_UNTRUSTED
+                    recovery_required = True
+                    gap_status = GAP_STATUS_DIVERGED
+                    recovery_gate_status = RECOVERY_GATE_OPEN
+                    divergence_reason = "local_hash_mismatch"
                 else:
                     trust_state = TRUST_STATE_DIVERGED
                     recovery_required = True

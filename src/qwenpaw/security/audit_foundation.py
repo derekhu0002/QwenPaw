@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import hashlib
+import asyncio
 import json
 import logging
 import os
@@ -132,16 +133,8 @@ def security_center_client_id(
     session_id: str = "",
     base_dir: Path | None = None,
 ) -> str:
-    normalized_session_id = _normalize_text(session_id)
-    if not normalized_session_id:
-        return runtime_lease_client_id(base_dir)
-    workspace_fingerprint = hashlib.sha256(
-        str(_workspace_dir(base_dir)).lower().encode("utf-8"),
-    ).hexdigest()[:16]
-    session_fingerprint = hashlib.sha256(
-        normalized_session_id.encode("utf-8"),
-    ).hexdigest()[:16]
-    return f"runtime-session::{workspace_fingerprint}::{session_fingerprint}"
+    _ = session_id
+    return runtime_lease_client_id(base_dir)
 
 
 def _safe_int(value: Any, default: int = 0) -> int:
@@ -243,15 +236,21 @@ async def _post_security_center(path: str, payload: dict[str, Any]) -> dict[str,
     if not base_url:
         return {}
     url = f"{base_url}{path}"
-    try:
-        async with httpx.AsyncClient(timeout=5.0) as client:
-            response = await client.post(url, json=payload)
-            response.raise_for_status()
-            data = response.json()
-            return data if isinstance(data, dict) else {}
-    except Exception:
-        logger.exception("Security Center HTTP projection failed for %s", url)
-        return {}
+    last_error: Exception | None = None
+    for attempt in range(3):
+        try:
+            async with httpx.AsyncClient(timeout=5.0) as client:
+                response = await client.post(url, json=payload)
+                response.raise_for_status()
+                data = response.json()
+                return data if isinstance(data, dict) else {}
+        except Exception as error:
+            last_error = error
+            if attempt == 2:
+                break
+            await asyncio.sleep(0.25 * (attempt + 1))
+    logger.exception("Security Center HTTP projection failed for %s", url, exc_info=last_error)
+    return {}
 
 
 def _extract_high_risk_tool_name(prompt_text: str, fallback_tool_name: str = "") -> str:
@@ -432,12 +431,16 @@ async def preflight_sensitive_action_recovery(
     checkpoint_path = _checkpoint_path(base_dir)
     checkpoint = _read_json(checkpoint_path) or {}
     latest_payload = _latest_trace_payload(base_dir, session_id=session_id)
-    head_hash = _normalize_text(latest_payload.get("current_hash")) or _normalize_text(checkpoint.get("current_hash"))
+    head_hash = _normalize_text(latest_payload.get("current_edge_reported_hash")) or _normalize_text(
+        latest_payload.get("current_hash"),
+    ) or _normalize_text(checkpoint.get("current_hash"))
     head_sequence = _safe_int(
-        latest_payload.get("event_sequence"),
+        latest_payload.get("current_edge_reported_sequence") or latest_payload.get("event_sequence"),
         _safe_int(checkpoint.get("confirmed_sequence") or checkpoint.get("event_sequence"), 0),
     )
-    head_anchor_id = _normalize_text(latest_payload.get("anchored_event_id")) or _normalize_text(
+    head_anchor_id = _normalize_text(latest_payload.get("current_edge_reported_anchor_event_id")) or _normalize_text(
+        latest_payload.get("anchored_event_id"),
+    ) or _normalize_text(
         checkpoint.get("last_anchored_event_id") or checkpoint.get("anchored_event_id") or checkpoint.get("run_id"),
     )
 
@@ -800,6 +803,7 @@ async def write_lockdown_record(
     latest_payload = _latest_trace_payload(base_dir, session_id=session_id)
     anchor_state = _current_anchor_state(
         base_dir,
+        trace_session_id=session_id,
         bootstrap_client_id=client_id,
     )
     prior_hash = anchor_state["head_hash"]
@@ -1074,11 +1078,12 @@ def _derive_security_center_bootstrap_hash(client_id: str) -> str:
 def _current_anchor_state(
     base_dir: Path | None = None,
     *,
+    trace_session_id: str = "",
     bootstrap_client_id: str = "",
 ) -> dict[str, Any]:
     latest_payload = _latest_trace_payload(
         base_dir,
-        session_id=bootstrap_client_id,
+        session_id=trace_session_id or bootstrap_client_id,
     )
     checkpoint = _read_json(_checkpoint_path(base_dir)) or {}
     bootstrap_hash = (
@@ -1341,7 +1346,6 @@ def capture_runtime_confirmation_context() -> dict[str, str]:
         fallback_plugin_name="",
         fallback_tool_name="",
     )
-
     return {
         "employee_id": parsed["employee_id"] or user_id,
         "delegated_agent_name": parsed["delegated_agent_name"] or agent_id,
@@ -1451,6 +1455,7 @@ async def write_confirmation_record(
     )
     anchor_state = _current_anchor_state(
         base_dir,
+        trace_session_id=confirmation_context["authenticated_session_id"],
         bootstrap_client_id=client_id,
     )
     prior_hash = anchor_state["head_hash"]
