@@ -13,9 +13,10 @@ QwenPaw now includes a deploy-owned Security Center slice that stays physically 
   - Rejected-event uplink: `POST /security-center/v1/uplinks/rejections`
   - Lockdown uplink: `POST /security-center/v1/uplinks/lockdowns`
   - Operator overview: `GET /security-center/v1/operator/overview`
+    - Projects canonical Security Center client state while also exposing session-scoped alias entries so operator and acceptance clients can continue to look up the live runtime by the authenticated session id.
   - Voucher lookup: `GET /security-center/v1/operator/vouchers/{nonce}`
   - Divergence timeline: `GET /security-center/v1/operator/timelines/{client_id}`
-    - Returns last trusted anchor, current edge-reported head, gap status, fork point, and recovery gate state for operator review.
+    - Accepts either the canonical Security Center client id or a session alias and returns last trusted anchor, current edge-reported head, gap status, fork point, recovery gate state, and `canonical_client_id` for operator review.
   - Realtime alerts: `GET /security-center/v1/operator/stream`
 
 - Operator web: `deploy/web/index.html`

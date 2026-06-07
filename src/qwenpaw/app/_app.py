@@ -322,6 +322,16 @@ async def lifespan(  # pylint: disable=too-many-statements,too-many-branches
 
     _runtime_heartbeat_task = asyncio.create_task(_runtime_heartbeat_emitter())
 
+    try:
+        startup_config = load_config(get_config_path())
+        active_agent_id = startup_config.agents.active_agent or "default"
+        await multi_agent_manager.get_agent(active_agent_id)
+    except Exception:
+        logger.warning(
+            "Active agent preload failed during startup",
+            exc_info=True,
+        )
+
     fast_elapsed = time.time() - startup_start_time
     logger.info(
         f"Server ready in {fast_elapsed:.3f}s "

@@ -127,6 +127,23 @@ def runtime_lease_client_id(base_dir: Path | None = None) -> str:
     return f"runtime-heartbeat::{workspace_fingerprint}"
 
 
+def security_center_client_id(
+    *,
+    session_id: str = "",
+    base_dir: Path | None = None,
+) -> str:
+    normalized_session_id = _normalize_text(session_id)
+    if not normalized_session_id:
+        return runtime_lease_client_id(base_dir)
+    workspace_fingerprint = hashlib.sha256(
+        str(_workspace_dir(base_dir)).lower().encode("utf-8"),
+    ).hexdigest()[:16]
+    session_fingerprint = hashlib.sha256(
+        normalized_session_id.encode("utf-8"),
+    ).hexdigest()[:16]
+    return f"runtime-session::{workspace_fingerprint}::{session_fingerprint}"
+
+
 def _safe_int(value: Any, default: int = 0) -> int:
     try:
         if value is None:
@@ -152,9 +169,14 @@ async def _get_security_center(path: str) -> dict[str, Any]:
         return {}
 
 
-async def read_security_center_recovery_state(*, session_id: str) -> dict[str, Any]:
+async def read_security_center_recovery_state(
+    *,
+    session_id: str,
+    base_dir: Path | None = None,
+) -> dict[str, Any]:
+    client_id = security_center_client_id(session_id=session_id, base_dir=base_dir)
     return await _get_security_center(
-        f"/security-center/v1/operator/timelines/{session_id}",
+        f"/security-center/v1/operator/timelines/{client_id}",
     )
 
 
@@ -166,17 +188,18 @@ async def emit_runtime_lease_heartbeat(
     prompt_text: str = "Runtime startup heartbeat emitter registration.",
     ttl_seconds: int = 1,
 ) -> dict[str, Any]:
-    resolved_session_id = session_id or runtime_lease_client_id(base_dir)
+    client_id = security_center_client_id(session_id=session_id or "", base_dir=base_dir)
     anchor_state = _current_anchor_state(
         base_dir,
-        bootstrap_client_id=resolved_session_id,
+        bootstrap_client_id=client_id,
     )
     checkpoint = _read_json(_checkpoint_path(base_dir)) or {}
     emitted_at_ns = time.time_ns()
     return await _post_security_center(
         "/security-center/v1/recovery/handshake",
         {
-            "client_id": resolved_session_id,
+            "client_id": client_id,
+            "session_id": session_id or "",
             "trace_id": f"runtime-heartbeat::{uuid.uuid4().hex[:12]}",
             "local_hash": anchor_state["head_hash"],
             "checkpoint_hash": _normalize_text(checkpoint.get("current_hash")) or anchor_state["head_hash"],
@@ -404,6 +427,8 @@ async def preflight_sensitive_action_recovery(
     if not tool_name:
         return {}
 
+    client_id = security_center_client_id(session_id=session_id, base_dir=base_dir)
+
     checkpoint_path = _checkpoint_path(base_dir)
     checkpoint = _read_json(checkpoint_path) or {}
     latest_payload = _latest_trace_payload(base_dir, session_id=session_id)
@@ -434,7 +459,8 @@ async def preflight_sensitive_action_recovery(
     return await _post_security_center(
         "/security-center/v1/recovery/handshake",
         {
-            "client_id": session_id,
+            "client_id": client_id,
+            "session_id": session_id,
             "trace_id": f"runtime-preflight::{uuid.uuid4().hex[:12]}",
             "local_hash": head_hash,
             "checkpoint_hash": _normalize_text(checkpoint.get("current_hash")) or head_hash,
@@ -464,9 +490,10 @@ async def write_lease_heartbeat_record(
 ) -> dict[str, Any]:
     created_at = time.time()
     run_id = str(uuid.uuid4())
+    client_id = security_center_client_id(session_id=session_id, base_dir=base_dir)
     anchor_state = _current_anchor_state(
         base_dir,
-        bootstrap_client_id=session_id,
+        bootstrap_client_id=client_id,
     )
     checkpoint = _read_json(_checkpoint_path(base_dir)) or {}
     head_hash = anchor_state["head_hash"]
@@ -477,7 +504,8 @@ async def write_lease_heartbeat_record(
     handshake = await _post_security_center(
         "/security-center/v1/recovery/handshake",
         {
-            "client_id": session_id,
+            "client_id": client_id,
+            "session_id": session_id,
             "trace_id": run_id,
             "local_hash": head_hash,
             "checkpoint_hash": _normalize_text(checkpoint.get("current_hash")) or head_hash,
@@ -515,7 +543,7 @@ async def write_lease_heartbeat_record(
         "heartbeat_emitted_at": created_at,
         "heartbeat_interval_seconds": ttl_seconds,
         "security_heartbeat": "EMITTED",
-        "lease_client_id": session_id,
+        "lease_client_id": client_id,
         "trust_state": handshake.get("trust_state", "ALIGNED") if handshake else "ALIGNED",
         "recovery_required": handshake.get("recovery_required", False) if handshake else False,
         "gap_status": handshake.get("gap_status", "CLEAR") if handshake else "CLEAR",
@@ -551,8 +579,9 @@ async def write_restored_model_access_record(
 ) -> dict[str, Any]:
     created_at = time.time()
     run_id = str(uuid.uuid4())
+    client_id = security_center_client_id(session_id=session_id, base_dir=base_dir)
     timeline = await _get_security_center(
-        f"/security-center/v1/operator/timelines/{session_id}",
+        f"/security-center/v1/operator/timelines/{client_id}",
     )
     web_url = await _probe_security_center_web()
     payload = {
@@ -565,10 +594,11 @@ async def write_restored_model_access_record(
         "session_id": session_id,
         "channel": channel,
         "prompt_text": prompt_text,
+        "lease_client_id": client_id,
         "trust_state": _normalize_text(timeline.get("trust_state")) or "ALIGNED",
         "recovery_required": bool(timeline.get("recovery_required")),
         "gap_status": _normalize_text(timeline.get("gap_status")) or "VALIDATED",
-        "security_center_backend_api": f"/security-center/v1/operator/timelines/{session_id}",
+        "security_center_backend_api": f"/security-center/v1/operator/timelines/{client_id}",
     }
     if web_url:
         payload.update(
@@ -680,17 +710,23 @@ async def project_security_rejection_record(
     if not run_id:
         return payload
 
+    client_id = security_center_client_id(
+        session_id=str(payload.get("session_id") or ""),
+        base_dir=base_dir,
+    )
+    projection_timestamp_ns = time.time_ns()
+
     uplink_result = await _post_security_center(
         "/security-center/v1/uplinks/rejections",
         {
-            "client_id": payload.get("session_id", ""),
+            "client_id": client_id,
             "trace_id": run_id,
             "session_id": payload.get("session_id", ""),
             "user_id": payload.get("user_id", ""),
             "tool_name": payload.get("tool_name", ""),
             "security_rejection_nonce": payload.get("security_rejection_nonce", ""),
             "security_rejection_nonce_binding_hash": payload.get("security_rejection_nonce_binding_hash", ""),
-            "edge_timestamp_ns": payload.get("edge_timestamp_ns"),
+            "edge_timestamp_ns": projection_timestamp_ns,
             "prompt_text": payload.get("prompt_text", ""),
         },
     )
@@ -757,13 +793,14 @@ async def write_lockdown_record(
     created_at = time.time()
     edge_timestamp_ns = time.time_ns()
     run_id = str(uuid.uuid4())
+    client_id = security_center_client_id(session_id=session_id, base_dir=base_dir)
     checkpoint_path = _checkpoint_path(base_dir)
     checkpoint_exists = checkpoint_path.exists()
     checkpoint = _read_json(checkpoint_path) or {}
     latest_payload = _latest_trace_payload(base_dir, session_id=session_id)
     anchor_state = _current_anchor_state(
         base_dir,
-        bootstrap_client_id=session_id,
+        bootstrap_client_id=client_id,
     )
     prior_hash = anchor_state["head_hash"]
     prior_sequence = anchor_state["head_sequence"]
@@ -830,7 +867,8 @@ async def write_lockdown_record(
     handshake = await _post_security_center(
         "/security-center/v1/recovery/handshake",
         {
-            "client_id": session_id,
+            "client_id": client_id,
+            "session_id": session_id,
             "trace_id": run_id,
             "local_hash": local_hash,
             "checkpoint_hash": _normalize_text(checkpoint.get("current_hash")) or prior_hash,
@@ -889,7 +927,7 @@ async def write_lockdown_record(
     uplink_result = await _post_security_center(
         "/security-center/v1/uplinks/lockdowns",
         {
-            "client_id": session_id,
+            "client_id": client_id,
             "trace_id": run_id,
             "session_id": session_id,
             "user_id": user_id,
@@ -1176,10 +1214,11 @@ async def _project_trusted_anchor(payload: dict[str, Any]) -> None:
     anchor = _gap_anchor_from_trace_payload(payload)
     if anchor is None:
         return
+    client_id = security_center_client_id(session_id=str(payload.get("session_id") or ""))
     await _post_security_center(
         "/security-center/v1/uplinks/trusted-anchors",
         {
-            "client_id": payload.get("session_id", ""),
+            "client_id": client_id,
             "trace_id": payload.get("run_id", ""),
             "run_id": payload.get("run_id", ""),
             "session_id": payload.get("session_id", ""),
@@ -1406,9 +1445,13 @@ async def write_confirmation_record(
         )
 
     confirmed_at = time.time()
+    client_id = security_center_client_id(
+        session_id=confirmation_context["authenticated_session_id"],
+        base_dir=base_dir,
+    )
     anchor_state = _current_anchor_state(
         base_dir,
-        bootstrap_client_id=session_id,
+        bootstrap_client_id=client_id,
     )
     prior_hash = anchor_state["head_hash"]
     prior_sequence = anchor_state["head_sequence"]
