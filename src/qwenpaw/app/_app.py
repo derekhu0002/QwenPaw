@@ -469,11 +469,28 @@ async def lifespan(  # pylint: disable=too-many-statements,too-many-branches
                 exc_info=True,
             )
 
+    async def _periodic_rule_integrity_check():
+        from ..security.tool_guard.rules_integrity import (
+            verify_default_builtin_rule_files,
+        )
+
+        while True:
+            await asyncio.to_thread(verify_default_builtin_rule_files)
+            await asyncio.sleep(30)
+
     _bg_task = asyncio.create_task(_background_startup())
+    _rule_integrity_task = asyncio.create_task(
+        _periodic_rule_integrity_check(),
+    )
 
     try:
         yield
     finally:
+        if not _rule_integrity_task.done():
+            _rule_integrity_task.cancel()
+            with suppress(asyncio.CancelledError):
+                await _rule_integrity_task
+
         # Cancel background startup if still in progress
         if not _bg_task.done():
             _bg_task.cancel()

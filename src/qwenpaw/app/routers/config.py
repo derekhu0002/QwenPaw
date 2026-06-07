@@ -719,6 +719,47 @@ async def get_builtin_rules() -> List[ToolGuardRuleConfig]:
     ]
 
 
+class ToolGuardRuleIntegrityFindingResponse(BaseModel):
+    file: str
+    reason: str
+    expected_sha256: Optional[str] = None
+    actual_sha256: Optional[str] = None
+    detail: str = ""
+
+
+class ToolGuardRuleIntegrityResponse(BaseModel):
+    ok: bool
+    status: str
+    message: str
+    checked_at: Optional[str] = None
+    findings: List[ToolGuardRuleIntegrityFindingResponse] = Field(
+        default_factory=list,
+    )
+
+
+@router.get(
+    "/security/tool-guard/rules-integrity",
+    response_model=ToolGuardRuleIntegrityResponse,
+    summary="Get built-in tool guard rule integrity status",
+)
+async def get_tool_guard_rules_integrity() -> ToolGuardRuleIntegrityResponse:
+    from ...security.tool_guard.rules_integrity import (
+        get_last_rule_integrity_status,
+    )
+
+    status = get_last_rule_integrity_status()
+    return ToolGuardRuleIntegrityResponse(
+        ok=status.ok,
+        status=status.status,
+        message=status.message,
+        checked_at=status.checked_at,
+        findings=[
+            ToolGuardRuleIntegrityFindingResponse(**finding.to_dict())
+            for finding in status.findings
+        ],
+    )
+
+
 # ── Security / File Guard ────────────────────────────────────────────
 
 

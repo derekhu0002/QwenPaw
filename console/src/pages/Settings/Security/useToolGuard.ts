@@ -3,6 +3,7 @@ import api from "../../../api";
 import type {
   ToolGuardConfig,
   ToolGuardRule,
+  ToolGuardRulesIntegrity,
 } from "../../../api/modules/security";
 
 export interface MergedRule extends ToolGuardRule {
@@ -20,6 +21,8 @@ export function useToolGuard() {
   const [shellEvasionChecks, setShellEvasionChecks] = useState<
     Record<string, boolean>
   >({});
+  const [rulesIntegrity, setRulesIntegrity] =
+    useState<ToolGuardRulesIntegrity | null>(null);
   const [enabled, setEnabled] = useState(true);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -39,6 +42,15 @@ export function useToolGuard() {
       setDisabledRules(new Set(cfg.disabled_rules ?? []));
       setAutoDenyRules(new Set(cfg.auto_denied_rules ?? []));
       setShellEvasionChecks(cfg.shell_evasion_checks ?? {});
+      try {
+        setRulesIntegrity(await api.getToolGuardRulesIntegrity());
+      } catch (integrityErr) {
+        console.warn(
+          "Failed to load tool guard rule integrity status:",
+          integrityErr,
+        );
+        setRulesIntegrity(null);
+      }
     } catch (err) {
       const msg =
         err instanceof Error ? err.message : "Failed to load security config";
@@ -159,6 +171,7 @@ export function useToolGuard() {
     setEnabled,
     mergedRules,
     shellEvasionChecks,
+    rulesIntegrity,
     toggleShellEvasionCheck,
     loading,
     error,

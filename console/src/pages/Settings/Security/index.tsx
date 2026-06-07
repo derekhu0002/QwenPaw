@@ -27,6 +27,7 @@ function SecurityPage() {
     handleSave,
     handleReset,
     mergedRules,
+    rulesIntegrity,
     builtinRules,
     customRules,
     toggleRule,
@@ -83,6 +84,27 @@ function SecurityPage() {
         parent={t("security.parent")}
         current={t("security.security")}
       />
+
+      {rulesIntegrity && !rulesIntegrity.ok && (
+        <div className={styles.integrityAlert}>
+          <div className={styles.integrityAlertTitle}>
+            {t("security.rulesIntegrity.tamperedTitle", {
+              defaultValue: "内置检测规则已被篡改",
+            })}
+          </div>
+          <div className={styles.integrityAlertDetail}>
+            {t("security.rulesIntegrity.tamperedDetail", {
+              defaultValue:
+                "请检查 dangerous_shell_commands.yaml、rules_manifest.json 和 rules_manifest.sig 是否来自官方发布包。",
+            })}
+            {rulesIntegrity.findings.length > 0 && (
+              <span className={styles.integrityAlertReason}>
+                {` ${rulesIntegrity.findings[0].reason}`}
+              </span>
+            )}
+          </div>
+        </div>
+      )}
 
       <div className={styles.content}>
         <Tabs
