@@ -1,8 +1,8 @@
 {
   "stage": "intent-to-implementation",
-  "generatedAt": "2026-06-06",
+  "generatedAt": "2026-06-07",
   "sourceIntentGraphPath": "design/KG/SystemArchitecture.json",
-  "summary": "sec-e2e-027 is already defined in the intent graph and no intent-side semantic change is required. A new implementation-architecture GAP was found during delivery showcase validation: lease heartbeat emission is currently reachable through a prompt-scripted warmup path, but the intent requires a product background Heartbeat Emitter that starts automatically with the edge runtime, sends an initial lease heartbeat without user action, continues periodically, and lets Security Center downgrade clients when those background heartbeats are missed.",
+  "summary": "sec-e2e-027 is already defined in the intent graph and no intent-side semantic change is required. Delivery acceptance on 2026-06-07 found an implementation-architecture GAP that must be handed back to Implementation Design: one live QwenPaw runtime is still projected as multiple Security Center clients, and the runtime heartbeat client can be falsely marked DIVERGED with recovery_gate_status OPEN while the terminal is online and no fork occurred. The implementation architecture must re-open canonical-runtime-client-id-003, require a single canonical Security Center terminal identity for heartbeat, audit preflight, lockdown, restored-access, and timeline reads, and add a live or behavior-level guard that fails when an online non-forked runtime appears as multiple terminals or as a false DIVERGED fork.",
   "intentElementIds": [
     "intent-local-security-audit-foundation",
     "intent-audit-event",
@@ -28,10 +28,10 @@
       "mountedElementName": "Local Security Audit Foundation",
       "type": "Acceptance Test",
       "controlPoint": "Start a QwenPaw edge runtime and let the product background Heartbeat Emitter register an initial lease heartbeat without any user prompt or showcase-specific warmup phrase, then stop or miss subsequent heartbeat emission past the configured TTL, reconnect the same client, and attempt to resume model access before completing the required missing-gap verification.",
-      "observationPoint": "The separate Security Center projection first shows nonzero last_heartbeat_at and lease_expires_at for the automatically registered client, then shows the client as UNTRUSTED after lease expiry; reconnect attempts are denied at model-access scope until full missing-gap verification succeeds, and normal model access is restored only after continuity is proven against the cloud-side shadow state.",
+      "observationPoint": "The separate Security Center projection first shows exactly one canonical client for one live QwenPaw runtime, with nonzero last_heartbeat_at and lease_expires_at, recovery_required=false, recovery_gate_status closed, and no DIVERGED or local_hash_mismatch state while the terminal is online and no fork occurred. After the same canonical client misses heartbeat past the lease TTL, Security Center shows that client as UNTRUSTED; reconnect attempts are denied at model-access scope until full missing-gap verification succeeds, and normal model access is restored only after continuity is proven against the cloud-side shadow state.",
       "acceptanceBoundary": "Freeze the explicit testcase to tests/integration/security/test_audit_foundation.py::test_lease_expiry_blocks_untrusted_rejoin_until_gap_sync, executed through the real app_server fixture and observed through the separate deploy/api and deploy/web Security Center boundary. The testcase must not require a normal user to send prompt text that mentions lease heartbeat monitoring or lease window expiry merely to register the lease heartbeat.",
       "requiredEntryKind": "explicit-testcase-entry",
-      "implementationNotes": "Implementation Design must preserve the current cloud-edge collaboration boundary and update the architecture contract so src/qwenpaw/security owns a product background heartbeat emitter: startup must send one lease heartbeat automatically, periodic emission must continue while the runtime is alive, and the explicit testcase or supporting contract guard must fail if lease registration depends on classify_lease_prompt warmup wording in src/qwenpaw/app/routers/console.py. Prompt-triggered warmup may remain only as a compatibility/test helper, not as the product control point."
+      "implementationNotes": "Implementation Design must preserve the current cloud-edge collaboration boundary and update the architecture contract so src/qwenpaw/security owns a product background heartbeat emitter and one canonical Security Center client identity: startup must send one lease heartbeat automatically, periodic emission must continue while the runtime is alive, and heartbeat, recovery preflight, lockdown projection, restored-access projection, and timeline reads must converge on the same Security Center terminal record. Browser or console session ids may remain audit metadata, but they must not create separate terminal identities. The explicit testcase or supporting contract guard must fail if lease registration depends on classify_lease_prompt warmup wording, if one online runtime appears as multiple Security Center clients, or if a live non-forked runtime heartbeat is marked DIVERGED with recovery_gate_status OPEN. Prompt-triggered warmup may remain only as a compatibility/test helper, not as the product control point."
     }
   ],
   "frozenBaselines": [
@@ -51,7 +51,10 @@
     "tests/integration/security/test_audit_foundation.py",
     "src/qwenpaw/security",
     "src/qwenpaw/app/routers/console.py",
+    "deploy/api/store.py",
+    "tests/contract/security/test_lease_recovery_semantics_contract.py",
     "tests/architecture/security-explicit-entrypoint-traceability.test.js",
+    "tests/architecture/security-runtime-client-identity-boundary.test.js",
     "design/KG/ImplementationToCodingHandoff.json"
   ],
   "openQuestions": [
@@ -74,12 +77,24 @@
       "question": "What reconnect gate should apply after lease expiry?",
       "recommendedAnswer": "Block all model access until the missing-gap verification succeeds.",
       "reason": "The intent testcase input and expected result both use resume model access and regain normal model access, which is stronger than only blocking high-risk tools and is the controlling acceptance boundary for sec-e2e-027."
+    },
+    {
+      "question": "Should one live QwenPaw runtime appear as both a runtime heartbeat client and a session client in Security Center?",
+      "recommendedAnswer": "No. Implementation Design must require one canonical Security Center terminal identity for one live runtime; browser, console, or authenticated session ids may be retained only as audit metadata.",
+      "reason": "The intent models Heartbeat Emitter and Audit Uplink Manager as capabilities of the same backend runtime security foundation. Splitting heartbeat and audit preflight across different Security Center clients causes the operator to see two terminals for one runtime and breaks the normal showcase observation point."
+    },
+    {
+      "question": "May a live online runtime heartbeat be classified as DIVERGED merely because its first cloud shadow state was a bootstrap hash?",
+      "recommendedAnswer": "No. Bootstrap alignment must converge with the runtime's real audit-chain head without producing DIVERGED, local_hash_mismatch, or recovery_gate_status OPEN unless a real continuity failure, fork, missing gap, or lease expiry has occurred.",
+      "reason": "During live delivery acceptance, Security Center showed runtime-heartbeat::c37a1999118c4e3c as DIVERGED and OPEN while the runtime was online and no fork occurred. That is a false positive caused by identity and bootstrap-shadow mismatch, not an intent-valid active defense event."
     }
   ],
   "notes": [
     "No SystemArchitecture.json edit was required because sec-e2e-027, the Heartbeat Emitter, the Audit Lease Monitor, and the trust-recovery rule are already present in the intent graph.",
     "Delivery-showcase validation found the current product behavior incomplete: a user can perform high-risk operations and establish trusted anchors while Security Center still reports last_heartbeat_at=0 and lease_expires_at=0, so a subsequent offline action may not downgrade through the lease-expiry active-defense path.",
     "Implementation Design must revise the implementation contracts and handoff so the heartbeat emitter is a runtime-owned background capability, not a prompt-classified security scenario hidden behind warmup wording.",
-    "The updated testcase control point is runtime startup plus missed background heartbeat. The observation point is automatic lease registration followed by Security Center UNTRUSTED downgrade and recovery gating after TTL expiry."
+    "The updated testcase control point is runtime startup plus missed background heartbeat. The observation point is automatic lease registration followed by Security Center UNTRUSTED downgrade and recovery gating after TTL expiry.",
+    "A second delivery-acceptance GAP was found on 2026-06-07: the live Security Center overview showed client_count=2 for one QwenPaw runtime, with one session-shaped client ALIGNED but last_heartbeat_at=0 and a separate runtime-heartbeat client carrying heartbeat fields while trust_state=DIVERGED, gap_status=DIVERGED, divergence_reason=local_hash_mismatch, and recovery_gate_status=OPEN.",
+    "This second GAP contradicts design/KG/ImplementationToCodingHandoff.json, which currently claims canonical-runtime-client-id-003 is closed and openGaps is empty. Implementation Design must reopen that item, correct the implementation architecture and handoff, and require behavior-level validation that one live online runtime produces one Security Center terminal and no false DIVERGED fork state."
   ]
 }
