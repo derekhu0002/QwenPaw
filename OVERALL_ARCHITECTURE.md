@@ -72,7 +72,7 @@
 - `src/qwenpaw/app`, channels, and runner glue may capture transport/session metadata, but `src/qwenpaw/security` owns the stable semantics for trusted provenance, confirmation evidence, and audit continuity. Transport layers must not redefine the acceptance boundary for `sec-e2e-024`.
 - `src/qwenpaw/security` must not depend on `console` or `website` implementation details.
 - `src/qwenpaw/security` may uplink summaries toward the `deploy` boundary, but the cloud-side Security Center must remain a separate process and independent durable store rather than an in-process branch of the edge runtime.
-- `src/qwenpaw/security` owns the canonical runtime client identity used at the cloud boundary for lease heartbeat, recovery preflight, lockdown, and restored-access projection. Browser or session ids may remain edge-side audit metadata, but must not become separate Security Center terminal identities.
+- `src/qwenpaw/security` owns the canonical runtime client identity used at the cloud boundary for lease heartbeat, recovery preflight, lockdown, restored-access projection, and operator timeline reads. Browser or session ids may remain edge-side audit metadata or display aliases, but they must not increase Security Center `client_count`, become separate canonical terminals, or create a false `DIVERGED`/`OPEN` fork state for one live runtime.
 - Edge runtime communication with `deploy` is frozen to repository-owned HTTP APIs only. Coding/Repair must not switch this slice to shared storage, direct database access, or a different transport without a new implementation-architecture change.
 - `src/qwenpaw/cli` depends inward on stable runtime and config surfaces in `src/qwenpaw` and does not own backend orchestration state.
 - `tests` and `tests/integration/security` may observe all stable elements through declared seams; production code must not depend on test modules.
@@ -155,6 +155,7 @@
 - tests/integration/security/ARCHITECTURE.md
 - tests/integration/security/harness.py
 - tests/integration/security/test_audit_foundation.py
+- tests/contract/security/test_lease_recovery_semantics_contract.py
 - tests/architecture/root-architecture-contracts.test.js
 - tests/architecture/root-architecture-deliverables.test.js
 - tests/architecture/security-audit-contract-boundaries.test.js

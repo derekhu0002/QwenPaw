@@ -30,7 +30,7 @@ element_path: tests/architecture
   role: verifies `sec-e2e-024` remains mounted to the declared explicit entrypoint, keeps its real-environment runtime-inspection shape, and preserves failure-record traceability
 - path: security-runtime-client-identity-boundary.test.js
   kind: critical-non-explicit-test
-  role: verifies sec-e2e-027 still uses one canonical Security Center client id across startup heartbeat, recovery, lockdown, and restored-access projection instead of splitting one live runtime into multiple cloud clients
+  role: verifies sec-e2e-027 still uses one canonical Security Center client id across startup heartbeat, recovery, lockdown, and restored-access projection instead of splitting one live runtime into multiple cloud clients; the complementary live behavior guard lives in ../../tests/contract/security/test_lease_recovery_semantics_contract.py
 
 ### Test Guardrails
 #### critical_non_explicit_tests
@@ -118,5 +118,5 @@ element_path: tests/architecture
     - ARCHITECTURE.md
     - ../../src/qwenpaw/security/ARCHITECTURE.md
     - ../../deploy/api/ARCHITECTURE.md
-  rationale: keep one live runtime bound to one canonical Security Center client id so lease heartbeat, recovery, lockdown, and restored-access projection do not create a false DIVERGED fork for sec-e2e-027
+  rationale: keep the static identity boundary frozen while the complementary live supporting contract proves that one online runtime must not surface as multiple canonical terminals or a false DIVERGED fork for sec-e2e-027
   frozen_by_stage: implementationdesign

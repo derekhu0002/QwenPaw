@@ -1,8 +1,8 @@
 {
   "stage": "implementation-to-coding",
-  "generatedAt": "2026-06-06",
+  "generatedAt": "2026-06-07",
   "sourceIntentGraphPath": "design/KG/SystemArchitecture.json",
-  "summary": "Coding delivery now matches the implementation architecture contract for sec-e2e-027. The explicit entrypoint remains frozen on one testcase with two control points plus two distinct console observation points, the TTL-downgrade plus full-chain gap-validation semantics remain green, startup heartbeat registration remains green, and canonical-runtime-client-id-003 is now closed: one live QwenPaw runtime uses one canonical Security Center client identity across heartbeat, recovery, lockdown, restored-access projection, and timeline reads.",
+  "summary": "The explicit sec-e2e-027 entrypoint remains frozen and currently passes, the TTL-downgrade plus full-chain gap-validation semantics remain green, and startup heartbeat registration remains green; however coding delivery no longer matches the implementation architecture contract because canonical-runtime-client-id-003 is reopened. The new live supporting guard proves that one online QwenPaw runtime is still projected as multiple Security Center canonical clients after startup heartbeat plus later session-scoped security traffic, and the implementation architecture must now drive Coding/Repair to collapse those projections into one canonical terminal without false DIVERGED/OPEN fork states.",
   "implementationContracts": [
     "OVERALL_ARCHITECTURE.md",
     "src/qwenpaw/ARCHITECTURE.md",
@@ -43,7 +43,7 @@
       "path": "tests/architecture/security-runtime-client-identity-boundary.test.js",
       "kind": "key-implementation-traceability-guard",
       "controlPoint": "Read src/qwenpaw/security/audit_foundation.py and deploy/api/store.py to compare the client id used by startup heartbeat against the client ids used by recovery, lockdown, and restored-access projection.",
-      "observationPoint": "The guard proves one live runtime must use one canonical Security Center client id across heartbeat, recovery, lockdown, and restored-access projection, and that Security Center must not special-case runtime-heartbeat::<fingerprint> as a separate bootstrap-only terminal identity. Current repository state is expected to pass this guard."
+      "observationPoint": "The guard proves one live runtime must use one canonical Security Center client id across heartbeat, recovery, lockdown, and restored-access projection, and that Security Center must not special-case runtime-heartbeat::<fingerprint> as a separate bootstrap-only terminal identity. Current repository state still passes this static guard, so it remains necessary but insufficient."
     }
   ],
   "supportingNonExplicitTests": [
@@ -78,6 +78,14 @@
       "controlPoint": "Start a real QwenPaw runtime and observe Security Center before any user prompt mentions lease warmup or lease expiry.",
       "observationPoint": "Security Center must already show at least one client lease registration with nonzero last_heartbeat_at and lease_expires_at so active defense does not depend on prompt-scripted warmup wording. Current repository state is expected to pass this test.",
       "expectedStatus": "passed"
+    },
+    {
+      "name": "security-center-single-online-runtime-identity-semantics",
+      "path": "tests/contract/security/test_lease_recovery_semantics_contract.py",
+      "kind": "supporting-guardrail",
+      "controlPoint": "Start a real QwenPaw runtime, allow startup heartbeat registration, then drive one session-scoped lease warmup through the live console without forking the runtime.",
+      "observationPoint": "Security Center must still project exactly one canonical terminal for that online runtime and must not show a false local-hash `DIVERGED`/`OPEN` recovery gate when no fork point exists. Current repository state is expected to fail because overview still shows separate runtime-heartbeat and runtime-session canonical clients.",
+      "expectedStatus": "failed"
     }
   ],
   "expectedFailureRecordsPath": "design/KG/test-failure-records.json",
@@ -97,15 +105,20 @@
       "path": "tests/architecture/security-runtime-client-identity-boundary.test.js",
       "failureSignal": "Regression signal if startup heartbeat, recovery, lockdown, restored-access projection, or timeline reads ever diverge back to different Security Center client ids for the same live runtime.",
       "nextAction": "Preserve one canonical runtime client id seam in src/qwenpaw/security and keep Security Center alias resolution aligned with that seam."
+    },
+    {
+      "path": "tests/contract/security/test_lease_recovery_semantics_contract.py::test_security_center_projects_one_online_runtime_as_one_canonical_terminal",
+      "failureSignal": "Current failure signal: one online runtime is still projected as two canonical Security Center terminals after startup heartbeat plus later session-scoped security traffic, which reopens canonical-runtime-client-id-003.",
+      "nextAction": "Collapse startup heartbeat and later session-scoped security flows onto one canonical Security Center terminal, keep session ids as metadata or display aliases only, and prevent false DIVERGED/OPEN bootstrap-shadow mismatches for live non-forked runtimes."
     }
   ],
   "taskExecutionPlan": {
-    "executionStrategy": "Coding delivery is accepted against the current implementation architecture. Keep sec-e2e-027 on its one frozen explicit entrypoint with two sequential control points and two distinct console observation points, preserve the already-green TTL-driven lease downgrade plus full-chain cloud validation semantics and startup-heartbeat registration semantics, and treat canonical runtime client identity as a regression guard that must stay green.",
+    "executionStrategy": "Coding delivery is not yet accepted against the current implementation architecture. Keep sec-e2e-027 on its one frozen explicit entrypoint with two sequential control points and two distinct console observation points, preserve the already-green TTL-driven lease downgrade plus full-chain cloud validation semantics and startup-heartbeat registration semantics, and repair the reopened canonical-runtime-client-id-003 gap until the new live supporting guard plus the static identity guard both pass.",
     "tasks": [
       {
         "taskId": "canonical-runtime-client-id-003",
-        "title": "Preserve runtime client identity",
-        "objective": "Keep startup heartbeat, recovery preflight, lockdown projection, restored-access projection, and Security Center timeline reads aligned to one canonical runtime client id so one online runtime does not appear as multiple cloud terminals.",
+        "title": "Collapse runtime to one terminal",
+        "objective": "Unify startup heartbeat, session-scoped recovery preflight, lockdown projection, restored-access projection, and Security Center timeline reads onto one canonical Security Center terminal per live runtime so one online runtime does not appear as multiple cloud terminals or a false DIVERGED fork.",
         "relatedTestcases": [
           "sec-e2e-027-lease-expiry-active-defense"
         ],
@@ -113,15 +126,16 @@
           "src/qwenpaw/security/audit_foundation.py",
           "src/qwenpaw/app/routers/console.py",
           "deploy/api/store.py",
-          "tests/architecture/security-runtime-client-identity-boundary.test.js"
+          "tests/architecture/security-runtime-client-identity-boundary.test.js",
+          "tests/contract/security/test_lease_recovery_semantics_contract.py"
         ],
         "steps": [
-          "Keep one repository-owned canonical runtime client id helper in src/qwenpaw/security and continue using it for startup heartbeat, recovery preflight, lockdown projection, restored-access projection, and Security Center timeline reads.",
-          "Keep browser or session ids only as audit metadata when needed, but do not let them create separate Security Center terminal identities for the same live runtime.",
-          "Keep backend alias resolution aligned with the canonical id seam so display ids can remain human-friendly without reopening split lineage in cloud state.",
-          "Do not rewrite the frozen sec-e2e-027 explicit entrypoint, GIVEN/WHEN/THEN body, or the split pre_recovery_console_status/post_recovery_console_status observation contract while preserving this behavior."
+          "Replace the current split between runtime-heartbeat::<fingerprint> and runtime-session::<workspace>::<session> with one repository-owned canonical runtime terminal id that is reused by startup heartbeat, recovery preflight, lockdown projection, restored-access projection, and Security Center timeline reads.",
+          "Keep browser or session ids only as audit metadata or display aliases, and ensure deploy/api overview continues to expose at most one canonical client for one live runtime even after later session-scoped security traffic.",
+          "Align bootstrap shadow initialization and later audit-head comparison so a live non-forked runtime cannot be projected as local_hash_mismatch plus recovery_gate_status OPEN unless a real continuity failure, missing gap, or lease expiry actually occurred.",
+          "Do not rewrite the frozen sec-e2e-027 explicit entrypoint, GIVEN/WHEN/THEN body, or the split pre_recovery_console_status/post_recovery_console_status observation contract while repairing this behavior."
         ],
-        "completionSignal": "tests/architecture/security-runtime-client-identity-boundary.test.js passes and one live runtime no longer appears as multiple Security Center clients or false DIVERGED fork states while online."
+        "completionSignal": "tests/contract/security/test_lease_recovery_semantics_contract.py::test_security_center_projects_one_online_runtime_as_one_canonical_terminal and tests/architecture/security-runtime-client-identity-boundary.test.js both pass, and one live runtime no longer appears as multiple Security Center clients or false DIVERGED fork states while online."
       }
     ]
   },
@@ -137,6 +151,7 @@
     "deploy/api/ARCHITECTURE.md",
     "deploy/web/ARCHITECTURE.md",
     "tests/ARCHITECTURE.md",
+    "tests/architecture/security-runtime-client-identity-boundary.test.js",
     "tests/contract/security/test_lease_recovery_semantics_contract.py",
     "tests/integration/security/ARCHITECTURE.md",
     "tests/integration/security/harness.py",
@@ -144,5 +159,7 @@
     "tests/architecture/security-audit-contract-boundaries.test.js",
     "tests/architecture/security-explicit-entrypoint-traceability.test.js"
   ],
-  "openGaps": []
+  "openGaps": [
+    "canonical-runtime-client-id-003 remains open: the live supporting guard shows one online runtime still projects as multiple Security Center canonical clients after startup heartbeat plus later session-scoped security traffic, and Coding/Repair must converge that flow to one canonical terminal without false DIVERGED/OPEN bootstrap-shadow mismatches."
+  ]
 }

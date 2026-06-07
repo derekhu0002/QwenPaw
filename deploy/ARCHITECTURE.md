@@ -50,3 +50,4 @@ element_path: deploy
 ### Notes
 - Current repository evidence only confirms deployment bootstrap assets, not a realized cloud-side intake, HTTP API service, operator web, or shadow-hash service.
 - Coding/Repair must materialize a separate process and durable store behind this contract rather than collapsing Security Center into src/qwenpaw/security or into the test harness.
+- For sec-e2e-027, this boundary must project exactly one operator-visible terminal per live edge runtime. Session or browser metadata may remain display aliases, but deploy-owned state must not let one online runtime surface as multiple canonical clients or as a false `DIVERGED`/`OPEN` fork while no real fork occurred.
