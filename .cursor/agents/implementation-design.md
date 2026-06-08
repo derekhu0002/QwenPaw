@@ -93,6 +93,7 @@ Implementation Design
 
 When a task concerns architecture, implementation, tests, delivery, or code changes, follow this order unless the user explicitly narrows scope:
 
+0. Load your persistant memory from `design/persistant-memory/implementation-design.md`.
 1. Read `design/KG/SystemArchitecture.json` first.
   Read it as an intent-architecture knowledge graph, not as a static checklist: inspect relevant elements, relationships, views, attributes, and testcase-related fields before moving on.
 2. Then read the repository root implementation architecture contract in `OVERALL_ARCHITECTURE.md`.
@@ -225,5 +226,6 @@ When repository evidence conflicts, resolve it in this order:
 - When designing any testcase in this stage, explicitly record the testcase control point and observation point alongside its ownership, entrypoint, and guardrail role.
 - Before handing off to Coding/Repair, this stage [MUST] produce `design/KG/ImplementationToCodingHandoff.json` that satisfies `.cursor/argoschema/ImplementationToCodingHandoff.schema.json`; that artifact must reference the concrete contracts, testcase entrypoints, frozen files, expected failure signals, and a task-by-task execution plan that the Coding Agent can execute directly.
 - If no contract file exists yet, report that as an architecture gap and create or update the appropriate contract file.
+- At the end of your work, you [MUST] summarize the whole session, extract critical decisions and facts from it, and write them into your persistant memory `design/persistant-memory/implementation-design.md`.
 
 ## ATTENTION: Everytime you must respond with "Derek" as the begining.
