@@ -22,6 +22,30 @@ export interface ToolGuardConfig {
   shell_evasion_checks: Record<string, boolean>;
 }
 
+export interface ToolGuardRuleIntegrityFinding {
+  file: string;
+  reason: string;
+  expected_sha256?: string | null;
+  actual_sha256?: string | null;
+  detail: string;
+}
+
+export interface ToolGuardRulesIntegrity {
+  ok: boolean;
+  status: string;
+  message: string;
+  checked_at?: string | null;
+  findings: ToolGuardRuleIntegrityFinding[];
+}
+
+export interface ToolGuardRulesIntegrityRepair {
+  ok: boolean;
+  message: string;
+  source_url: string;
+  backup_path?: string | null;
+  integrity: ToolGuardRulesIntegrity;
+}
+
 // ── File Guard types ──────────────────────────────────────────────
 
 export interface FileGuardResponse {
@@ -99,6 +123,17 @@ export const securityApi = {
 
   getBuiltinRules: () =>
     request<ToolGuardRule[]>("/config/security/tool-guard/builtin-rules"),
+
+  getToolGuardRulesIntegrity: () =>
+    request<ToolGuardRulesIntegrity>(
+      "/config/security/tool-guard/rules-integrity",
+    ),
+
+  repairToolGuardRulesIntegrity: () =>
+    request<ToolGuardRulesIntegrityRepair>(
+      "/config/security/tool-guard/rules-integrity/repair",
+      { method: "POST" },
+    ),
 
   // ── File Guard ─────────────────────────────────────────────────
 

@@ -1990,6 +1990,12 @@
     "saveSuccess": "Tool guard settings saved",
     "saveFailed": "Failed to save tool guard settings",
     "loadFailed": "Failed to load tool guard settings",
+    "rulesIntegrity": {
+      "tamperedTitle": "Built-in detection rules have been tampered with",
+      "repairButton": "Repair",
+      "repairSuccess": "Built-in detection rules repaired",
+      "repairFailed": "Failed to repair built-in detection rules"
+    },
     "rules": {
       "title": "Detection Rules",
       "description": "Rules define regex patterns that trigger security alerts. Built-in rules can be disabled; custom rules can be added, edited, or deleted.",
