@@ -61,6 +61,7 @@
     "models": "模型",
     "environments": "环境变量",
     "security": "安全",
+    "credentials": "凭据中心",
     "tokenUsage": "Token 消耗",
     "agentStats": "智能体统计",
     "voiceTranscription": "语音转写",

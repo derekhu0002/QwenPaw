@@ -6,10 +6,11 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 from typing import TYPE_CHECKING, Any, Dict, List, Literal, Type
 from pydantic import BaseModel, Field
-from pydantic import ConfigDict
+from pydantic import ConfigDict, model_validator
 
 from agentscope.model import ChatModelBase
 from qwenpaw.exceptions import ProviderError
+from ..config.config import CredentialRef
 
 if TYPE_CHECKING:
     from .multimodal_prober import ProbeResult
@@ -166,6 +167,28 @@ class ProviderInfo(BaseModel):
         description="Additional metadata for the provider "
         "(e.g., api_key_url, api_key_hint).",
     )
+    credential_ref: CredentialRef | None = Field(
+        default=None,
+        description=(
+            "Optional credential reference used to resolve provider "
+            "authentication at runtime."
+        ),
+    )
+
+    @model_validator(mode="before")
+    @classmethod
+    def _normalize_credential_aliases(cls, data):
+        if not isinstance(data, dict):
+            return data
+        payload = dict(data)
+        if "credentialRef" in payload and "credential_ref" not in payload:
+            payload["credential_ref"] = payload["credentialRef"]
+        if "credentialId" in payload and "credential_ref" not in payload:
+            payload["credential_ref"] = {
+                "credential_id": payload["credentialId"],
+                "field_map": payload.get("fieldMap", {}),
+            }
+        return payload
 
 
 class Provider(ProviderInfo, ABC):
@@ -261,6 +284,8 @@ class Provider(ProviderInfo, ABC):
             "auth_token",
         ):
             self.auth_mode = config["auth_mode"]
+        if "credential_ref" in config:
+            self.credential_ref = config["credential_ref"]
         if "extra_models" in config and config["extra_models"] is not None:
             # Always go through model_validate with dict data to
             # avoid class-identity issues from dual module loading.
@@ -429,4 +454,5 @@ class Provider(ProviderInfo, ABC):
             custom_headers=self.custom_headers,
             auth_mode=self.auth_mode,
             meta=self.meta or {},
+            credential_ref=self.credential_ref,
         )

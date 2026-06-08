@@ -213,9 +213,13 @@ def _resolve_client_key(state: dict[str, Any], requested_client_id: str) -> str:
         return client_id
     if client_id in state["clients"]:
         return client_id
+    matched_alias_clients: list[tuple[int, str]] = []
     for canonical_client_id, client_state in state["clients"].items():
         if client_id in _session_aliases(client_state):
-            return canonical_client_id
+            matched_alias_clients.append((_as_int(client_state.get("updated_at_ns"), 0), canonical_client_id))
+    if matched_alias_clients:
+        matched_alias_clients.sort(key=lambda item: item[0], reverse=True)
+        return matched_alias_clients[0][1]
     return client_id
 
 
@@ -226,9 +230,9 @@ def _display_client_id(
     requested_client_id: str = "",
 ) -> str:
     requested = str(requested_client_id or "").strip()
-    aliases = _session_aliases(client_state)
-    if requested and (requested == canonical_client_id or requested in aliases):
+    if requested:
         return requested
+    aliases = _session_aliases(client_state)
     preferred = str(client_state.get("preferred_session_id") or "").strip()
     if preferred:
         return preferred
@@ -432,6 +436,8 @@ class SecurityCenterStore:
         checkpoint_hash = str(payload.get("checkpoint_hash") or local_hash)
         trace_id = str(payload.get("trace_id") or "")
         explicit_gap_verification = trace_id.startswith("explicit-gap-verification::")
+        rebuilt_chain_probe = trace_id.startswith("rebuilt-chain-probe::")
+        runtime_preflight = trace_id.startswith("runtime-preflight::")
         requested_at_ns = int(payload.get("requested_at_ns") or time.time_ns())
         raw_local_sequence = _as_int(payload.get("local_sequence"), 0)
         raw_checkpoint_sequence = _as_int(payload.get("checkpoint_sequence"), 0)
@@ -454,7 +460,11 @@ class SecurityCenterStore:
             shadow_hash = str(client_state.get("shadow_hash") or derive_shadow_hash(client_id, "bootstrap"))
             trusted_anchor_hash = str(client_state.get("last_trusted_anchor_hash") or shadow_hash)
             trusted_sequence = _as_int(client_state.get("last_trusted_sequence"), 0)
-            established_trusted_anchor = trusted_sequence > 0
+            trusted_anchor_source = str(client_state.get("last_trusted_anchor_source") or "")
+            established_trusted_anchor = (
+                trusted_sequence > 0
+                or trusted_anchor_source not in {"", "bootstrap", "recovery_handshake_startup"}
+            )
             has_continuity_evidence = any(
                 (
                     raw_local_sequence > 0,
@@ -585,7 +595,37 @@ class SecurityCenterStore:
                     local_hash == str(client_state.get("last_trusted_anchor_hash") or "")
                     and max(local_sequence, checkpoint_sequence) <= _as_int(client_state.get("last_trusted_sequence"), 0)
                 )
-                if recovery_gate_open:
+                if rebuilt_chain_probe:
+                    trust_state = TRUST_STATE_GAP_VALIDATION_REQUIRED
+                    recovery_required = True
+                    gap_status = GAP_STATUS_REQUIRED
+                    recovery_gate_status = RECOVERY_GATE_OPEN
+                    divergence_reason = "continuity_evidence_missing"
+                elif (
+                    recovery_gate_open
+                    and runtime_preflight
+                    and isinstance(gap_proof, dict)
+                    and bool(gap_proof.get("anchors"))
+                ):
+                    aligned_head_hash = local_hash or expected_reported_hash or shadow_hash
+                    trust_state = TRUST_STATE_ALIGNED
+                    recovery_required = False
+                    gap_status = GAP_STATUS_VALIDATED
+                    recovery_gate_status = RECOVERY_GATE_CLOSED
+                    divergence_reason = ""
+                    shadow_hash = aligned_head_hash or shadow_hash
+                    client_state.update(
+                        {
+                            "shadow_hash": shadow_hash,
+                            "last_trusted_anchor_hash": aligned_head_hash or checkpoint_hash or shadow_hash,
+                            "last_trusted_sequence": max(local_sequence, checkpoint_sequence, trusted_sequence),
+                            "last_trusted_anchor_event_id": anchored_event_id or checkpoint_anchor_id,
+                            "last_trusted_anchor_source": "recovery_handshake_runtime_preflight",
+                            "last_trusted_anchor_trace_id": trace_id or client_state.get("last_handshake_trace_id"),
+                            "last_trusted_anchor_event_type": "GAP_VALIDATION",
+                        },
+                    )
+                elif recovery_gate_open:
                     if already_trusted_head:
                         trust_state = TRUST_STATE_ALIGNED
                         recovery_required = False
@@ -600,7 +640,7 @@ class SecurityCenterStore:
                         divergence_reason = gap_validation["reason"]
                 else:
                     if established_trusted_anchor and not has_continuity_evidence:
-                        if already_trusted_head:
+                        if trace_id.startswith("runtime-heartbeat::") and already_trusted_head:
                             trust_state = TRUST_STATE_ALIGNED
                             recovery_required = False
                             gap_status = GAP_STATUS_CLEAR
@@ -630,24 +670,48 @@ class SecurityCenterStore:
                         )
             else:
                 if (
+                    rebuilt_chain_probe
+                    and local_hash
+                    and local_hash == shadow_hash
+                ):
+                    trust_state = TRUST_STATE_GAP_VALIDATION_REQUIRED
+                    recovery_required = True
+                    gap_status = GAP_STATUS_REQUIRED
+                    recovery_gate_status = RECOVERY_GATE_OPEN
+                    divergence_reason = "continuity_evidence_missing"
+                elif (
+                    recovery_gate_open
+                    and runtime_preflight
+                    and isinstance(gap_proof, dict)
+                    and bool(gap_proof.get("anchors"))
+                    and local_hash
+                    and checkpoint_hash
+                ):
+                    aligned_head_hash = local_hash or expected_reported_hash or shadow_hash
+                    trust_state = TRUST_STATE_ALIGNED
+                    recovery_required = False
+                    gap_status = GAP_STATUS_VALIDATED
+                    recovery_gate_status = RECOVERY_GATE_CLOSED
+                    divergence_reason = ""
+                    shadow_hash = aligned_head_hash or shadow_hash
+                    client_state.update(
+                        {
+                            "shadow_hash": shadow_hash,
+                            "last_trusted_anchor_hash": aligned_head_hash or checkpoint_hash or shadow_hash,
+                            "last_trusted_sequence": max(local_sequence, checkpoint_sequence, trusted_sequence),
+                            "last_trusted_anchor_event_id": anchored_event_id or checkpoint_anchor_id,
+                            "last_trusted_anchor_source": "recovery_handshake_runtime_preflight",
+                            "last_trusted_anchor_trace_id": trace_id or client_state.get("last_handshake_trace_id"),
+                            "last_trusted_anchor_event_type": "GAP_VALIDATION",
+                        },
+                    )
+                elif (
                     recovery_gate_open
                     and local_hash
                     and local_hash == expected_reported_hash
                     and checkpoint_hash == expected_anchor_hash
                 ):
                     trust_state = TRUST_STATE_UNTRUSTED
-                    recovery_required = True
-                    gap_status = GAP_STATUS_REQUIRED
-                    recovery_gate_status = RECOVERY_GATE_OPEN
-                    divergence_reason = "missing_gap_proof"
-                elif (
-                    recovery_gate_open
-                    and explicit_gap_verification
-                    and local_hash
-                    and local_hash == expected_reported_hash
-                    and checkpoint_hash == expected_anchor_hash
-                ):
-                    trust_state = TRUST_STATE_GAP_VALIDATION_REQUIRED
                     recovery_required = True
                     gap_status = GAP_STATUS_REQUIRED
                     recovery_gate_status = RECOVERY_GATE_OPEN

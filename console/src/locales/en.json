@@ -61,6 +61,7 @@
     "models": "Models",
     "environments": "Environments",
     "security": "Security",
+    "credentials": "Credentials",
     "tokenUsage": "Token Usage",
     "agentStats": "Agent Statistics",
     "voiceTranscription": "Voice Transcription",

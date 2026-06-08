@@ -54,6 +54,7 @@
     "models": "モデル",
     "environments": "環境変数",
     "security": "セキュリティ",
+    "credentials": "認証情報",
     "tokenUsage": "トークン使用量",
     "agentStats": "エージェント統計",
     "tools": "ツール",

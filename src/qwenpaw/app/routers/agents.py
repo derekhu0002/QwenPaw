@@ -3,7 +3,7 @@
 
 Provides RESTful API for managing multiple agent instances.
 """
-
+import os
 import json
 import logging
 from pathlib import Path
@@ -260,7 +260,11 @@ def _generate_unique_id(existing_ids: set[str]) -> str:
     """
     max_attempts = 10
     for _ in range(max_attempts):
-        candidate_id = generate_short_agent_id()
+
+        username = Path.home().name
+        device_name = os.environ.get('COMPUTERNAME')
+        candidate_id = username + "_" + device_name + "_" + generate_short_agent_id()
+
         if candidate_id not in existing_ids:
             return candidate_id
     raise HTTPException(

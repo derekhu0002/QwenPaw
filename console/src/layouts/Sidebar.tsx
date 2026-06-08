@@ -339,6 +339,12 @@ export default function Sidebar({ selectedKey }: SidebarProps) {
       label: t("nav.security"),
     },
     {
+      key: "credentials",
+      icon: <SparkCardLine size={18} />,
+      path: "/credentials",
+      label: t("nav.credentials", "Credentials"),
+    },
+    {
       key: "token-usage",
       icon: <SparkDataLine size={18} />,
       path: "/token-usage",
@@ -490,6 +496,11 @@ export default function Sidebar({ selectedKey }: SidebarProps) {
           key: "security",
           label: collapsed ? null : t("nav.security"),
           icon: <SparkBrowseLine size={16} />,
+        },
+        {
+          key: "credentials",
+          label: collapsed ? null : t("nav.credentials", "Credentials"),
+          icon: <SparkCardLine size={16} />,
         },
         {
           key: "token-usage",

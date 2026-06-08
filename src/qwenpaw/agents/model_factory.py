@@ -47,6 +47,7 @@ from ..providers.retry_chat_model import (
     RateLimitConfig,
 )
 from ..token_usage import TokenRecordingModelWrapper
+from ..security.credential_resolver import get_credential_resolver
 
 
 def _file_url_to_path(url: str) -> str:
@@ -1234,6 +1235,20 @@ def create_model_and_formatter(
             raise ProviderError(
                 message=f"Provider '{model_slot.provider_id}' not found.",
             )
+        if provider.credential_ref is not None:
+            resolved = get_credential_resolver().resolve_mapped(
+                provider.credential_ref,
+                agent_id=agent_id,
+            )
+            updates: dict[str, Any] = {}
+            if "api_key" in resolved:
+                updates["api_key"] = resolved["api_key"]
+            if "authorization" in resolved:
+                headers = dict(provider.custom_headers or {})
+                headers["Authorization"] = resolved["authorization"]
+                updates["custom_headers"] = headers
+            if updates:
+                provider = provider.model_copy(update=updates)
 
         model = provider.get_chat_model_instance(model_slot.model)
         provider_id = model_slot.provider_id
@@ -1260,6 +1275,20 @@ def create_model_and_formatter(
                 model = _DeterministicFallbackChatModel()
                 provider_id = model.model_name
             else:
+                if provider.credential_ref is not None:
+                    resolved = get_credential_resolver().resolve_mapped(
+                        provider.credential_ref,
+                        agent_id=agent_id,
+                    )
+                    updates: dict[str, Any] = {}
+                    if "api_key" in resolved:
+                        updates["api_key"] = resolved["api_key"]
+                    if "authorization" in resolved:
+                        headers = dict(provider.custom_headers or {})
+                        headers["Authorization"] = resolved["authorization"]
+                        updates["custom_headers"] = headers
+                    if updates:
+                        provider = provider.model_copy(update=updates)
                 model = provider.get_chat_model_instance(global_model.model)
                 provider_id = global_model.provider_id
 

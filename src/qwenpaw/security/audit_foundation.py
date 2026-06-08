@@ -225,6 +225,8 @@ def _requires_passive_reconnect_gap_proof(recovery_state: dict[str, Any]) -> boo
     return str(recovery_state.get("divergence_reason") or "") in {
         "lease_ttl_expired",
         "missing_gap_proof",
+        "continuity_evidence_missing",
+        "local_hash_mismatch",
     }
 
 
@@ -602,6 +604,14 @@ async def write_lease_heartbeat_record(
     head_hash = anchor_state["head_hash"]
     head_sequence = anchor_state["head_sequence"]
     head_anchor_event_id = anchor_state["head_anchor_event_id"]
+    # Warmup heartbeat should project the persisted chain head when available,
+    # instead of introducing a synthetic local bootstrap hash.
+    if _normalize_text(checkpoint.get("current_hash")):
+        head_hash = _normalize_text(checkpoint.get("current_hash"))
+        head_sequence = _safe_int(checkpoint.get("confirmed_sequence") or checkpoint.get("event_sequence"), head_sequence)
+        head_anchor_event_id = _normalize_text(
+            checkpoint.get("last_anchored_event_id") or checkpoint.get("anchored_event_id") or checkpoint.get("run_id"),
+        ) or head_anchor_event_id
     ttl_seconds = 3
     emitted_at_ns = time.time_ns()
     handshake = await _post_security_center(

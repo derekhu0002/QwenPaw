@@ -13,6 +13,7 @@ import os
 from typing import Any, Dict, List, TYPE_CHECKING
 
 from .stateful_client import HttpStatefulClient, StdIOStatefulClient
+from ...security.credential_resolver import get_credential_resolver
 
 if TYPE_CHECKING:
     from ...config.config import MCPClientConfig, MCPConfig
@@ -31,10 +32,12 @@ class MCPClientManager:
     Design pattern mirrors ChannelManager for consistency.
     """
 
-    def __init__(self) -> None:
+    def __init__(self, agent_id: str | None = None) -> None:
         """Initialize an empty MCP client manager."""
         self._clients: Dict[str, Any] = {}
         self._lock = asyncio.Lock()
+        self._agent_id = agent_id
+        self._credential_resolver = get_credential_resolver()
 
     async def init_from_config(self, config: "MCPConfig") -> None:
         """Initialize clients from configuration.
@@ -242,8 +245,7 @@ class MCPClientManager:
         result["Authorization"] = f"Bearer {oauth.access_token}"
         return result
 
-    @staticmethod
-    def _build_client(client_config: "MCPClientConfig") -> Any:
+    def _build_client(self, client_config: "MCPClientConfig") -> Any:
         """Build MCP client instance by configured transport."""
         rebuild_info = {
             "name": client_config.name,
@@ -257,17 +259,33 @@ class MCPClientManager:
         }
 
         if client_config.transport == "stdio":
+            env = dict(client_config.env)
+            if client_config.credential_ref is not None:
+                _, env = self._credential_resolver.inject_mcp_runtime(
+                    headers={},
+                    env=env,
+                    credential_ref=client_config.credential_ref,
+                    agent_id=self._agent_id,
+                )
             client = StdIOStatefulClient(
                 name=client_config.name,
                 command=client_config.command,
                 args=client_config.args,
-                env=client_config.env,
+                env=env,
                 cwd=client_config.cwd or None,
             )
             setattr(client, "_qwenpaw_rebuild_info", rebuild_info)
             return client
 
         headers: dict = dict(client_config.headers or {})
+        env: dict = dict(client_config.env or {})
+        if client_config.credential_ref is not None:
+            headers, env = self._credential_resolver.inject_mcp_runtime(
+                headers=headers,
+                env=env,
+                credential_ref=client_config.credential_ref,
+                agent_id=self._agent_id,
+            )
         headers = {k: os.path.expandvars(v) for k, v in headers.items()}
 
         # Inject OAuth access token (overrides any manually set Authorization)

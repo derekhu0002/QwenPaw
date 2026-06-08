@@ -38,6 +38,11 @@ export interface MCPClientInfo {
   cwd: string;
   /** OAuth status (null if OAuth not configured) */
   oauth_status: MCPClientOAuthStatus | null;
+  /** Credential reference for runtime injection */
+  credential_ref?: {
+    credential_id: string;
+    field_map: Record<string, string>;
+  } | null;
 }
 
 export interface MCPOAuthStartRequest {
@@ -91,6 +96,11 @@ export interface MCPClientCreateRequest {
     env?: Record<string, string>;
     /** Working directory for stdio command */
     cwd?: string;
+    /** Credential reference for runtime injection */
+    credential_ref?: {
+      credential_id: string;
+      field_map: Record<string, string>;
+    } | null;
   };
 }
 
@@ -124,4 +134,9 @@ export interface MCPClientUpdateRequest {
   env?: Record<string, string>;
   /** Working directory for stdio command */
   cwd?: string;
+  /** Credential reference for runtime injection */
+  credential_ref?: {
+    credential_id: string;
+    field_map: Record<string, string>;
+  } | null;
 }

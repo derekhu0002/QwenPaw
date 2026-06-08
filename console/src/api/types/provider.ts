@@ -39,6 +39,11 @@ export interface ProviderInfo {
   auth_mode?: "api_key" | "auth_token";
   /** Provider-specific metadata (e.g. base_url_options for region selection). */
   meta?: Record<string, unknown>;
+  /** Optional credential reference for runtime auth injection. */
+  credential_ref?: {
+    credential_id: string;
+    field_map: Record<string, string>;
+  } | null;
 }
 
 /** Predefined base URL option exposed via `ProviderInfo.meta.base_url_options`. */
@@ -54,6 +59,10 @@ export interface ProviderConfigRequest {
   generate_kwargs?: Record<string, unknown>;
   custom_headers?: Record<string, string>;
   auth_mode?: "api_key" | "auth_token";
+  credential_ref?: {
+    credential_id: string;
+    field_map: Record<string, string>;
+  } | null;
 }
 
 export interface ModelSlotConfig {

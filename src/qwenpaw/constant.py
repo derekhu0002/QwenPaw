@@ -264,13 +264,11 @@ MEMORY_COMPACT_RATIO = EnvVarLoader.get_float(
 # When unset, CORS middleware is not applied.
 CORS_ORIGINS = EnvVarLoader.get_str("QWENPAW_CORS_ORIGINS", "").strip()
 
-# Upload size limit (MB).  None = no limit.
-UPLOAD_MAX_SIZE_MB: int | None = (
-    int(v)
-    if (v := EnvVarLoader.get_str("QWENPAW_UPLOAD_MAX_SIZE_MB", ""))
-    .strip()
-    .isdigit()
-    else None
+# Upload size limit (MB). Defaults to 10 MB.
+UPLOAD_MAX_SIZE_MB = EnvVarLoader.get_int(
+    "QWENPAW_UPLOAD_MAX_SIZE_MB",
+    10,
+    min_value=1,
 )
 
 # LLM API retry configuration

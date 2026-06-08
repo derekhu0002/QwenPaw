@@ -59,6 +59,7 @@
     "models": "Modelos",
     "environments": "Environments",
     "security": "Seguranca",
+    "credentials": "Credenciais",
     "tokenUsage": "Uso de Tokens",
     "agentStats": "Estatisticas dos Agentes",
     "voiceTranscription": "Transcricao de Voz",

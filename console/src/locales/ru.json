@@ -55,6 +55,7 @@
     "models": "Модели",
     "environments": "Окружения",
     "security": "Безопасность",
+    "credentials": "Учетные данные",
     "tokenUsage": "Использование токенов",
     "agentStats": "Статистика агента",
     "voiceTranscription": "Транскрипция голоса",

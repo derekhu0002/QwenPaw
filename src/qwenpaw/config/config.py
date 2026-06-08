@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import json
 import re
+from enum import Enum
 from pathlib import Path
 from typing import Optional, Union, Dict, List, Literal, Any, Set
 
@@ -44,6 +45,44 @@ class ModelSlotConfig(BaseModel):
 
     provider_id: str = Field(default="")
     model: str = Field(default="")
+
+
+class CredentialType(str, Enum):
+    """Supported credential types."""
+
+    AKSK = "aksk"
+    TOKEN = "token"
+    API_KEY = "api_key"
+    COOKIE = "cookie"
+    CUSTOM_KV = "custom_kv"
+
+
+class CredentialScope(str, Enum):
+    """Credential visibility scope."""
+
+    AGENT = "agent"
+    GLOBAL = "global"
+
+
+class CredentialRef(BaseModel):
+    """Reference to a managed credential entry."""
+
+    credential_id: str = Field(..., min_length=1)
+    field_map: Dict[str, str] = Field(default_factory=dict)
+
+
+class CredentialEntry(BaseModel):
+    """Credential entry schema used by credential store APIs."""
+
+    id: str = Field(..., min_length=1)
+    name: str = Field(..., min_length=1)
+    type: CredentialType = Field(default=CredentialType.CUSTOM_KV)
+    scope: CredentialScope = Field(default=CredentialScope.AGENT)
+    agent_id: str = Field(default="")
+    description: str = Field(default="")
+    data: Dict[str, str] = Field(default_factory=dict)
+    created_at: float = Field(default=0.0)
+    updated_at: float = Field(default=0.0)
 
 
 class ActiveModelsInfo(BaseModel):
@@ -1301,6 +1340,7 @@ class MCPClientConfig(BaseModel):
     env: Dict[str, str] = Field(default_factory=dict)
     cwd: str = ""
     oauth: Optional[MCPOAuthConfig] = None
+    credential_ref: Optional[CredentialRef] = None
 
     @model_validator(mode="before")
     @classmethod
@@ -1326,6 +1366,15 @@ class MCPClientConfig(BaseModel):
             and not payload.get("command")
         ):
             payload["transport"] = "streamable_http"
+
+        # Legacy credential alias compatibility
+        if "credentialRef" in payload and "credential_ref" not in payload:
+            payload["credential_ref"] = payload["credentialRef"]
+        if "credentialId" in payload and "credential_ref" not in payload:
+            payload["credential_ref"] = {
+                "credential_id": payload["credentialId"],
+                "field_map": payload.get("fieldMap", {}),
+            }
 
         raw_transport = payload.get("transport")
         if isinstance(raw_transport, str):
@@ -1406,6 +1455,13 @@ class BuiltinToolConfig(BaseModel):
     config: Dict[str, Any] = Field(
         default_factory=dict,
         description="Tool-specific configuration (e.g., API keys)",
+    )
+    credential_ref: Optional[CredentialRef] = Field(
+        default=None,
+        description=(
+            "Optional credential reference used when this tool needs "
+            "remote service authentication."
+        ),
     )
 
 

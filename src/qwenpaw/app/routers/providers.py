@@ -27,7 +27,7 @@ from ...providers.provider import ProviderInfo, ModelInfo
 from ...config.config import ActiveModelsInfo
 from ...providers.provider_manager import ProviderManager
 from ...providers.openrouter_provider import OpenRouterProvider
-from ...config.config import ModelSlotConfig
+from ...config.config import ModelSlotConfig, CredentialRef
 
 logger = logging.getLogger(__name__)
 
@@ -80,6 +80,10 @@ class ProviderConfigRequest(BaseModel):
             "Authentication mode: 'api_key' or 'auth_token'. "
             "Only applies to Anthropic-compatible providers."
         ),
+    )
+    credential_ref: Optional[CredentialRef] = Field(
+        default=None,
+        description="Optional credential reference for runtime auth injection.",
     )
 
 
@@ -209,6 +213,7 @@ async def configure_provider(
             "generate_kwargs": body.generate_kwargs,
             "custom_headers": body.custom_headers,
             "auth_mode": body.auth_mode,
+            "credential_ref": body.credential_ref,
         },
     )
     if not ok:

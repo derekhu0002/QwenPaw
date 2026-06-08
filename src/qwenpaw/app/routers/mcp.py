@@ -11,6 +11,7 @@ from pydantic import BaseModel, Field
 
 from ..utils import schedule_agent_reload
 from ...config.config import MCPClientConfig
+from ...config.config import CredentialRef
 
 logger = logging.getLogger(__name__)
 
@@ -65,6 +66,10 @@ class MCPClientInfo(BaseModel):
         default=None,
         description="OAuth token status (None if OAuth not configured)",
     )
+    credential_ref: Optional[CredentialRef] = Field(
+        default=None,
+        description="Credential reference for runtime header/env injection.",
+    )
 
 
 class MCPClientCreateRequest(BaseModel):
@@ -104,6 +109,10 @@ class MCPClientCreateRequest(BaseModel):
         default="",
         description="Working directory for stdio MCP command",
     )
+    credential_ref: Optional[CredentialRef] = Field(
+        default=None,
+        description="Credential reference for runtime header/env injection.",
+    )
 
 
 class MCPClientUpdateRequest(BaseModel):
@@ -142,6 +151,10 @@ class MCPClientUpdateRequest(BaseModel):
     cwd: Optional[str] = Field(
         None,
         description="Working directory for stdio MCP command",
+    )
+    credential_ref: Optional[CredentialRef] = Field(
+        None,
+        description="Credential reference for runtime header/env injection.",
     )
 
 
@@ -238,6 +251,7 @@ def _build_client_info(key: str, client: MCPClientConfig) -> MCPClientInfo:
         env=masked_env,
         cwd=client.cwd,
         oauth_status=_build_oauth_status(client),
+        credential_ref=client.credential_ref,
     )
 
 
@@ -391,6 +405,7 @@ async def create_mcp_client(
         args=client.args,
         env=client.env,
         cwd=client.cwd,
+        credential_ref=client.credential_ref,
     )
 
     # Add to agent's config and save

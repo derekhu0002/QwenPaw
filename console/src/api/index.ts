@@ -28,6 +28,7 @@ import { languageApi } from "./modules/language";
 import { backupApi } from "./modules/backup";
 import { consoleApi } from "./modules/console";
 import { accessControlApi } from "./modules/accessControl";
+import { credentialsApi } from "./modules/credentials";
 
 export const api = {
   // Root
@@ -99,6 +100,8 @@ export const api = {
 
   // Access Control
   ...accessControlApi,
+  // Credentials
+  ...credentialsApi,
 };
 
 export default api;

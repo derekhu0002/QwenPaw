@@ -13,6 +13,10 @@ from .config import (
     ActiveModelsInfo,
     ACPConfig,
     ACPAgentConfig,
+    CredentialType,
+    CredentialScope,
+    CredentialRef,
+    CredentialEntry,
 )
 from .utils import (
     get_available_channels,
@@ -43,6 +47,10 @@ __all__ = [
     "ActiveModelsInfo",
     "ACPConfig",
     "ACPAgentConfig",
+    "CredentialType",
+    "CredentialScope",
+    "CredentialRef",
+    "CredentialEntry",
     "get_available_channels",
     "get_config_path",
     "get_heartbeat_config",

@@ -36,6 +36,7 @@ const EnvironmentsPage = lazyImportWithRetry(
   "../../pages/Settings/Environments",
 );
 const SecurityPage = lazyImportWithRetry("../../pages/Settings/Security");
+const CredentialsPage = lazyImportWithRetry("../../pages/Settings/Credentials");
 const TokenUsagePage = lazyImportWithRetry("../../pages/Settings/TokenUsage");
 const AgentStatsPage = lazyImportWithRetry("../../pages/Settings/AgentStats");
 const VoiceTranscriptionPage = lazyImportWithRetry(
@@ -88,6 +89,7 @@ const pathToKey: Record<string, string> = {
   "/environments": "environments",
   "/agent-config": "agent-config",
   "/security": "security",
+  "/credentials": "credentials",
   "/token-usage": "token-usage",
   "/agent-stats": "agent-stats",
   "/voice-transcription": "voice-transcription",
@@ -156,6 +158,7 @@ export default function MainLayout() {
                   <Route path="/environments" element={<EnvironmentsPage />} />
                   <Route path="/agent-config" element={<AgentConfigPage />} />
                   <Route path="/security" element={<SecurityPage />} />
+                  <Route path="/credentials" element={<CredentialsPage />} />
                   <Route path="/token-usage" element={<TokenUsagePage />} />
                   <Route path="/agent-stats" element={<AgentStatsPage />} />
                   <Route

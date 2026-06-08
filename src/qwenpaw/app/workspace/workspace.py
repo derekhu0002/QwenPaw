@@ -219,6 +219,7 @@ class Workspace:
             ServiceDescriptor(
                 name="mcp_manager",
                 service_class=MCPClientManager,
+                init_args=lambda ws: {"agent_id": ws.agent_id},
                 post_init=create_mcp_service,
                 stop_method="close_all",
                 priority=20,

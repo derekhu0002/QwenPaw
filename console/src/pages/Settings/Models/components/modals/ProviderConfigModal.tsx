@@ -30,6 +30,7 @@ interface ProviderConfigFormValues
     "generate_kwargs" | "custom_headers" | "auth_mode"
   > {
   generate_kwargs_text?: string;
+  credential_id?: string;
 }
 
 interface HeaderEntry {
@@ -274,6 +275,10 @@ interface ProviderConfigModalProps {
     custom_headers?: Record<string, string>;
     auth_mode?: "api_key" | "auth_token";
     meta?: Record<string, unknown>;
+    credential_ref?: {
+      credential_id: string;
+      field_map: Record<string, string>;
+    } | null;
   };
   activeModels: any;
   open: boolean;
@@ -450,6 +455,7 @@ export function ProviderConfigModal({
         api_key: undefined,
         base_url: provider.base_url || undefined,
         chat_model: provider.chat_model || "OpenAIChatModel",
+        credential_id: provider.credential_ref?.credential_id || "",
         generate_kwargs_text:
           provider.generate_kwargs &&
           Object.keys(provider.generate_kwargs).length > 0
@@ -515,6 +521,12 @@ export function ProviderConfigModal({
         generate_kwargs: hasGenerateConfigInput ? generateConfig : {},
         custom_headers: headersObj,
         auth_mode: isAnthropicProvider ? authMode : undefined,
+        credential_ref: values.credential_id?.trim()
+          ? {
+              credential_id: values.credential_id.trim(),
+              field_map: { api_key: "api_key" },
+            }
+          : undefined,
       });
 
       await onSaved();
@@ -652,6 +664,7 @@ export function ProviderConfigModal({
         initialValues={{
           base_url: provider.base_url || undefined,
           chat_model: provider.chat_model || "OpenAIChatModel",
+          credential_id: provider.credential_ref?.credential_id || "",
           generate_kwargs_text:
             provider.generate_kwargs &&
             Object.keys(provider.generate_kwargs).length > 0
@@ -769,6 +782,14 @@ export function ProviderConfigModal({
           ]}
         >
           <Input.Password placeholder={apiKeyPlaceholder} />
+        </Form.Item>
+
+        <Form.Item
+          name="credential_id"
+          label="Credential Ref"
+          extra="Optional credential ID from Credential Center."
+        >
+          <Input placeholder="cred_xxx" />
         </Form.Item>
 
         <div className={styles.advancedConfigSection}>

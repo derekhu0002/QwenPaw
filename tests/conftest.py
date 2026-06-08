@@ -12,6 +12,7 @@ import os
 import shutil
 import sys
 import tempfile
+import importlib
 from collections.abc import Generator
 from pathlib import Path
 from typing import Any
@@ -37,7 +38,11 @@ _MISSING_MODULES = {
 }
 
 for _module in _MISSING_MODULES:
-    if _module not in sys.modules:
+    if _module in sys.modules:
+        continue
+    try:
+        importlib.import_module(_module)
+    except Exception:
         sys.modules[_module] = MagicMock()
 
 
