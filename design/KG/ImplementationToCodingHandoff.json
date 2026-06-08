@@ -2,7 +2,7 @@
   "stage": "implementation-to-coding",
   "generatedAt": "2026-06-08",
   "sourceIntentGraphPath": "design/KG/SystemArchitecture.json",
-  "summary": "Implementation architecture now closes the sec-e2e-027 live reconnect recovery seam. The explicit entrypoint remains frozen and green, and the startup-heartbeat, canonical-runtime-client-identity, durable lease-persistence, startup-normal-admission, stopped-runtime downgrade, and live reconnect recovery guards are all now green. Current repository evidence proves that after lease-expired downgrade and runtime restart, the real runtime path can materialize a reconnect gap proof for the restarted session, automatically submit recovery evidence accepted by deploy/api, refresh the same canonical client's lease heartbeat, and restore end-side access only after Security Center closes the recovery gate.",
+  "summary": "Implementation architecture is reopened for the sec-e2e-027 passive reconnect seam. The explicit entrypoint remains frozen and green, and the startup-heartbeat, canonical-runtime-client-identity, durable lease-persistence, startup-normal-admission, stopped-runtime downgrade, and restored-access recovery guards are green. However, live validation on 2026-06-08 shows that reconnect heartbeat alone still leaves the canonical client in GAP_VALIDATION_REQUIRED with recovery_gate_status OPEN and divergence_reason missing_gap_proof while last_heartbeat_at continues to advance, so the operator web does not return to normal on passive reconnect alone.",
   "implementationContracts": [
     "OVERALL_ARCHITECTURE.md",
     "src/qwenpaw/ARCHITECTURE.md",
@@ -117,6 +117,14 @@
       "controlPoint": "Start Security Center API/Web and one real QwenPaw runtime from a reset state, establish a trusted anchor, stop or isolate the runtime until the same canonical client is UNTRUSTED with divergence_reason lease_ttl_expired, then restart the same runtime and attempt a端侧 model or sensitive operation without manually posting a proof to deploy/api.",
       "observationPoint": "The runtime re-online path must automatically submit a full missing-gap proof equivalent to the proof accepted by deploy/api/store.py, Security Center must project the same canonical client as ALIGNED or TRUSTED with gap_status VALIDATED or CLEAR, recovery_gate_status CLEAR, recovery_required=false, durable lease timing refreshed beyond the observation time, and the端侧 operation must return success instead of 423 recovery-gated blocking. Current repository state now passes this guard and keeps live reconnect recovery frozen as a regression boundary.",
       "expectedStatus": "passed"
+    },
+    {
+      "name": "security-center-passive-reconnect-web-normalization",
+      "path": "tests/contract/security/test_lease_recovery_semantics_contract.py",
+      "kind": "supporting-guardrail",
+      "controlPoint": "Start Security Center API/Web and one real QwenPaw runtime from a reset state, establish a trusted anchor, stop or isolate the runtime until the same canonical client is UNTRUSTED with divergence_reason lease_ttl_expired, then restart the same runtime and observe Security Center before any restored-access prompt or explicit recovery control point is executed.",
+      "observationPoint": "Implementation Design must decide whether passive reconnect should still show recovery-gated state or should normalize the operator web. If passive reconnect is intended to restore trust, the same canonical client must leave GAP_VALIDATION_REQUIRED, close recovery_gate_status, and project recovery_required=false on heartbeat alone. If not, contracts and showcases must explicitly freeze that Web remains non-normal until the restored-access flow runs.",
+      "expectedStatus": "failed"
     }
   ],
   "expectedFailureRecordsPath": "design/KG/test-failure-records.json",
@@ -161,10 +169,15 @@
       "path": "tests/contract/security/test_lease_recovery_semantics_contract.py::test_security_center_live_reconnect_gap_proof_restores_access",
       "failureSignal": "Regression signal if a lease-expired canonical runtime ever restarts and returns to a 423 recovery-gated state, loses automatic reconnect gap-proof submission, fails to refresh canonical lease heartbeat after recovery, or stops restoring end-side access after Security Center projects recovery_required=false.",
       "nextAction": "Preserve the repaired runtime re-online path so it continues to materialize reconnect gap proof anchors, post the resulting full missing-gap proof automatically, refresh canonical heartbeat after gate closure, and restore端侧 model or sensitive operation access only after Security Center projects recovery_required=false."
+    },
+    {
+      "path": "tests/contract/security/test_lease_recovery_semantics_contract.py::test_security_center_passive_reconnect_web_normalization",
+      "failureSignal": "Expected-failing signal for the current live contradiction: reconnect heartbeat alone continues to advance last_heartbeat_at while Security Center still projects GAP_VALIDATION_REQUIRED, recovery_gate_status OPEN, and divergence_reason missing_gap_proof, so the operator web never returns to normal on passive reconnect.",
+      "nextAction": "Implementation Design must choose whether passive reconnect is itself a trust-restoring control point. If yes, move accepted missing-gap evidence into the reconnect heartbeat or startup reconnect path. If no, keep the restored-access guard as the only trust-restoring control point and update showcase/operator expectations so Web remaining non-normal before restored access is intentional."
     }
   ],
   "taskExecutionPlan": {
-    "executionStrategy": "Keep sec-e2e-027 on its one frozen explicit entrypoint with two sequential control points and two distinct console observation points, and preserve the already-green startup-heartbeat, single-terminal runtime identity, durable lease-persistence, startup normal-admission, stopped-runtime downgrade, and live reconnect recovery guards as the closed implementation baseline.",
+    "executionStrategy": "Keep sec-e2e-027 on its one frozen explicit entrypoint with two sequential control points and two distinct console observation points, preserve the already-green startup-heartbeat, single-terminal runtime identity, durable lease-persistence, startup normal-admission, stopped-runtime downgrade, and restored-access recovery guards, and explicitly resolve the remaining passive reconnect ambiguity instead of letting live operator expectations drift from the implemented control points.",
     "tasks": [
       {
         "taskId": "security-center-startup-normal-admission-005",
@@ -188,8 +201,8 @@
       },
       {
         "taskId": "security-center-live-reconnect-recovery-006",
-        "title": "Preserve live reconnect access",
-        "objective": "Keep the closed live recovery seam intact so the real re-online runtime path continues to submit an accepted full missing-gap proof, refresh the canonical runtime lease heartbeat, and restore端侧 access after Security Center closes the recovery gate.",
+        "title": "Resolve passive reconnect behavior",
+        "objective": "Remove the current ambiguity between restored-access recovery and passive reconnect heartbeat so operator web expectations, runtime control points, and Security Center recovery semantics describe the same product behavior.",
         "dependsOn": [
           "security-center-startup-normal-admission-005"
         ],
@@ -204,13 +217,12 @@
           "tests/contract/security/test_lease_recovery_semantics_contract.py"
         ],
         "steps": [
-          "Preserve the live behavior guard that starts API/Web/runtime, establishes a trusted anchor, stops or isolates runtime until deploy/api marks the canonical client UNTRUSTED with divergence_reason lease_ttl_expired, restarts the same runtime, and attempts端侧 access without a manual /recovery/handshake proof injection.",
-          "In src/qwenpaw/security/audit_foundation.py, preserve the runtime re-online or preflight path that materializes the same full missing-gap proof that _build_gap_proof can construct from checkpoint plus trace evidence for the restarted session, then posts that proof automatically while keeping the canonical runtime client id plus session alias consistent.",
-          "After deploy/api accepts gap validation, preserve the immediate refresh of the same canonical client's lease heartbeat so the restored ALIGNED/CLEAR or VALIDATED/CLEAR state survives beyond the TTL observation window while the runtime is actually online.",
-          "Preserve the rule that no端侧 model or sensitive operation succeeds before Security Center returns recovery_required=false and recovery_gate_status CLEAR; once that state is observed, the operation must continue to avoid 423 recovery-gated responses.",
-          "Keep the already-green startup admission and stopped-runtime TTL downgrade guards green so clean startup is not mistaken for recovery, and true offline clients still downgrade when heartbeat stops."
+          "Add an expected-failing guard that observes Security Center immediately after runtime reconnect heartbeat and before any restored-access prompt, so Implementation Design can freeze whether Web should still be recovery-gated or already normalized at that moment.",
+          "If passive reconnect should restore trust, move accepted missing-gap proof submission into the reconnect heartbeat or startup reconnect path in src/qwenpaw/security/audit_foundation.py so deploy/api/store.py stops returning missing_gap_proof on heartbeat alone.",
+          "If passive reconnect should not restore trust, preserve the current restored-access proof path in src/qwenpaw/app/routers/console.py as the only trust-restoring control point and update showcase/operator-facing contracts so Web remaining non-normal before restored access is intentional rather than surprising.",
+          "In both cases, preserve canonical runtime identity, durable lease timing, startup normal-admission, and stopped-runtime TTL downgrade semantics."
         ],
-        "completionSignal": "tests/contract/security/test_lease_recovery_semantics_contract.py::test_security_center_live_reconnect_gap_proof_restores_access passes while the full tests/contract/security/test_lease_recovery_semantics_contract.py suite remains green."
+        "completionSignal": "Implementation Design explicitly freezes the passive reconnect behavior, tests/contract/security/test_lease_recovery_semantics_contract.py::test_security_center_live_reconnect_gap_proof_restores_access remains green, and the new passive reconnect guard either turns green through implementation or is replaced by clarified architecture and showcase wording that matches the implemented control point."
       }
     ]
   },
@@ -236,5 +248,7 @@
     "tests/architecture/security-audit-contract-boundaries.test.js",
     "tests/architecture/security-explicit-entrypoint-traceability.test.js"
   ],
-  "openGaps": []
+  "openGaps": [
+    "Passive reconnect GAP: on live runtime reconnect, Security Center heartbeats continue to refresh last_heartbeat_at but the canonical client remains GAP_VALIDATION_REQUIRED with recovery_gate_status OPEN and divergence_reason missing_gap_proof until the restored-access prompt path runs."
+  ]
 }

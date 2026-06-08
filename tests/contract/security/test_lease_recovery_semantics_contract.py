@@ -1107,3 +1107,205 @@ def test_security_center_live_reconnect_gap_proof_restores_access(
                 restarted_runtime_process.wait(timeout=5)
         if restarted_runtime_log_thread is not None:
             restarted_runtime_log_thread.join(timeout=2)
+
+
+@pytest.mark.contract
+@pytest.mark.p0
+def test_security_center_passive_reconnect_auto_restores_operator_view(
+    live_reconnect_server: AppServer,
+) -> None:
+    """Control point: start Security Center API/Web and one real QwenPaw
+    runtime from a reset state, establish a trusted anchor, let the same
+    canonical client downgrade to UNTRUSTED after TTL expiry, then restart the
+    same runtime and observe Security Center before any restored-access prompt
+    is executed.
+
+    Observation point: passive reconnect heartbeat must automatically
+    materialize accepted missing-gap evidence, close the recovery gate for the
+    same canonical client, refresh lease timing, and return the operator view
+    to a normal aligned state without requiring a restored-access prompt.
+    """
+
+    if live_reconnect_server.startup_error is not None:
+        raise AssertionError(live_reconnect_server.startup_error)
+
+    recovery_session_id = "security-center-passive-reconnect-contract"
+    operator_user_id = "security_contract_operator"
+    trusted_anchor_prompt = (
+        "Warm the runtime for lease heartbeat monitoring before the "
+        "Security Center lease window expires."
+    )
+
+    projected_overview, projected_client = _poll_projected_lease_client(live_reconnect_server)
+    canonical_client_id = str(projected_client.get("canonical_client_id") or "").strip()
+    assert canonical_client_id, (
+        "Passive_Reconnect_Setup_Gap: the reset-state runtime must first project a "
+        "canonical lease-bearing client before offline downgrade and reconnect recovery can be observed; "
+        f"observed overview={projected_overview!r}."
+    )
+    trusted_anchor_status = _submit_console_prompt(
+        live_reconnect_server,
+        user_id=operator_user_id,
+        session_id=recovery_session_id,
+        prompt=trusted_anchor_prompt,
+    )
+    assert trusted_anchor_status == 200, (
+        "Passive_Reconnect_Setup_Gap: the test must establish session-scoped local "
+        "trace evidence before isolating passive reconnect recovery."
+    )
+    if live_reconnect_server.process.poll() is None:
+        live_reconnect_server.process.terminate()
+        live_reconnect_server.process.wait(timeout=15)
+    expired_timeline = _poll_ttl_expired_timeline(
+        live_reconnect_server,
+        client_id=canonical_client_id,
+    )
+
+    restarted_runtime_logs: list[str] = []
+    repo_root = Path(__file__).resolve().parents[3]
+    restarted_runtime_env = os.environ.copy()
+    restarted_runtime_env["QWENPAW_WORKING_DIR"] = str(live_reconnect_server.working_dir)
+    restarted_runtime_env["QWENPAW_SECRET_DIR"] = str(live_reconnect_server.working_dir.parent / "working.secret")
+    restarted_runtime_env["QWENPAW_BACKUP_DIR"] = str(live_reconnect_server.working_dir.parent / "working.backups")
+    restarted_runtime_env["QWENPAW_AUTH_ENABLED"] = "false"
+    restarted_runtime_env["NO_PROXY"] = "*"
+    restarted_runtime_env["PYTHONUNBUFFERED"] = "1"
+    existing_pythonpath = restarted_runtime_env.get("PYTHONPATH", "").strip()
+    restarted_runtime_env["PYTHONPATH"] = (
+        str(repo_root / "src")
+        if not existing_pythonpath
+        else os.pathsep.join((str(repo_root / "src"), existing_pythonpath))
+    )
+    restarted_runtime_env["PYTHONIOENCODING"] = "utf-8"
+    assert live_reconnect_server.security_center_api_url is not None
+    assert live_reconnect_server.security_center_web_url is not None
+    restarted_runtime_env["QWENPAW_SECURITY_CENTER_API_URL"] = live_reconnect_server.security_center_api_url
+    restarted_runtime_env["QWENPAW_SECURITY_CENTER_WEB_URL"] = live_reconnect_server.security_center_web_url
+
+    restarted_runtime_process: subprocess.Popen[str] | None = None
+    restarted_runtime_log_thread: threading.Thread | None = None
+    try:
+        restarted_runtime_process = subprocess.Popen(
+            [
+                sys.executable,
+                "-m",
+                "qwenpaw",
+                "app",
+                "--host",
+                live_reconnect_server.host,
+                "--port",
+                str(live_reconnect_server.port),
+                "--log-level",
+                "info",
+            ],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            text=True,
+            bufsize=1,
+            encoding="utf-8",
+            errors="replace",
+            env=restarted_runtime_env,
+            cwd=repo_root,
+        )
+        assert restarted_runtime_process.stdout is not None
+        restarted_runtime_log_thread = threading.Thread(
+            target=_tee_stream,
+            args=(restarted_runtime_process.stdout, restarted_runtime_logs),
+            daemon=True,
+        )
+        restarted_runtime_log_thread.start()
+
+        restart_ready_error = _wait_for_http_ready(
+            live_reconnect_server.client,
+            url=f"{live_reconnect_server.base_url}/api/version",
+            ready_statuses={200},
+            timeout_seconds=30.0,
+            process=restarted_runtime_process,
+            logs=restarted_runtime_logs,
+            service_name="qwenpaw app",
+        )
+        assert restart_ready_error is None, restart_ready_error
+
+        recovered_timeline = _poll_recovered_timeline(
+            live_reconnect_server,
+            client_id=canonical_client_id,
+        )
+        recovered_overview = _read_security_center_overview(live_reconnect_server)
+        recovered_store = _read_security_center_store_snapshot(live_reconnect_server)
+        recovered_clients = recovered_store.get("clients") if isinstance(recovered_store, dict) else {}
+        recovered_client = recovered_clients.get(canonical_client_id, {}) if isinstance(recovered_clients, dict) else {}
+        local_gap_proof = build_runtime_gap_proof(
+            base_dir=live_reconnect_server.working_dir,
+            session_id=recovery_session_id,
+        )
+
+        assert isinstance(expired_timeline, dict), (
+            "Passive_Reconnect_Setup_Gap: Security Center must first expose the "
+            "canonical runtime as lease_ttl_expired before passive reconnect recovery can be judged."
+        )
+        assert expired_timeline.get("trust_state") == TRUST_STATE_UNTRUSTED, (
+            "Passive_Reconnect_Setup_Gap: the same canonical client must degrade to "
+            f"UNTRUSTED before passive reconnect recovery is observed. Timeline={expired_timeline!r}."
+        )
+        assert expired_timeline.get("divergence_reason") == "lease_ttl_expired", (
+            "Passive_Reconnect_Setup_Gap: passive reconnect recovery must begin from a true "
+            f"lease-expired client, not from a different divergence category. Timeline={expired_timeline!r}."
+        )
+        assert local_gap_proof.get("anchors"), (
+            "Passive_Reconnect_Recovery_Gap: runtime reconnect heartbeat failed to "
+            "materialize a locally constructible missing-gap proof before any restored-access prompt ran."
+        )
+        assert isinstance(recovered_timeline, dict), (
+            "Passive_Reconnect_Recovery_Gap: Security Center must expose a recovered "
+            "timeline for the same canonical client after runtime restart alone."
+        )
+        assert str(recovered_timeline.get("trust_state") or "") in {TRUST_STATE_ALIGNED, "TRUSTED"}, (
+            "Passive_Reconnect_Recovery_Gap: passive reconnect must return the same "
+            f"canonical client to ALIGNED or TRUSTED before any restored-access prompt. Timeline={recovered_timeline!r}."
+        )
+        assert str(recovered_timeline.get("gap_status") or "") in {GAP_STATUS_CLEAR, "VALIDATED"}, (
+            "Passive_Reconnect_Recovery_Gap: passive reconnect must clear or validate "
+            f"the missing gap before operator recovery is projected. Timeline={recovered_timeline!r}."
+        )
+        assert recovered_timeline.get("recovery_gate_status") == RECOVERY_GATE_CLOSED, (
+            "Passive_Reconnect_Recovery_Gap: passive reconnect heartbeat must close the "
+            f"recovery gate before operator view normalizes. Timeline={recovered_timeline!r}."
+        )
+        assert recovered_timeline.get("recovery_required") is False, (
+            "Passive_Reconnect_Recovery_Gap: the same canonical client must stop being "
+            f"recovery_required on reconnect alone. Timeline={recovered_timeline!r}."
+        )
+        assert int(recovered_timeline.get("lease_expires_at") or 0) > time.time_ns(), (
+            "Passive_Reconnect_Recovery_Gap: the recovered client must refresh lease "
+            f"timing beyond the observation instant, not fall back to stale expiry. Timeline={recovered_timeline!r}."
+        )
+        assert int(recovered_client.get("lease_expires_at") or 0) > time.time_ns(), (
+            "Passive_Reconnect_Recovery_Gap: the durable Security Center store must "
+            "refresh lease expiry for the same canonical client once passive reconnect succeeds."
+        )
+        overview_clients = recovered_overview.get("clients") if isinstance(recovered_overview, dict) else []
+        matching_clients = [
+            client
+            for client in overview_clients
+            if isinstance(client, dict)
+            and str(client.get("canonical_client_id") or "").strip() == canonical_client_id
+        ]
+        assert any(
+            str(client.get("trust_state") or "") in {TRUST_STATE_ALIGNED, "TRUSTED"}
+            and client.get("recovery_gate_status") == RECOVERY_GATE_CLOSED
+            and client.get("recovery_required") is False
+            for client in matching_clients
+        ), (
+            "Passive_Reconnect_Recovery_Gap: operator overview must show the same "
+            "canonical client as recovered after reconnect heartbeat alone."
+        )
+    finally:
+        if restarted_runtime_process is not None and restarted_runtime_process.poll() is None:
+            restarted_runtime_process.terminate()
+            try:
+                restarted_runtime_process.wait(timeout=15)
+            except subprocess.TimeoutExpired:
+                restarted_runtime_process.kill()
+                restarted_runtime_process.wait(timeout=5)
+        if restarted_runtime_log_thread is not None:
+            restarted_runtime_log_thread.join(timeout=2)

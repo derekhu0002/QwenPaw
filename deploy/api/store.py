@@ -514,9 +514,7 @@ class SecurityCenterStore:
                     },
                 )
             elif recovery_gate_open and gap_validation["accepted"]:
-                aligned_head_hash = local_hash
-                if expected_reported_hash and checkpoint_hash == expected_anchor_hash:
-                    aligned_head_hash = expected_reported_hash
+                aligned_head_hash = local_hash or expected_reported_hash or shadow_hash
                 trust_state = TRUST_STATE_ALIGNED
                 recovery_required = False
                 gap_status = GAP_STATUS_VALIDATED
@@ -583,19 +581,37 @@ class SecurityCenterStore:
                     },
                 )
             elif local_hash and local_hash == shadow_hash:
+                already_trusted_head = (
+                    local_hash == str(client_state.get("last_trusted_anchor_hash") or "")
+                    and max(local_sequence, checkpoint_sequence) <= _as_int(client_state.get("last_trusted_sequence"), 0)
+                )
                 if recovery_gate_open:
-                    trust_state = TRUST_STATE_GAP_VALIDATION_REQUIRED
-                    recovery_required = True
-                    gap_status = GAP_STATUS_REQUIRED
-                    recovery_gate_status = RECOVERY_GATE_OPEN
-                    divergence_reason = gap_validation["reason"]
-                else:
-                    if established_trusted_anchor and not has_continuity_evidence:
+                    if already_trusted_head:
+                        trust_state = TRUST_STATE_ALIGNED
+                        recovery_required = False
+                        gap_status = GAP_STATUS_CLEAR
+                        recovery_gate_status = RECOVERY_GATE_CLOSED
+                        divergence_reason = ""
+                    else:
                         trust_state = TRUST_STATE_GAP_VALIDATION_REQUIRED
                         recovery_required = True
                         gap_status = GAP_STATUS_REQUIRED
                         recovery_gate_status = RECOVERY_GATE_OPEN
-                        divergence_reason = "continuity_evidence_missing"
+                        divergence_reason = gap_validation["reason"]
+                else:
+                    if established_trusted_anchor and not has_continuity_evidence:
+                        if already_trusted_head:
+                            trust_state = TRUST_STATE_ALIGNED
+                            recovery_required = False
+                            gap_status = GAP_STATUS_CLEAR
+                            recovery_gate_status = RECOVERY_GATE_CLOSED
+                            divergence_reason = ""
+                        else:
+                            trust_state = TRUST_STATE_GAP_VALIDATION_REQUIRED
+                            recovery_required = True
+                            gap_status = GAP_STATUS_REQUIRED
+                            recovery_gate_status = RECOVERY_GATE_OPEN
+                            divergence_reason = "continuity_evidence_missing"
                     else:
                         trust_state = TRUST_STATE_ALIGNED
                         recovery_required = False
@@ -604,7 +620,7 @@ class SecurityCenterStore:
                         divergence_reason = ""
                         client_state.update(
                             {
-                                "last_trusted_anchor_hash": checkpoint_hash or local_hash,
+                                "last_trusted_anchor_hash": local_hash,
                                 "last_trusted_sequence": max(local_sequence, checkpoint_sequence, trusted_sequence),
                                 "last_trusted_anchor_event_id": checkpoint_anchor_id or anchored_event_id,
                                 "last_trusted_anchor_source": "recovery_handshake_direct",

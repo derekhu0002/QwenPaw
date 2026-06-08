@@ -113,6 +113,48 @@ def _latest_trace_run_id(
     return ""
 
 
+def _recent_trace_session_ids(base_dir: Path | None = None) -> list[str]:
+    trace_dir = _trace_dir(base_dir)
+    if not trace_dir.exists():
+        return []
+    session_ids: list[str] = []
+    seen: set[str] = set()
+    trace_paths = sorted(trace_dir.glob("*.json"), key=lambda path: path.stat().st_mtime)
+    for path in reversed(trace_paths):
+        payload = _read_json(path) or {}
+        session_id = _normalize_text(payload.get("session_id"))
+        if not session_id or session_id in seen:
+            continue
+        seen.add(session_id)
+        session_ids.append(session_id)
+    return session_ids
+
+
+def _resolve_passive_reconnect_session_id(
+    *,
+    base_dir: Path | None = None,
+    preferred_session_id: str = "",
+    latest_payload: dict[str, Any] | None = None,
+) -> str:
+    candidates: list[str] = []
+
+    def _append_candidate(session_id: str) -> None:
+        normalized = _normalize_text(session_id)
+        if normalized and normalized not in candidates:
+            candidates.append(normalized)
+
+    _append_candidate(preferred_session_id)
+    if isinstance(latest_payload, dict):
+        _append_candidate(_normalize_text(latest_payload.get("session_id")))
+    for session_id in _recent_trace_session_ids(base_dir):
+        _append_candidate(session_id)
+
+    for session_id in candidates:
+        if _build_gap_proof(base_dir, session_id=session_id):
+            return session_id
+    return candidates[0] if candidates else ""
+
+
 def _security_center_base_url() -> str:
     return (os.environ.get("QWENPAW_SECURITY_CENTER_API_URL") or "").strip().rstrip("/")
 
@@ -173,6 +215,19 @@ async def read_security_center_recovery_state(
     )
 
 
+def _requires_passive_reconnect_gap_proof(recovery_state: dict[str, Any]) -> bool:
+    if not recovery_state:
+        return False
+    if recovery_state.get("recovery_required") is not True:
+        return False
+    if str(recovery_state.get("recovery_gate_status") or "") != "OPEN":
+        return False
+    return str(recovery_state.get("divergence_reason") or "") in {
+        "lease_ttl_expired",
+        "missing_gap_proof",
+    }
+
+
 async def emit_runtime_lease_heartbeat(
     *,
     base_dir: Path | None = None,
@@ -184,8 +239,50 @@ async def emit_runtime_lease_heartbeat(
     latest_payload = _latest_trace_payload(base_dir) if not session_id else {}
     resolved_session_id = session_id or _normalize_text(latest_payload.get("session_id"))
     client_id = security_center_client_id(session_id=resolved_session_id or "", base_dir=base_dir)
+    recovery_state = await read_security_center_recovery_state(
+        session_id=resolved_session_id or "",
+        base_dir=base_dir,
+    )
+    heartbeat_trace_session_id = resolved_session_id or ""
+    heartbeat_gap_proof: dict[str, Any] = {}
+    if _requires_passive_reconnect_gap_proof(recovery_state):
+        recovery_session_id = _resolve_passive_reconnect_session_id(
+            base_dir=base_dir,
+            preferred_session_id=resolved_session_id,
+            latest_payload=latest_payload,
+        )
+        if recovery_session_id:
+            recovery_user_id = _normalize_text(latest_payload.get("user_id")) or user_id
+            recovery_trace_payload = _latest_trace_payload(
+                base_dir,
+                session_id=recovery_session_id,
+            )
+            if str(recovery_trace_payload.get("event_type") or "") != "RECOVERY_RECONNECT_PROOF":
+                await write_reconnect_gap_proof_record(
+                    session_id=recovery_session_id,
+                    user_id=recovery_user_id,
+                    channel="runtime_heartbeat",
+                    tool_name="runtime_lease_heartbeat",
+                    prompt_text="Passive reconnect continuity recovery heartbeat.",
+                    base_dir=base_dir,
+                )
+            recovery_state = await preflight_sensitive_action_recovery(
+                session_id=recovery_session_id,
+                user_id=recovery_user_id,
+                tool_name="runtime_lease_heartbeat",
+                prompt_text="Passive reconnect continuity recovery heartbeat.",
+                base_dir=base_dir,
+            )
+            heartbeat_trace_session_id = recovery_session_id
+            heartbeat_gap_proof = _build_gap_proof(
+                base_dir,
+                session_id=recovery_session_id,
+            )
+            if not _requires_passive_reconnect_gap_proof(recovery_state):
+                recovery_state = {}
     anchor_state = _current_anchor_state(
         base_dir,
+        trace_session_id=heartbeat_trace_session_id,
         bootstrap_client_id=client_id,
     )
     checkpoint = _read_json(_checkpoint_path(base_dir)) or {}
@@ -212,6 +309,7 @@ async def emit_runtime_lease_heartbeat(
             or anchor_state["head_anchor_event_id"],
             "requested_at_ns": emitted_at_ns,
             "lease_ttl_seconds": ttl_seconds,
+            "gap_proof": heartbeat_gap_proof,
             "tool_name": "runtime_lease_heartbeat",
             "user_id": user_id,
             "prompt_text": prompt_text,
