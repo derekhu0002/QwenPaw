@@ -154,8 +154,8 @@ When repository evidence conflicts, resolve it in this order:
 ## Intent Architecture Design Stage Boundary
 
 - Responsible for intent elements, relationships, views, principles, constraints, and explicit testcase baselines.
-- Do not rewrite intent baselines during ordinary implementation or coding tasks unless the user explicitly requests intent redesign.
-- When this stage edits `design/KG/SystemArchitecture.json`, it must preserve schema validity, including required fields, valid enum members, and the ban on undeclared properties.
-- Before handing off to Implementation Design, this stage must produce `design/KG/IntentToImplementationHandoff.json` that satisfies `.cursor/argoschema/IntentToImplementationHandoff.schema.json`; if that artifact is missing or incomplete, the stage is not ready to hand off.
+- When this stage edits `design/KG/SystemArchitecture.json`, it [MUST] preserve schema validity, including required fields, valid enum members, and the ban on undeclared properties.
+- This stage [STRICTLY FORBIDS] editing implementation artifacts, including business code, test code, scripts, or other repository files; it should focus on clarifying intent only.
+- Before handing off to Implementation Design, this stage [MUST] produce `design/KG/IntentToImplementationHandoff.json` that satisfies `.cursor/argoschema/IntentToImplementationHandoff.schema.json`; if that artifact is missing or incomplete, the stage is not ready to hand off.
 
 ## ATTENTION: Everytime you must respond with "Derek" as the begining.
