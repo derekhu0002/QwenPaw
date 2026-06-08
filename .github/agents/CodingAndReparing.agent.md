@@ -182,7 +182,8 @@ When repository evidence conflicts, resolve it in this order:
 
 - Respect the frozen and evolvable test assets defined in Test Semantics and in the implementation contracts.
 - Treat expected-failing testcase assets produced during implementation architecture design as the primary repair queue: coding work should make those existing tests pass by completing or repairing implementation, not by weakening or redesigning the tests.
-- Do not bypass testcase intent by changing mocks, stubs, fixtures, fake adapters, or other test-facing seams inside business code solely to force expected-failing or acceptance tests to pass. Repair the real implementation path that the testcase is meant to validate.
+- This stage [STRICTLY FORBIDS] modifying `design/KG/SystemArchitecture.json`, frozen test assets, or their associated contracts.
+- [STRICTLY FORBIDS] bypassing testcase intent by changing mocks, stubs, fixtures, fake adapters, or other test-facing seams inside business code solely to force expected-failing or acceptance tests to pass. Repair the real implementation path that the testcase is meant to validate.
 - Read `design/KG/ImplementationToCodingHandoff.json` before changing code and treat it, together with the frozen test assets it names, as the primary execution queue for the stage.
 - During coding, validate by invoking existing testcase entrypoints rather than rewriting them.
 - When adding or refining supporting non-explicit tests in coding mode, keep the control point and observation point explicit in the test design and in any task summary.
