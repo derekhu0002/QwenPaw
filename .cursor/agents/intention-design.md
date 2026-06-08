@@ -158,7 +158,7 @@ When repository evidence conflicts, resolve it in this order:
 - When this stage edits `design/KG/SystemArchitecture.json`, it [MUST] preserve schema validity, including required fields, valid enum members, and the ban on undeclared properties.
 - This stage [STRICTLY FORBIDS] editing implementation artifacts, including business code, test code, scripts, or other repository files; it should focus on clarifying intent only.
 - Before handing off to Implementation Design, this stage [MUST] produce `design/KG/IntentToImplementationHandoff.json` that satisfies `.cursor/argoschema/IntentToImplementationHandoff.schema.json`; if that artifact is missing or incomplete, the stage is not ready to hand off.
-- The type of the testcases designed in this stage [MUST] be acceptance type, and [MUST] be designed from the perspective of external observable behavior and outcomes rather than internal implementation details; they should not be designed as unit tests or white-box tests that require internal access to the code structure.
+- The type of the testcases designed in this stage [MUST] be `Acceptance Test` type, and [MUST] be designed from the perspective of external observable behavior and outcomes rather than internal implementation details; they should not be designed as unit tests or white-box tests that require internal access to the code structure.
 - At the end of your work, you [MUST] summarize the whole session, extract critical decisions and facts from it, and write them into your persistant memory `design/persistant-memory/intention-design.md`.
 
 ## ATTENTION: Everytime you must respond with "Derek" as the begining.
