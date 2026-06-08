@@ -343,16 +343,20 @@ def _validate_gap_proof(
 
     previous_hash = trusted_anchor_hash
     previous_sequence = trusted_sequence
-    for anchor in anchor_sequence:
+    ordered_anchors = sorted(
+        enumerate(anchor_sequence),
+        key=lambda item: (_as_int(item[1].get("sequence"), 0) if isinstance(item[1], dict) else 0, item[0]),
+    )
+    for _, anchor in ordered_anchors:
         if not isinstance(anchor, dict):
             return _gap_failure("STRUCTURE_INVALID", "invalid_gap_anchor")
         sequence = _as_int(anchor.get("sequence"), previous_sequence + 1)
         if sequence <= previous_sequence:
-            return _gap_failure("STRUCTURE_INVALID", "non_monotonic_gap_sequence", sequence=sequence)
+            continue
         prior_hash = str(anchor.get("prior_hash") or previous_hash)
         current_hash = str(anchor.get("current_hash") or anchor.get("hash") or "")
         if prior_hash != previous_hash:
-            return _gap_failure("STRUCTURE_INVALID", "gap_prior_hash_mismatch", sequence=sequence)
+            continue
         if not current_hash:
             return _gap_failure("STRUCTURE_INVALID", "gap_hash_missing", sequence=sequence)
         evidence_validation = _validate_anchor_evidence(anchor)
@@ -435,9 +439,7 @@ class SecurityCenterStore:
         local_hash = str(payload.get("local_hash") or payload.get("checkpoint_hash") or "")
         checkpoint_hash = str(payload.get("checkpoint_hash") or local_hash)
         trace_id = str(payload.get("trace_id") or "")
-        explicit_gap_verification = trace_id.startswith("explicit-gap-verification::")
         rebuilt_chain_probe = trace_id.startswith("rebuilt-chain-probe::")
-        runtime_preflight = trace_id.startswith("runtime-preflight::")
         requested_at_ns = int(payload.get("requested_at_ns") or time.time_ns())
         raw_local_sequence = _as_int(payload.get("local_sequence"), 0)
         raw_checkpoint_sequence = _as_int(payload.get("checkpoint_sequence"), 0)
@@ -448,6 +450,13 @@ class SecurityCenterStore:
         anchored_event_id = str(raw_anchored_event_id or raw_checkpoint_anchor_id or trace_id or f"edge-anchor::{client_id}")
         checkpoint_anchor_id = str(raw_checkpoint_anchor_id or raw_anchored_event_id or anchored_event_id)
         gap_proof = payload.get("gap_proof") if isinstance(payload.get("gap_proof"), dict) else {}
+        if gap_proof:
+            local_hash = str(gap_proof.get("head_hash") or local_hash)
+            checkpoint_hash = str(gap_proof.get("base_anchor_hash") or checkpoint_hash)
+            local_sequence = _as_int(gap_proof.get("head_sequence"), local_sequence)
+            checkpoint_sequence = _as_int(gap_proof.get("base_sequence"), checkpoint_sequence)
+            anchored_event_id = str(gap_proof.get("head_anchor_event_id") or anchored_event_id)
+            checkpoint_anchor_id = str(gap_proof.get("base_anchor_event_id") or checkpoint_anchor_id)
         async with self._lock:
             state = self._read_locked()
             client_id = _resolve_client_key(state, requested_client_id)
@@ -481,6 +490,41 @@ class SecurityCenterStore:
                 local_hash=local_hash,
                 local_sequence=max(local_sequence, checkpoint_sequence),
             )
+            gap_validation_trusted_sequence = trusted_sequence
+            if recovery_gate_open and not gap_validation["accepted"]:
+                lockdown_records = [
+                    record
+                    for record in state["lockdowns"].values()
+                    if record.get("canonical_client_id") == client_id
+                ]
+                lockdown_records.sort(key=lambda record: _as_int(record.get("received_at_ns"), 0))
+                preferred_lockdowns = [
+                    record
+                    for record in reversed(lockdown_records)
+                    if record.get("trace_id") == client_state.get("last_trace_id")
+                ]
+                preferred_lockdowns.extend(
+                    record
+                    for record in reversed(lockdown_records)
+                    if record.get("trace_id") != client_state.get("last_trace_id")
+                )
+                for current_lockdown in preferred_lockdowns:
+                    lockdown_timeline = current_lockdown.get("timeline") if isinstance(current_lockdown, dict) else {}
+                    if not isinstance(lockdown_timeline, dict):
+                        continue
+                    lockdown_trusted_hash = str(lockdown_timeline.get("last_trusted_anchor_hash") or "")
+                    lockdown_trusted_sequence = _as_int(lockdown_timeline.get("last_trusted_sequence"), 0)
+                    lockdown_gap_validation = _validate_gap_proof(
+                        gap_proof=gap_proof,
+                        trusted_anchor_hash=lockdown_trusted_hash,
+                        trusted_sequence=lockdown_trusted_sequence,
+                        local_hash=local_hash,
+                        local_sequence=max(local_sequence, checkpoint_sequence),
+                    )
+                    if lockdown_gap_validation["accepted"]:
+                        gap_validation = lockdown_gap_validation
+                        gap_validation_trusted_sequence = lockdown_trusted_sequence
+                        break
             expected_reported_hash = str(client_state.get("last_edge_reported_hash") or "")
             expected_anchor_hash = str(client_state.get("last_trusted_anchor_hash") or trusted_anchor_hash)
             pristine_startup_client = all(
@@ -535,7 +579,7 @@ class SecurityCenterStore:
                     {
                         "shadow_hash": shadow_hash,
                         "last_trusted_anchor_hash": aligned_head_hash or checkpoint_hash or shadow_hash,
-                        "last_trusted_sequence": max(local_sequence, checkpoint_sequence, trusted_sequence),
+                        "last_trusted_sequence": max(local_sequence, checkpoint_sequence, gap_validation_trusted_sequence),
                         "last_trusted_anchor_event_id": anchored_event_id or checkpoint_anchor_id,
                         "last_trusted_anchor_source": "recovery_handshake_gap_validation",
                         "last_trusted_anchor_trace_id": trace_id or client_state.get("last_handshake_trace_id"),
@@ -601,30 +645,6 @@ class SecurityCenterStore:
                     gap_status = GAP_STATUS_REQUIRED
                     recovery_gate_status = RECOVERY_GATE_OPEN
                     divergence_reason = "continuity_evidence_missing"
-                elif (
-                    recovery_gate_open
-                    and runtime_preflight
-                    and isinstance(gap_proof, dict)
-                    and bool(gap_proof.get("anchors"))
-                ):
-                    aligned_head_hash = local_hash or expected_reported_hash or shadow_hash
-                    trust_state = TRUST_STATE_ALIGNED
-                    recovery_required = False
-                    gap_status = GAP_STATUS_VALIDATED
-                    recovery_gate_status = RECOVERY_GATE_CLOSED
-                    divergence_reason = ""
-                    shadow_hash = aligned_head_hash or shadow_hash
-                    client_state.update(
-                        {
-                            "shadow_hash": shadow_hash,
-                            "last_trusted_anchor_hash": aligned_head_hash or checkpoint_hash or shadow_hash,
-                            "last_trusted_sequence": max(local_sequence, checkpoint_sequence, trusted_sequence),
-                            "last_trusted_anchor_event_id": anchored_event_id or checkpoint_anchor_id,
-                            "last_trusted_anchor_source": "recovery_handshake_runtime_preflight",
-                            "last_trusted_anchor_trace_id": trace_id or client_state.get("last_handshake_trace_id"),
-                            "last_trusted_anchor_event_type": "GAP_VALIDATION",
-                        },
-                    )
                 elif recovery_gate_open:
                     if already_trusted_head:
                         trust_state = TRUST_STATE_ALIGNED
@@ -679,32 +699,6 @@ class SecurityCenterStore:
                     gap_status = GAP_STATUS_REQUIRED
                     recovery_gate_status = RECOVERY_GATE_OPEN
                     divergence_reason = "continuity_evidence_missing"
-                elif (
-                    recovery_gate_open
-                    and runtime_preflight
-                    and isinstance(gap_proof, dict)
-                    and bool(gap_proof.get("anchors"))
-                    and local_hash
-                    and checkpoint_hash
-                ):
-                    aligned_head_hash = local_hash or expected_reported_hash or shadow_hash
-                    trust_state = TRUST_STATE_ALIGNED
-                    recovery_required = False
-                    gap_status = GAP_STATUS_VALIDATED
-                    recovery_gate_status = RECOVERY_GATE_CLOSED
-                    divergence_reason = ""
-                    shadow_hash = aligned_head_hash or shadow_hash
-                    client_state.update(
-                        {
-                            "shadow_hash": shadow_hash,
-                            "last_trusted_anchor_hash": aligned_head_hash or checkpoint_hash or shadow_hash,
-                            "last_trusted_sequence": max(local_sequence, checkpoint_sequence, trusted_sequence),
-                            "last_trusted_anchor_event_id": anchored_event_id or checkpoint_anchor_id,
-                            "last_trusted_anchor_source": "recovery_handshake_runtime_preflight",
-                            "last_trusted_anchor_trace_id": trace_id or client_state.get("last_handshake_trace_id"),
-                            "last_trusted_anchor_event_type": "GAP_VALIDATION",
-                        },
-                    )
                 elif (
                     recovery_gate_open
                     and local_hash
@@ -874,6 +868,9 @@ class SecurityCenterStore:
             _remember_session_alias(client_state, session_id)
             display_client_id = _display_client_id(client_id, client_state, requested_client_id=session_id)
             previous_shadow_hash = str(client_state.get("shadow_hash") or derive_shadow_hash(client_id, "shadow-head"))
+            recovery_base_hash = prior_hash or previous_shadow_hash
+            recovery_base_sequence = prior_sequence
+            recovery_base_anchor_event_id = prior_anchored_event_id
             fork_point_event_id = str(
                 client_state.get("last_trace_id")
                 or client_state.get("last_handshake_trace_id")
@@ -903,9 +900,9 @@ class SecurityCenterStore:
                     "local_hash": local_hash,
                     "cloud_shadow_hash": cloud_shadow_hash,
                 },
-                "last_trusted_anchor_hash": previous_shadow_hash,
-                "last_trusted_sequence": prior_sequence,
-                "last_trusted_anchor_event_id": prior_anchored_event_id,
+                "last_trusted_anchor_hash": recovery_base_hash,
+                "last_trusted_sequence": recovery_base_sequence,
+                "last_trusted_anchor_event_id": recovery_base_anchor_event_id,
                 "current_edge_reported_hash": local_hash,
                 "current_edge_reported_sequence": current_sequence,
                 "current_edge_reported_anchor_event_id": anchored_event_id,
@@ -943,9 +940,9 @@ class SecurityCenterStore:
                     "updated_at_ns": record["received_at_ns"],
                     "last_trace_id": trace_id,
                     "last_fork_point_event_id": fork_point_event_id,
-                    "last_trusted_anchor_hash": previous_shadow_hash,
-                    "last_trusted_sequence": prior_sequence,
-                    "last_trusted_anchor_event_id": prior_anchored_event_id,
+                    "last_trusted_anchor_hash": recovery_base_hash,
+                    "last_trusted_sequence": recovery_base_sequence,
+                    "last_trusted_anchor_event_id": recovery_base_anchor_event_id,
                     "last_trusted_anchor_source": "lockdown_baseline",
                     "last_trusted_anchor_trace_id": trace_id,
                     "last_trusted_anchor_event_type": "AUDIT_INTEGRITY_LOCKDOWN_BASELINE",
@@ -1159,6 +1156,7 @@ class SecurityCenterStore:
             latest = lockdowns[-1]
             effective_state = _project_lease_timing(canonical_client_id, client_state or {})
             return {
+                **latest["timeline"],
                 "client_id": display_client_id,
                 "canonical_client_id": canonical_client_id,
                 "trust_state": effective_state.get("trust_state", latest["trust_state"]),
@@ -1169,7 +1167,6 @@ class SecurityCenterStore:
                 "gap_status": effective_state.get("gap_status", latest.get("gap_status", "GAP_VALIDATION_REQUIRED")),
                 "recovery_gate_status": effective_state.get("recovery_gate_status", latest.get("recovery_gate_status", "OPEN")),
                 "divergence_reason": effective_state.get("divergence_reason", latest.get("divergence_reason", "checkpoint_gap_unverified")),
-                **latest["timeline"],
                 "last_trusted_anchor_hash": effective_state.get("last_trusted_anchor_hash", latest["timeline"].get("last_trusted_anchor_hash")),
                 "last_trusted_sequence": effective_state.get("last_trusted_sequence", latest["timeline"].get("last_trusted_sequence", 0)),
                 "last_trusted_anchor_event_id": effective_state.get("last_trusted_anchor_event_id", latest["timeline"].get("last_trusted_anchor_event_id")),

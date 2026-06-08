@@ -288,6 +288,26 @@ async def emit_runtime_lease_heartbeat(
         bootstrap_client_id=client_id,
     )
     checkpoint = _read_json(_checkpoint_path(base_dir)) or {}
+    local_hash = anchor_state["head_hash"]
+    checkpoint_hash = _normalize_text(checkpoint.get("current_hash")) or local_hash
+    local_sequence = anchor_state["head_sequence"]
+    checkpoint_sequence = _safe_int(
+        checkpoint.get("confirmed_sequence") or checkpoint.get("event_sequence"),
+        local_sequence,
+    )
+    anchored_event_id = anchor_state["head_anchor_event_id"]
+    checkpoint_anchor_id = _normalize_text(
+        checkpoint.get("last_anchored_event_id")
+        or checkpoint.get("anchored_event_id")
+        or checkpoint.get("run_id"),
+    ) or anchored_event_id
+    if heartbeat_gap_proof:
+        local_hash = _normalize_text(heartbeat_gap_proof.get("head_hash")) or local_hash
+        local_sequence = _safe_int(heartbeat_gap_proof.get("head_sequence"), local_sequence)
+        anchored_event_id = _normalize_text(heartbeat_gap_proof.get("head_anchor_event_id")) or anchored_event_id
+        checkpoint_hash = _normalize_text(heartbeat_gap_proof.get("base_anchor_hash")) or checkpoint_hash
+        checkpoint_sequence = _safe_int(heartbeat_gap_proof.get("base_sequence"), checkpoint_sequence)
+        checkpoint_anchor_id = _normalize_text(heartbeat_gap_proof.get("base_anchor_event_id")) or checkpoint_anchor_id
     emitted_at_ns = time.time_ns()
     return await _post_security_center(
         "/security-center/v1/recovery/handshake",
@@ -295,20 +315,12 @@ async def emit_runtime_lease_heartbeat(
             "client_id": client_id,
             "session_id": resolved_session_id or "",
             "trace_id": f"runtime-heartbeat::{uuid.uuid4().hex[:12]}",
-            "local_hash": anchor_state["head_hash"],
-            "checkpoint_hash": _normalize_text(checkpoint.get("current_hash")) or anchor_state["head_hash"],
-            "local_sequence": anchor_state["head_sequence"],
-            "checkpoint_sequence": _safe_int(
-                checkpoint.get("confirmed_sequence") or checkpoint.get("event_sequence"),
-                anchor_state["head_sequence"],
-            ),
-            "anchored_event_id": anchor_state["head_anchor_event_id"],
-            "checkpoint_anchor_id": _normalize_text(
-                checkpoint.get("last_anchored_event_id")
-                or checkpoint.get("anchored_event_id")
-                or checkpoint.get("run_id"),
-            )
-            or anchor_state["head_anchor_event_id"],
+            "local_hash": local_hash,
+            "checkpoint_hash": checkpoint_hash,
+            "local_sequence": local_sequence,
+            "checkpoint_sequence": checkpoint_sequence,
+            "anchored_event_id": anchored_event_id,
+            "checkpoint_anchor_id": checkpoint_anchor_id,
             "requested_at_ns": emitted_at_ns,
             "lease_ttl_seconds": ttl_seconds,
             "gap_proof": heartbeat_gap_proof,
@@ -561,6 +573,20 @@ async def preflight_sensitive_action_recovery(
     if not head_hash:
         return {}
 
+    gap_proof = _build_gap_proof(base_dir, session_id=session_id)
+    checkpoint_hash = _normalize_text(checkpoint.get("current_hash")) or head_hash
+    checkpoint_sequence = _safe_int(checkpoint.get("confirmed_sequence") or checkpoint.get("event_sequence"), head_sequence)
+    checkpoint_anchor_id = _normalize_text(
+        checkpoint.get("last_anchored_event_id") or checkpoint.get("anchored_event_id") or checkpoint.get("run_id"),
+    ) or head_anchor_id
+    if gap_proof:
+        head_hash = _normalize_text(gap_proof.get("head_hash")) or head_hash
+        head_sequence = _safe_int(gap_proof.get("head_sequence"), head_sequence)
+        head_anchor_id = _normalize_text(gap_proof.get("head_anchor_event_id")) or head_anchor_id
+        checkpoint_hash = _normalize_text(gap_proof.get("base_anchor_hash")) or checkpoint_hash
+        checkpoint_sequence = _safe_int(gap_proof.get("base_sequence"), checkpoint_sequence)
+        checkpoint_anchor_id = _normalize_text(gap_proof.get("base_anchor_event_id")) or checkpoint_anchor_id
+
     return await _post_security_center(
         "/security-center/v1/recovery/handshake",
         {
@@ -568,15 +594,12 @@ async def preflight_sensitive_action_recovery(
             "session_id": session_id,
             "trace_id": f"runtime-preflight::{uuid.uuid4().hex[:12]}",
             "local_hash": head_hash,
-            "checkpoint_hash": _normalize_text(checkpoint.get("current_hash")) or head_hash,
+            "checkpoint_hash": checkpoint_hash,
             "local_sequence": head_sequence,
             "anchored_event_id": head_anchor_id,
-            "checkpoint_sequence": _safe_int(checkpoint.get("confirmed_sequence") or checkpoint.get("event_sequence"), head_sequence),
-            "checkpoint_anchor_id": _normalize_text(
-                checkpoint.get("last_anchored_event_id") or checkpoint.get("anchored_event_id") or checkpoint.get("run_id"),
-            )
-            or head_anchor_id,
-            "gap_proof": _build_gap_proof(base_dir, session_id=session_id),
+            "checkpoint_sequence": checkpoint_sequence,
+            "checkpoint_anchor_id": checkpoint_anchor_id,
+            "gap_proof": gap_proof,
             "requested_at_ns": time.time_ns(),
             "tool_name": tool_name,
             "user_id": user_id,
@@ -747,8 +770,8 @@ async def write_security_rejection_record(
     prior_hash = anchor_state["head_hash"]
     prior_sequence = anchor_state["head_sequence"]
     prior_anchored_event_id = anchor_state["head_anchor_event_id"]
-    event_sequence = anchor_state["next_sequence"]
-    anchored_event_id = anchor_state["next_anchor_event_id"]
+    event_sequence = prior_sequence + 1
+    anchored_event_id = f"anchor-{event_sequence:08d}"
     current_hash = _canonical_hash(
         "security-rejection-chain-v1",
         {
@@ -916,9 +939,18 @@ async def write_lockdown_record(
         trace_session_id=session_id,
         bootstrap_client_id=client_id,
     )
-    prior_hash = anchor_state["head_hash"]
-    prior_sequence = anchor_state["head_sequence"]
-    prior_anchored_event_id = anchor_state["head_anchor_event_id"]
+    checkpoint_hash = _normalize_text(checkpoint.get("current_hash"))
+    prior_hash = checkpoint_hash or anchor_state["head_hash"]
+    prior_sequence = (
+        _safe_int(checkpoint.get("confirmed_sequence") or checkpoint.get("event_sequence"), anchor_state["head_sequence"])
+        if checkpoint_hash
+        else anchor_state["head_sequence"]
+    )
+    prior_anchored_event_id = (
+        _normalize_text(checkpoint.get("last_anchored_event_id") or checkpoint.get("anchored_event_id") or checkpoint.get("run_id"))
+        if checkpoint_hash
+        else anchor_state["head_anchor_event_id"]
+    )
     event_sequence = anchor_state["next_sequence"]
     anchored_event_id = anchor_state["next_anchor_event_id"]
     current_hash = _canonical_hash(
@@ -1381,6 +1413,7 @@ def _build_gap_proof(base_dir: Path | None = None, *, session_id: str = "") -> d
         if anchor is None:
             continue
         anchor["sequence"] = sequence
+        anchor["_mtime"] = path.stat().st_mtime
         if not anchor.get("anchored_event_id"):
             anchor["anchored_event_id"] = path.stem
         if not anchor.get("prior_hash"):
@@ -1389,7 +1422,23 @@ def _build_gap_proof(base_dir: Path | None = None, *, session_id: str = "") -> d
     if not anchors:
         return {}
 
-    head = anchors[-1]
+    chained_anchors: list[dict[str, Any]] = []
+    previous_hash = base_anchor_hash
+    previous_sequence = base_sequence
+    for anchor in sorted(anchors, key=lambda item: (_safe_int(item.get("sequence"), 0), float(item.get("_mtime") or 0))):
+        sequence = _safe_int(anchor.get("sequence"), 0)
+        if sequence <= previous_sequence:
+            continue
+        if _normalize_text(anchor.get("prior_hash")) != previous_hash:
+            continue
+        anchor.pop("_mtime", None)
+        chained_anchors.append(anchor)
+        previous_hash = _normalize_text(anchor.get("current_hash"))
+        previous_sequence = sequence
+    if not chained_anchors:
+        return {}
+
+    head = chained_anchors[-1]
     proof_payload = {
         "base_anchor_hash": base_anchor_hash,
         "base_sequence": base_sequence,
@@ -1397,7 +1446,7 @@ def _build_gap_proof(base_dir: Path | None = None, *, session_id: str = "") -> d
         "head_hash": head["current_hash"],
         "head_sequence": head["sequence"],
         "head_anchor_event_id": head["anchored_event_id"],
-        "anchors": anchors,
+        "anchors": chained_anchors,
     }
     proof_payload["proof_digest"] = _canonical_hash("audit-gap-proof-v1", proof_payload)
     return proof_payload

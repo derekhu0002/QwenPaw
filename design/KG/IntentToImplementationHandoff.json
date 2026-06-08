@@ -2,123 +2,191 @@
   "stage": "intent-to-implementation",
   "generatedAt": "2026-06-08",
   "sourceIntentGraphPath": "design/KG/SystemArchitecture.json",
-  "summary": "sec-e2e-027 is already defined in the intent graph and no intent-side semantic change is required. Delivery acceptance on 2026-06-07 previously found implementation-architecture GAPs around split runtime identity, false DIVERGED/OPEN bootstrap projection, projection-only lease timing, fresh-start GAP_VALIDATION_REQUIRED/missing_gap_proof, and live reconnect recovery after lease-expired downgrade. Current implementation delivery closes the earlier startup, identity, and durable lease GAPs, but live validation on 2026-06-08 found a remaining implementation-architecture GAP in passive reconnect behavior: after the runtime comes back online, Security Center keeps the canonical client in GAP_VALIDATION_REQUIRED with recovery_gate_status OPEN and divergence_reason missing_gap_proof while heartbeats continue, so the operator web does not return to normal on reconnect alone.",
+  "summary": "Issue from /orchestrating: the current full explicit testcase suite is not yet guaranteed to pass end-to-end. Intent conclusion: no new SystemArchitecture.json element or relationship is required; existing explicit testcase baselines and implementation contracts already make explicit tests acceptance boundaries. The quality gate is that every repository-declared explicit testcase must pass before delivery is accepted, and failures must be recorded as evidence for Implementation Design or Coding/Repair rather than handled by weakening frozen tests.",
   "intentElementIds": [
+    "intent-qwenpaw-platform",
+    "intent-backend-runtime",
+    "intent-local-operator-cli",
     "intent-local-security-audit-foundation",
-    "intent-audit-event",
-    "intent-audit-uplink-manager",
-    "intent-heartbeat-emitter",
-    "intent-security-center",
-    "intent-audit-lease-monitor",
-    "intent-cloud-integrity-stub"
+    "intent-high-risk-tool-guard"
   ],
   "relationshipIds": [
-    "rel-uplink-manager-foundation",
-    "rel-uplink-manager-heartbeat-emitter",
-    "rel-heartbeat-emitter-audit-event",
-    "rel-heartbeat-emitter-security-center",
-    "rel-security-center-lease-monitor",
-    "rel-lease-monitor-cloud-stub",
-    "rel-uplink-manager-cloud-stub"
+    "rel-platform-backend",
+    "rel-platform-cli",
+    "rel-cli-backend",
+    "rel-backend-security-audit-foundation",
+    "rel-audit-foundation-high-risk-tool-guard"
   ],
   "explicitTestcases": [
+    {
+      "name": "cli-version-surface",
+      "mountedElementId": "intent-local-operator-cli",
+      "mountedElementName": "Local Operator CLI",
+      "type": "Unit Test",
+      "controlPoint": "Run tests/unit/cli/test_cli_version.py::test_cli_version_option_outputs_current_version.",
+      "observationPoint": "The packaged local operator CLI exposes the current QwenPaw version without crashing or bypassing the CLI entrypoint.",
+      "acceptanceBoundary": "tests/unit/cli/test_cli_version.py::test_cli_version_option_outputs_current_version must pass as part of the full explicit-test gate.",
+      "requiredEntryKind": "explicit-testcase-entry",
+      "implementationNotes": "Treat failure as CLI/runtime implementation drift; do not loosen the expected version surface."
+    },
+    {
+      "name": "agents-list-surface",
+      "mountedElementId": "intent-local-operator-cli",
+      "mountedElementName": "Local Operator CLI",
+      "type": "Unit Test",
+      "controlPoint": "Run tests/unit/cli/test_cli_agents.py::test_agents_list_uses_shared_tool_helper.",
+      "observationPoint": "The agents list command routes through the shared tool helper expected by the CLI contract.",
+      "acceptanceBoundary": "tests/unit/cli/test_cli_agents.py::test_agents_list_uses_shared_tool_helper must pass as part of the full explicit-test gate.",
+      "requiredEntryKind": "explicit-testcase-entry",
+      "implementationNotes": "Treat failure as command/helper wiring drift; do not replace the shared-helper assertion with a weaker smoke check."
+    },
+    {
+      "name": "task-help-surface",
+      "mountedElementId": "intent-local-operator-cli",
+      "mountedElementName": "Local Operator CLI",
+      "type": "Unit Test",
+      "controlPoint": "Run tests/unit/cli/test_cli_task.py::test_task_command_registered_in_cli.",
+      "observationPoint": "The task command remains registered in the qwenpaw CLI surface.",
+      "acceptanceBoundary": "tests/unit/cli/test_cli_task.py::test_task_command_registered_in_cli must pass as part of the full explicit-test gate.",
+      "requiredEntryKind": "explicit-testcase-entry",
+      "implementationNotes": "Treat failure as command registration drift; do not remove this entrypoint from the explicit baseline without upstream architecture redesign."
+    },
+    {
+      "name": "settings-language-roundtrip",
+      "mountedElementId": "intent-backend-runtime",
+      "mountedElementName": "Backend Runtime",
+      "type": "Unit Test",
+      "controlPoint": "Run tests/unit/routers/test_settings.py::test_put_then_get_roundtrip.",
+      "observationPoint": "A settings update can be read back through the backend router with the expected roundtrip semantics.",
+      "acceptanceBoundary": "tests/unit/routers/test_settings.py::test_put_then_get_roundtrip must pass as part of the full explicit-test gate.",
+      "requiredEntryKind": "explicit-testcase-entry",
+      "implementationNotes": "Treat failure as backend settings contract drift; do not mask persistence or serialization defects by weakening the roundtrip assertion."
+    },
+    {
+      "name": "git-helper-command-runner",
+      "mountedElementId": "intent-backend-runtime",
+      "mountedElementName": "Backend Runtime",
+      "type": "Unit Test",
+      "controlPoint": "Run tests/unit/routers/test_git.py::test_git_helper_uses_shared_command_runner.",
+      "observationPoint": "The git helper uses the shared command runner instead of a divergent command execution path.",
+      "acceptanceBoundary": "tests/unit/routers/test_git.py::test_git_helper_uses_shared_command_runner must pass as part of the full explicit-test gate.",
+      "requiredEntryKind": "explicit-testcase-entry",
+      "implementationNotes": "Treat failure as backend helper boundary drift; do not bypass the shared command-runner contract to make the test pass."
+    },
+    {
+      "name": "sec-e2e-024-end-to-end-non-repudiation-evidence-chain",
+      "mountedElementId": "intent-local-security-audit-foundation",
+      "mountedElementName": "Local Security Audit Foundation",
+      "type": "Acceptance Test",
+      "controlPoint": "Run tests/integration/security/test_audit_foundation.py::test_end_to_end_non_repudiation_evidence_chain against the real app_server fixture: authenticate user A, delegate a high-risk action through agent/plugin/tool seams, and provide required user confirmation.",
+      "observationPoint": "Security Center and the audit query surface expose a continuous user -> agent -> plugin -> tool evidence chain with a durable confirmation artifact digest and no anonymous or fallback-system identity link.",
+      "acceptanceBoundary": "tests/integration/security/test_audit_foundation.py::test_end_to_end_non_repudiation_evidence_chain must pass as part of the full explicit-test gate.",
+      "requiredEntryKind": "explicit-testcase-entry",
+      "implementationNotes": "The test body and protected harness vocabulary are frozen; fix production security/audit behavior beneath the harness."
+    },
+    {
+      "name": "sec-e2e-025-audit-integrity-self-healing-lockdown",
+      "mountedElementId": "intent-local-security-audit-foundation",
+      "mountedElementName": "Local Security Audit Foundation",
+      "type": "Acceptance Test",
+      "controlPoint": "Run tests/integration/security/test_audit_foundation.py::test_audit_integrity_self_healing_lockdown against the real app_server fixture: execute a sensitive action, tamper with local audit or settings artifacts by operating-system means, restart or resume, then attempt sensitive work again.",
+      "observationPoint": "The system raises one business-level data-continuity anomaly, enters local lock mode, refuses sensitive tooling, and exposes recovery requirement through the frozen Security Center backend and operator-web observation surfaces.",
+      "acceptanceBoundary": "tests/integration/security/test_audit_foundation.py::test_audit_integrity_self_healing_lockdown must pass as part of the full explicit-test gate.",
+      "requiredEntryKind": "explicit-testcase-entry",
+      "implementationNotes": "Failure should drive implementation of tamper detection, checkpoint handling, lock mode, and Security Center projection; do not treat missing checkpoint artifacts as harmless cache misses."
+    },
     {
       "name": "sec-e2e-027-lease-expiry-active-defense",
       "mountedElementId": "intent-local-security-audit-foundation",
       "mountedElementName": "Local Security Audit Foundation",
       "type": "Acceptance Test",
-      "controlPoint": "Start a QwenPaw edge runtime and let the product background Heartbeat Emitter register an initial lease heartbeat without any user prompt or showcase-specific warmup phrase, then stop or miss subsequent heartbeat emission past the configured TTL, reconnect the same client, and attempt to resume model access before completing the required missing-gap verification.",
-      "observationPoint": "The separate Security Center projection first shows exactly one canonical client for one live QwenPaw runtime, with nonzero last_heartbeat_at and lease_expires_at, recovery_required=false, recovery_gate_status closed, and no DIVERGED or local_hash_mismatch state while the terminal is online and no fork occurred. After the same canonical client misses heartbeat past the lease TTL, Security Center shows that client as UNTRUSTED; reconnect attempts are denied at model-access scope until full missing-gap verification succeeds, and normal model access is restored only after continuity is proven against the cloud-side shadow state.",
-      "acceptanceBoundary": "Freeze the explicit testcase to tests/integration/security/test_audit_foundation.py::test_lease_expiry_blocks_untrusted_rejoin_until_gap_sync, executed through the real app_server fixture and observed through the separate deploy/api and deploy/web Security Center boundary. The testcase must not require a normal user to send prompt text that mentions lease heartbeat monitoring or lease window expiry merely to register the lease heartbeat.",
+      "controlPoint": "Run tests/integration/security/test_audit_foundation.py::test_lease_expiry_blocks_untrusted_rejoin_until_gap_sync against the real app_server fixture: allow a trusted client to miss the lease window, observe denied rejoin before missing-gap verification, then drive the distinct recovery control point and restored-access attempt.",
+      "observationPoint": "Security Center marks the same canonical client UNTRUSTED after lease expiry, pre_recovery_console_status shows denied rejoin, post_recovery_console_status shows restored trust only after continuity validation, and model access remains blocked until that validation succeeds.",
+      "acceptanceBoundary": "tests/integration/security/test_audit_foundation.py::test_lease_expiry_blocks_untrusted_rejoin_until_gap_sync must pass as part of the full explicit-test gate.",
       "requiredEntryKind": "explicit-testcase-entry",
-      "implementationNotes": "Implementation Design must preserve the current cloud-edge collaboration boundary and update the architecture contract so src/qwenpaw/security owns a product background heartbeat emitter and one canonical Security Center client identity: startup must send one lease heartbeat automatically, periodic emission must continue while the runtime is alive, and heartbeat, recovery preflight, lockdown projection, restored-access projection, and timeline reads must converge on the same Security Center terminal record. Browser or console session ids may remain audit metadata, but they must not create separate terminal identities. The deploy/api recovery-handshake request contract must preserve lease_ttl_seconds from runtime heartbeat payloads and persist last_heartbeat_at plus lease_expires_at in the durable Security Center store, not merely project lease timing from updated_at_ns in read models. The explicit testcase or supporting contract guard must fail if lease registration depends on classify_lease_prompt warmup wording, if one online runtime appears as multiple Security Center clients, if a live non-forked runtime heartbeat is marked DIVERGED with recovery_gate_status OPEN, if a freshly started online runtime is marked GAP_VALIDATION_REQUIRED with missing_gap_proof before any offline lease-expiry event has occurred, or if an expired lease remains ALIGNED because durable lease fields stayed zero. Prompt-triggered warmup may remain only as a compatibility/test helper, not as the product control point."
+      "implementationNotes": "Preserve the two control points and two console observation points; do not collapse denied and restored frames into one mutable final status."
+    },
+    {
+      "name": "sec-e2e-021-prompt-injection-tool-guard-enforced",
+      "mountedElementId": "intent-high-risk-tool-guard",
+      "mountedElementName": "High Risk Tool Guard",
+      "type": "Acceptance Test",
+      "controlPoint": "Run tests/integration/security/test_audit_foundation.py::test_prompt_injection_cannot_bypass_high_risk_tool_guard against the real app_server fixture: submit nested deceptive instructions claiming test or maintenance mode while targeting a High risk tool without trusted provenance or confirmation.",
+      "observationPoint": "The high-risk tool remains blocked at the tool-call boundary, rejection is recorded as durable security evidence with trace-bound nonce semantics, and Security Center/operator surfaces expose the rejected attempt rather than silently executing.",
+      "acceptanceBoundary": "tests/integration/security/test_audit_foundation.py::test_prompt_injection_cannot_bypass_high_risk_tool_guard must pass as part of the full explicit-test gate.",
+      "requiredEntryKind": "explicit-testcase-entry",
+      "implementationNotes": "Fix enforcement at the tool invocation boundary; do not rely on prompt intent classification and do not weaken the rejection evidence requirement."
     }
   ],
   "frozenBaselines": [
     "design/KG/SystemArchitecture.json",
-    "design/KG/SystemArchitecture.json::sec-e2e-027-lease-expiry-active-defense",
-    "tests/integration/security/test_audit_foundation.py::test_lease_expiry_blocks_untrusted_rejoin_until_gap_sync"
-  ],
-  "requiredImplementationArtifacts": [
     "OVERALL_ARCHITECTURE.md",
-    "src/qwenpaw/security/ARCHITECTURE.md",
-    "deploy/ARCHITECTURE.md",
-    "deploy/api/ARCHITECTURE.md",
-    "deploy/web/ARCHITECTURE.md",
     "tests/ARCHITECTURE.md",
     "tests/integration/security/ARCHITECTURE.md",
     "tests/integration/security/harness.py",
     "tests/integration/security/test_audit_foundation.py",
+    "tests/unit/cli/test_cli_version.py::test_cli_version_option_outputs_current_version",
+    "tests/unit/cli/test_cli_agents.py::test_agents_list_uses_shared_tool_helper",
+    "tests/unit/cli/test_cli_task.py::test_task_command_registered_in_cli",
+    "tests/unit/routers/test_settings.py::test_put_then_get_roundtrip",
+    "tests/unit/routers/test_git.py::test_git_helper_uses_shared_command_runner",
+    "tests/integration/security/test_audit_foundation.py::test_end_to_end_non_repudiation_evidence_chain",
+    "tests/integration/security/test_audit_foundation.py::test_audit_integrity_self_healing_lockdown",
+    "tests/integration/security/test_audit_foundation.py::test_lease_expiry_blocks_untrusted_rejoin_until_gap_sync",
+    "tests/integration/security/test_audit_foundation.py::test_prompt_injection_cannot_bypass_high_risk_tool_guard"
+  ],
+  "requiredImplementationArtifacts": [
+    "design/KG/IntentToImplementationHandoff.json",
+    "design/KG/ImplementationToCodingHandoff.json",
+    "design/KG/test-failure-records.json",
+    "OVERALL_ARCHITECTURE.md",
+    "src/qwenpaw/ARCHITECTURE.md",
+    "src/qwenpaw/security/ARCHITECTURE.md",
+    "src/qwenpaw/cli/ARCHITECTURE.md",
+    "tests/ARCHITECTURE.md",
+    "tests/integration/security/ARCHITECTURE.md",
+    "tests/integration/security/harness.py",
+    "tests/integration/security/test_audit_foundation.py",
+    "tests/unit/cli/test_cli_version.py",
+    "tests/unit/cli/test_cli_agents.py",
+    "tests/unit/cli/test_cli_task.py",
+    "tests/unit/routers/test_settings.py",
+    "tests/unit/routers/test_git.py",
+    "src/qwenpaw",
     "src/qwenpaw/security",
-    "src/qwenpaw/app/routers/console.py",
-    "deploy/api/app.py",
-    "deploy/api/store.py",
-    "tests/contract/security/test_lease_recovery_semantics_contract.py",
-    "tests/architecture/security-explicit-entrypoint-traceability.test.js",
-    "tests/architecture/security-runtime-client-identity-boundary.test.js",
-    "design/KG/ImplementationToCodingHandoff.json"
+    "src/qwenpaw/cli"
   ],
   "openQuestions": [
     {
-      "question": "Should lease heartbeat registration be triggered by a normal user's prompt text?",
-      "recommendedAnswer": "No. The product control point must be edge runtime startup plus background periodic emission; prompt-triggered warmup may remain only as a non-product compatibility helper if needed.",
-      "reason": "The intent graph models Heartbeat Emitter as an application component under Audit Uplink Manager, not as a user-visible conversational command. A user who does not know this security feature must still receive active-defense protection."
+      "question": "Does this issue require changing design/KG/SystemArchitecture.json?",
+      "recommendedAnswer": "No immediate graph edit is recommended.",
+      "reason": "The graph already contains the security acceptance baselines and the root implementation contract already enumerates the full explicit entrypoint set. The issue is that the declared acceptance gate is not yet green, which is an implementation-design or repair gap unless a downstream agent proves an explicit testcase is invalid against intent."
     },
     {
-      "question": "What startup behavior should Implementation Design freeze for sec-e2e-027?",
-      "recommendedAnswer": "On edge runtime startup, emit one lease heartbeat automatically using a stable client identity, then continue emitting periodically while the runtime is alive.",
-      "reason": "The live showcase found an ALIGNED client with trusted anchors but last_heartbeat_at and lease_expires_at still zero. That state proves high-risk actions can establish trust evidence without registering the lease needed for active defense."
+      "question": "What should count as accepted delivery for this issue?",
+      "recommendedAnswer": "All nine explicit testcase entrypoints listed in tests/ARCHITECTURE.md and OVERALL_ARCHITECTURE.md must pass in one evidence run, with the command, exit code, and failure output captured.",
+      "reason": "Partial explicit-test success would leave an intent acceptance boundary unfulfilled. The issue wording says full explicit testcases cannot pass, so the gate must be suite-wide rather than scenario-by-scenario."
     },
     {
-      "question": "What API contract must Implementation Design freeze for runtime heartbeat lease registration?",
-      "recommendedAnswer": "The deploy/api recovery-handshake request model must accept and preserve lease_ttl_seconds from runtime heartbeat payloads, and deploy/api/store.py must write durable last_heartbeat_at, lease_ttl_seconds, and lease_expires_at fields whenever a heartbeat lease is registered.",
-      "reason": "Live acceptance showed overview and timeline projecting last_heartbeat_at and lease_expires_at from updated_at_ns while D:\\QwenPawDemo\\security-center-data\\security-center-store.json still persisted last_heartbeat_at=0 and lease_expires_at=0. Because _apply_lease_expiry only downgrades when durable last_heartbeat_at is greater than zero, the stopped runtime remained ALIGNED after the lease was already expired."
+      "question": "Should the next stage first be Implementation Design or Coding/Repair?",
+      "recommendedAnswer": "Dispatch Implementation Design first if the full explicit run reveals missing or stale failure records, unclear ownership, or a need to update ImplementationToCodingHandoff.json; dispatch Coding/Repair directly only after a current failure record clearly maps failures to implementation files without changing frozen tests.",
+      "reason": "Current design/KG/test-failure-records.json is empty, while the issue claims failures exist. That mismatch is evidence collection and handoff hygiene, not yet a concrete code-repair input."
     },
     {
-      "question": "Should lease expiry, UNTRUSTED state, and gap verification remain owned by the separate Security Center boundary?",
-      "recommendedAnswer": "Yes. Keep the decision and observation path in the separate deploy/api and deploy/web Security Center boundary.",
-      "reason": "The current intent graph models Security Center, Audit Lease Monitor, and Cloud Integrity Stub as a cross-boundary collaboration. Moving that behavior into the edge runtime would redefine both the architecture boundary and the testcase observation point."
-    },
-    {
-      "question": "What reconnect gate should apply after lease expiry?",
-      "recommendedAnswer": "Block all model access until the missing-gap verification succeeds.",
-      "reason": "The intent testcase input and expected result both use resume model access and regain normal model access, which is stronger than only blocking high-risk tools and is the controlling acceptance boundary for sec-e2e-027."
-    },
-    {
-      "question": "Should one live QwenPaw runtime appear as both a runtime heartbeat client and a session client in Security Center?",
-      "recommendedAnswer": "No. Implementation Design must require one canonical Security Center terminal identity for one live runtime; browser, console, or authenticated session ids may be retained only as audit metadata.",
-      "reason": "The intent models Heartbeat Emitter and Audit Uplink Manager as capabilities of the same backend runtime security foundation. Splitting heartbeat and audit preflight across different Security Center clients causes the operator to see two terminals for one runtime and breaks the normal showcase observation point."
-    },
-    {
-      "question": "May a live online runtime heartbeat be classified as DIVERGED merely because its first cloud shadow state was a bootstrap hash?",
-      "recommendedAnswer": "No. Bootstrap alignment must converge with the runtime's real audit-chain head without producing DIVERGED, local_hash_mismatch, or recovery_gate_status OPEN unless a real continuity failure, fork, missing gap, or lease expiry has occurred.",
-      "reason": "During live delivery acceptance, Security Center showed runtime-heartbeat::c37a1999118c4e3c as DIVERGED and OPEN while the runtime was online and no fork occurred. That is a false positive caused by identity and bootstrap-shadow mismatch, not an intent-valid active defense event."
-    },
-    {
-      "question": "May a freshly started online runtime be shown as GAP_VALIDATION_REQUIRED with missing_gap_proof before any offline lease-expiry event has occurred?",
-      "recommendedAnswer": "No. A clean startup heartbeat for a live runtime must establish or refresh the single canonical terminal as ALIGNED/CLEAR unless Security Center has already observed a real expired lease, fork, tamper event, or missing continuity gap that requires recovery.",
-      "reason": "Live acceptance on 2026-06-07 showed runtime-heartbeat::c37a1999118c4e3c immediately projected as GAP_VALIDATION_REQUIRED, gap_status REQUIRED, recovery_gate_status OPEN, and divergence_reason missing_gap_proof after runtime startup. That violates the normal showcase observation point: one runtime should appear as one normally connected terminal before the operator demonstrates lease-loss active defense."
-    },
-    {
-      "question": "After a real lease-expired client comes back online, may the operator web return to normal on reconnect heartbeat alone before any restored-access control point runs?",
-      "recommendedAnswer": "Only if the product explicitly chooses passive reconnect to be a trust-restoring control point and can prove full continuity there; otherwise operator recovery must stay non-normal until the dedicated restored-access or recovery control point submits accepted missing-gap evidence.",
-      "reason": "Live validation on 2026-06-08 showed the canonical client's last_heartbeat_at continues to advance while deploy/api/store.py still projects trust_state GAP_VALIDATION_REQUIRED, recovery_gate_status OPEN, and divergence_reason missing_gap_proof. Repository code shows the runtime heartbeat path does not carry gap_proof, while the restored-access path in src/qwenpaw/app/routers/console.py explicitly writes reconnect proof and then calls preflight_sensitive_action_recovery(). That means the current implementation does not support passive reconnect alone as a recovery-closing control point."
+      "question": "May downstream agents edit explicit testcase bodies or protected harness helpers to make the gate pass?",
+      "recommendedAnswer": "No, not without an upstream architecture redesign explicitly changing the acceptance baseline.",
+      "reason": "tests/integration/security/ARCHITECTURE.md marks those bodies and harness vocabulary as frozen business contracts. Weakening assertions would hide the quality-gate failure rather than satisfying intent."
     }
   ],
   "notes": [
-    "No SystemArchitecture.json edit was required because sec-e2e-027, the Heartbeat Emitter, the Audit Lease Monitor, and the trust-recovery rule are already present in the intent graph.",
-    "Delivery-showcase validation found the current product behavior incomplete: a user can perform high-risk operations and establish trusted anchors while Security Center still reports last_heartbeat_at=0 and lease_expires_at=0, so a subsequent offline action may not downgrade through the lease-expiry active-defense path.",
-    "Implementation Design must revise the implementation contracts and handoff so the heartbeat emitter is a runtime-owned background capability, not a prompt-classified security scenario hidden behind warmup wording.",
-    "The updated testcase control point is runtime startup plus missed background heartbeat. The observation point is automatic lease registration followed by Security Center UNTRUSTED downgrade and recovery gating after TTL expiry.",
-    "A second delivery-acceptance GAP was found on 2026-06-07: the live Security Center overview showed client_count=2 for one QwenPaw runtime, with one session-shaped client ALIGNED but last_heartbeat_at=0 and a separate runtime-heartbeat client carrying heartbeat fields while trust_state=DIVERGED, gap_status=DIVERGED, divergence_reason=local_hash_mismatch, and recovery_gate_status=OPEN.",
-    "The second GAP originally contradicted design/KG/ImplementationToCodingHandoff.json when that file claimed canonical-runtime-client-id-003 was closed and openGaps was empty. Implementation Design has since updated the implementation architecture and handoff, and the behavior-level validation for one live online runtime producing one Security Center terminal with no false DIVERGED fork state now passes as regression protection.",
-    "A third delivery-acceptance GAP was found on 2026-06-07 after heartbeat requests stopped: the 8091 Security Center API returned lease_expires_at older than current time by more than 120 seconds, but trust_state stayed ALIGNED, recovery_required stayed false, and the durable demo store still had last_heartbeat_at=0 and lease_expires_at=0. Implementation Design must treat this as a required API-contract and store-persistence fix, not as a Web refresh issue.",
-    "The third GAP補齐 task has been completed by Implementation Design and Coding/Repair: deploy/api/ARCHITECTURE.md and design/KG/ImplementationToCodingHandoff.json now freeze lease_ttl_seconds passthrough from deploy/api/app.py to deploy/api/store.py, and the behavior-level guard that starts API/Web/runtime, observes durable nonzero lease fields, stops runtime, then observes UNTRUSTED lease_ttl_expired through overview and timeline now passes as regression protection.",
-    "A fourth delivery-acceptance GAP was found on 2026-06-07 immediately after starting QwenPaw runtime from a reset showcase state: Security Center overview and timeline showed one canonical runtime-heartbeat::c37a1999118c4e3c terminal, but trust_state=GAP_VALIDATION_REQUIRED, gap_status=REQUIRED, recovery_gate_status=OPEN, and divergence_reason=missing_gap_proof while the runtime was expected to be normally online. The durable store confirmed the same state with nonzero last_heartbeat_at and lease_expires_at, so this was not a Web-only refresh issue.",
-    "Implementation Design and Coding/Repair have now closed the fourth GAP with startup-normal-admission regression coverage. The guard tests/contract/security/test_lease_recovery_semantics_contract.py::test_security_center_projects_fresh_runtime_startup_as_aligned_clear_terminal passes: control point is a fresh API/Web/runtime startup before any intentional runtime stop or offline lease-expiry demonstration; observation point is one canonical terminal with nonzero durable lease fields, trust_state ALIGNED, gap_status CLEAR, recovery_gate_status CLEAR, recovery_required=false, and no missing_gap_proof/DIVERGED state. The stopped-runtime TTL downgrade guard also remains green, so true post-expiry rejoin still requires full missing-gap validation.",
-    "A fifth live delivery-acceptance GAP was found on 2026-06-07 after startup-normal-admission and offline downgrade were fixed: the client downgrades correctly while offline, but when it comes back online the operator state and端侧 operation remain blocked instead of reaching a durable restored frame. Local inspection showed D:\\QwenPawDemo\\working2 contains checkpoint sequence 2 plus an AUDIT_INTEGRITY_LOCKDOWN trace at sequence 3; src/qwenpaw/security/audit_foundation.py::_build_gap_proof can construct a full proof from that evidence, and deploy/api/store.py::_validate_gap_proof accepts it. Posting that proof explicitly to /security-center/v1/recovery/handshake returns ALIGNED, gap_status VALIDATED, recovery_gate_status CLEAR, and recovery_required=false, but because the live runtime path does not itself drive and maintain that restored state with heartbeat, the canonical client can immediately fall back to UNTRUSTED with divergence_reason lease_ttl_expired.",
-    "Implementation GAP补齐任务 for Implementation Design: reopen sec-e2e-027 implementation architecture for real re-online recovery. Control point: start API/Web/runtime from a reset state, establish a trusted anchor, stop or isolate runtime until Security Center marks the canonical client UNTRUSTED with lease_ttl_expired, then restart the same runtime and attempt a端侧 model or sensitive operation without manual API proof injection. Observation point: the runtime must automatically submit a full missing-gap proof equivalent to the accepted local proof, Security Center must project the same canonical client as ALIGNED or TRUSTED with gap_status VALIDATED or CLEAR, recovery_gate_status CLEAR, recovery_required=false, durable last_heartbeat_at/lease_expires_at refreshed beyond the observation time, and the端侧 operation must no longer be blocked.",
-    "The fifth GAP is only partially closed. The guard tests/contract/security/test_lease_recovery_semantics_contract.py::test_security_center_live_reconnect_gap_proof_restores_access passes for the restored-access control point: a reset-state API/Web/runtime stack, trusted-anchor establishment, stopped-runtime TTL downgrade, same-runtime restart, and端侧 restored-access attempt without manual /security-center/v1/recovery/handshake proof injection. But live validation on 2026-06-08 shows passive reconnect still leaves the canonical client in GAP_VALIDATION_REQUIRED with recovery_gate_status OPEN while heartbeats continue. This proves the current implementation restores trust through the explicit restored-access control point, not through reconnect heartbeat alone.",
-    "Implementation GAP补齐任务 for Implementation Design: decide and freeze one of two behaviors. Option A: passive reconnect alone is not a trust-restoring control point; update showcase, contracts, and operator expectations so the web remains recovery-gated until the restored-access flow runs. Option B: passive reconnect itself must normalize the operator web; then src/qwenpaw/security/audit_foundation.py runtime heartbeat or startup reconnect path must carry accepted missing-gap evidence and deploy/api/store.py must close the gate without waiting for the restored-access prompt path. Control point: runtime comes back online and emits heartbeats before any restored model-access prompt. Observation point: either Web intentionally remains non-normal with contract wording updated, or Web returns to ALIGNED/CLEAR and recovery_required=false through the passive reconnect path."
+    "Problem statement: the repository-declared full explicit testcase suite is a must-pass acceptance gate. Any failing explicit testcase blocks delivery until either the implementation satisfies the frozen baseline or upstream intent architecture deliberately changes the baseline.",
+    "Acceptance criteria: run all explicit pytest entrypoints from tests/ARCHITECTURE.md in one evidence pass; every entrypoint must pass; failures must be recorded with command, exit code, failing node id, concise failure category, and the first actionable traceback or business-readable failure message.",
+    "Evidence command: .\\.venv\\Scripts\\python.exe -m pytest tests/unit/cli/test_cli_version.py::test_cli_version_option_outputs_current_version tests/unit/cli/test_cli_agents.py::test_agents_list_uses_shared_tool_helper tests/unit/cli/test_cli_task.py::test_task_command_registered_in_cli tests/unit/routers/test_settings.py::test_put_then_get_roundtrip tests/unit/routers/test_git.py::test_git_helper_uses_shared_command_runner tests/integration/security/test_audit_foundation.py::test_end_to_end_non_repudiation_evidence_chain tests/integration/security/test_audit_foundation.py::test_audit_integrity_self_healing_lockdown tests/integration/security/test_audit_foundation.py::test_lease_expiry_blocks_untrusted_rejoin_until_gap_sync tests/integration/security/test_audit_foundation.py::test_prompt_injection_cannot_bypass_high_risk_tool_guard -q",
+    "Architecture evidence commands: npm run validate:system-architecture and npm run validate:handoff:intent must stay green for this handoff; npm run test:argo should be run by Implementation Design if it updates contracts or failure records.",
+    "Failure log location: write or update design/KG/test-failure-records.json with the current full explicit-test run result. If raw logs are too large, store only stable failure summaries there and keep raw terminal output or CI artifact references outside the intent graph.",
+    "Implementation Design boundary: decide whether current failures require updates to OVERALL_ARCHITECTURE.md, local ARCHITECTURE.md contracts, critical non-explicit guardrails, or design/KG/ImplementationToCodingHandoff.json; do not repair product behavior in that stage.",
+    "Coding/Repair boundary: once failure records and ImplementationToCodingHandoff.json clearly identify failing explicit node ids and target implementation files, repair production code under the owning stable elements until the full explicit suite passes.",
+    "Do not edit frozen explicit testcase bodies, do not weaken assertions, do not convert real app subprocess acceptance paths into mocks, do not remove failing node ids from the explicit suite, and do not fake pass results by marking tests xfail or skip.",
+    "Recommended next dispatch: implementation-design with this handoff plus a request to run the full explicit evidence command, populate design/KG/test-failure-records.json if failures reproduce, and produce or refresh design/KG/ImplementationToCodingHandoff.json for coding-and-repairing."
   ]
 }

@@ -2,11 +2,12 @@
   "stage": "implementation-to-coding",
   "generatedAt": "2026-06-08",
   "sourceIntentGraphPath": "design/KG/SystemArchitecture.json",
-  "summary": "Implementation architecture is reopened for the sec-e2e-027 passive reconnect seam. The explicit entrypoint remains frozen and green, and the startup-heartbeat, canonical-runtime-client-identity, durable lease-persistence, startup-normal-admission, stopped-runtime downgrade, and restored-access recovery guards are green. However, live validation on 2026-06-08 shows that reconnect heartbeat alone still leaves the canonical client in GAP_VALIDATION_REQUIRED with recovery_gate_status OPEN and divergence_reason missing_gap_proof while last_heartbeat_at continues to advance, so the operator web does not return to normal on passive reconnect alone.",
+  "summary": "Implementation Design refreshed the handoff for the repository-declared full explicit testcase quality gate. The single evidence run executed all 9 explicit entrypoints from tests/ARCHITECTURE.md and OVERALL_ARCHITECTURE.md; 6 passed and 3 failed. Coding/Repair must restore the active pytest async runtime for the two backend unit entrypoints and repair the sec-e2e-027 lease-expiry recovery behavior without editing frozen explicit tests, weakening assertions, or using xfail/skip.",
   "implementationContracts": [
     "OVERALL_ARCHITECTURE.md",
     "src/qwenpaw/ARCHITECTURE.md",
     "src/qwenpaw/security/ARCHITECTURE.md",
+    "src/qwenpaw/cli/ARCHITECTURE.md",
     "deploy/ARCHITECTURE.md",
     "deploy/api/ARCHITECTURE.md",
     "deploy/web/ARCHITECTURE.md",
@@ -15,42 +16,67 @@
   ],
   "explicitEntrypoints": [
     {
+      "testcaseName": "sec-e2e-024-end-to-end-non-repudiation-evidence-chain",
+      "entryPath": "tests/integration/security/test_audit_foundation.py::test_end_to_end_non_repudiation_evidence_chain",
+      "controlPoint": "Run the frozen real-app subprocess acceptance entrypoint: authenticate an employee, delegate a high-risk action through the agent/plugin/tool path, and provide the required confirmation through the protected harness.",
+      "observationPoint": "Security Center and the audit query surface must expose a continuous user -> agent -> plugin -> tool evidence chain with a durable confirmation artifact digest and no anonymous or fallback-system identity link.",
+      "initialExecutionStatus": "passed",
+      "initialExecutionCommand": ".\\.venv\\Scripts\\python.exe -m pytest tests/unit/cli/test_cli_version.py::test_cli_version_option_outputs_current_version tests/unit/cli/test_cli_agents.py::test_agents_list_uses_shared_tool_helper tests/unit/cli/test_cli_task.py::test_task_command_registered_in_cli tests/unit/routers/test_settings.py::test_put_then_get_roundtrip tests/unit/routers/test_git.py::test_git_helper_uses_shared_command_runner tests/integration/security/test_audit_foundation.py::test_end_to_end_non_repudiation_evidence_chain tests/integration/security/test_audit_foundation.py::test_audit_integrity_self_healing_lockdown tests/integration/security/test_audit_foundation.py::test_lease_expiry_blocks_untrusted_rejoin_until_gap_sync tests/integration/security/test_audit_foundation.py::test_prompt_injection_cannot_bypass_high_risk_tool_guard -q"
+    },
+    {
+      "testcaseName": "sec-e2e-025-audit-integrity-self-healing-lockdown",
+      "entryPath": "tests/integration/security/test_audit_foundation.py::test_audit_integrity_self_healing_lockdown",
+      "controlPoint": "Run the frozen real-app subprocess acceptance entrypoint: execute a sensitive action, tamper with local audit or settings artifacts by operating-system means, restart or resume, then attempt sensitive work again.",
+      "observationPoint": "The system must raise one business-level data-continuity anomaly, enter local lock mode, refuse sensitive tooling, and expose recovery requirements through the frozen Security Center backend and operator-web observation surfaces.",
+      "initialExecutionStatus": "passed",
+      "initialExecutionCommand": ".\\.venv\\Scripts\\python.exe -m pytest tests/unit/cli/test_cli_version.py::test_cli_version_option_outputs_current_version tests/unit/cli/test_cli_agents.py::test_agents_list_uses_shared_tool_helper tests/unit/cli/test_cli_task.py::test_task_command_registered_in_cli tests/unit/routers/test_settings.py::test_put_then_get_roundtrip tests/unit/routers/test_git.py::test_git_helper_uses_shared_command_runner tests/integration/security/test_audit_foundation.py::test_end_to_end_non_repudiation_evidence_chain tests/integration/security/test_audit_foundation.py::test_audit_integrity_self_healing_lockdown tests/integration/security/test_audit_foundation.py::test_lease_expiry_blocks_untrusted_rejoin_until_gap_sync tests/integration/security/test_audit_foundation.py::test_prompt_injection_cannot_bypass_high_risk_tool_guard -q"
+    },
+    {
       "testcaseName": "sec-e2e-027-lease-expiry-active-defense",
       "entryPath": "tests/integration/security/test_audit_foundation.py::test_lease_expiry_blocks_untrusted_rejoin_until_gap_sync",
-      "controlPoint": "Within one frozen testcase path, first let a previously trusted device session miss lease heartbeats and attempt denied rejoin before missing-gap verification, then drive a distinct recovery control point followed by a second restored model-access attempt.",
-      "observationPoint": "The explicit entrypoint must observe a pre-recovery UNTRUSTED-and-denied frame through `pre_recovery_console_status` and a distinct post-recovery trust-restored frame through `post_recovery_console_status`; the second frame must not reuse the denied rejoin timeline or denied console response.",
+      "controlPoint": "Run the frozen real-app subprocess acceptance entrypoint: let a trusted client miss the lease window, observe denied rejoin before missing-gap verification, then drive the distinct recovery control point and restored-access attempt.",
+      "observationPoint": "Security Center must mark the same canonical client UNTRUSTED after lease expiry, the pre-recovery console status must show denied rejoin, and the post-recovery console status must show restored trust only after continuity validation.",
+      "initialExecutionStatus": "failed",
+      "initialExecutionCommand": ".\\.venv\\Scripts\\python.exe -m pytest tests/unit/cli/test_cli_version.py::test_cli_version_option_outputs_current_version tests/unit/cli/test_cli_agents.py::test_agents_list_uses_shared_tool_helper tests/unit/cli/test_cli_task.py::test_task_command_registered_in_cli tests/unit/routers/test_settings.py::test_put_then_get_roundtrip tests/unit/routers/test_git.py::test_git_helper_uses_shared_command_runner tests/integration/security/test_audit_foundation.py::test_end_to_end_non_repudiation_evidence_chain tests/integration/security/test_audit_foundation.py::test_audit_integrity_self_healing_lockdown tests/integration/security/test_audit_foundation.py::test_lease_expiry_blocks_untrusted_rejoin_until_gap_sync tests/integration/security/test_audit_foundation.py::test_prompt_injection_cannot_bypass_high_risk_tool_guard -q",
+      "failureReason": "category=\"Lease_Expiry_Active_Defense_Gap\": Recovery_Control_Point_Missing and Post_Recovery_Model_Access_Restore_Missing. Observed pre_recovery_trust_state=UNTRUSTED, post_recovery_trust_state=DIVERGED, pre_recovery_console_status=423, post_recovery_console_status=200."
+    },
+    {
+      "testcaseName": "sec-e2e-021-prompt-injection-tool-guard-enforced",
+      "entryPath": "tests/integration/security/test_audit_foundation.py::test_prompt_injection_cannot_bypass_high_risk_tool_guard",
+      "controlPoint": "Run the frozen real-app subprocess acceptance entrypoint: submit nested deceptive instructions claiming test or maintenance mode while targeting a High risk tool without trusted provenance or confirmation.",
+      "observationPoint": "The high-risk tool must remain blocked at the tool-call boundary, rejection must be recorded as durable security evidence with trace-bound nonce semantics, and Security Center/operator surfaces must expose the rejected attempt rather than silently executing.",
       "initialExecutionStatus": "passed",
-      "initialExecutionCommand": ".\\.venv\\Scripts\\python.exe -m pytest tests/integration/security/test_audit_foundation.py::test_lease_expiry_blocks_untrusted_rejoin_until_gap_sync -q"
+      "initialExecutionCommand": ".\\.venv\\Scripts\\python.exe -m pytest tests/unit/cli/test_cli_version.py::test_cli_version_option_outputs_current_version tests/unit/cli/test_cli_agents.py::test_agents_list_uses_shared_tool_helper tests/unit/cli/test_cli_task.py::test_task_command_registered_in_cli tests/unit/routers/test_settings.py::test_put_then_get_roundtrip tests/unit/routers/test_git.py::test_git_helper_uses_shared_command_runner tests/integration/security/test_audit_foundation.py::test_end_to_end_non_repudiation_evidence_chain tests/integration/security/test_audit_foundation.py::test_audit_integrity_self_healing_lockdown tests/integration/security/test_audit_foundation.py::test_lease_expiry_blocks_untrusted_rejoin_until_gap_sync tests/integration/security/test_audit_foundation.py::test_prompt_injection_cannot_bypass_high_risk_tool_guard -q"
     }
   ],
   "criticalNonExplicitTests": [
-    {
-      "name": "security-explicit-entrypoint-traceability",
-      "path": "tests/architecture/security-explicit-entrypoint-traceability.test.js",
-      "kind": "explicit-entrypoint-correctness-guard",
-      "controlPoint": "Read SystemArchitecture.json, ImplementationToCodingHandoff.json, test-failure-records.json, tests/integration/security/test_audit_foundation.py, and tests/integration/security/harness.py to confirm sec-e2e-027 remains mounted to the frozen explicit entrypoint with the required business-readable markers.",
-      "observationPoint": "The guard proves acceptanceCriteria, handoff entryPath, failure record path, GIVEN/WHEN/THEN markers, harness method names, and business failure category strings remain frozen for sec-e2e-027."
-    },
     {
       "name": "security-audit-contract-boundaries",
       "path": "tests/architecture/security-audit-contract-boundaries.test.js",
       "kind": "architecture-boundary-guard",
       "controlPoint": "Read OVERALL_ARCHITECTURE.md, src/qwenpaw/security/ARCHITECTURE.md, deploy/ARCHITECTURE.md, deploy/api/ARCHITECTURE.md, deploy/web/ARCHITECTURE.md, tests/ARCHITECTURE.md, and tests/integration/security/ARCHITECTURE.md.",
-      "observationPoint": "The guard proves sec-e2e-027 is frozen into the runtime security boundary, the separate Security Center deployment boundary, the backend HTTP API lease registry and reconnect gate, the operator web lease-expiry view, and the tests architecture contract."
+      "observationPoint": "The guard proves the explicit security entrypoints remain owned by the runtime security boundary, separate Security Center deployment boundary, and tests architecture contract."
+    },
+    {
+      "name": "security-explicit-entrypoint-traceability",
+      "path": "tests/architecture/security-explicit-entrypoint-traceability.test.js",
+      "kind": "explicit-entrypoint-correctness-guard",
+      "controlPoint": "Read SystemArchitecture.json, ImplementationToCodingHandoff.json, test-failure-records.json, tests/integration/security/test_audit_foundation.py, and tests/integration/security/harness.py.",
+      "observationPoint": "The guard proves security acceptanceCriteria, handoff entryPath, failure record path, GIVEN/WHEN/THEN markers, harness method names, and business failure category strings remain frozen for security explicit entrypoints."
     },
     {
       "name": "security-runtime-client-identity-boundary",
       "path": "tests/architecture/security-runtime-client-identity-boundary.test.js",
       "kind": "key-implementation-traceability-guard",
       "controlPoint": "Read src/qwenpaw/security/audit_foundation.py and deploy/api/store.py to compare the client id used by startup heartbeat against the client ids used by recovery, lockdown, and restored-access projection.",
-      "observationPoint": "The guard proves one live runtime must use one canonical Security Center client id across heartbeat, recovery, lockdown, and restored-access projection, and that Security Center must not special-case runtime-heartbeat::<fingerprint> as a separate bootstrap-only terminal identity. Current repository state still passes this static guard, so it remains necessary but insufficient."
+      "observationPoint": "The guard proves one live runtime must use one canonical Security Center client id across heartbeat, recovery, lockdown, and restored-access projection."
     },
     {
       "name": "security-runtime-lease-persistence-boundary",
       "path": "tests/architecture/security-runtime-lease-persistence-boundary.test.js",
       "kind": "key-implementation-traceability-guard",
-      "controlPoint": "Read deploy/api/app.py and deploy/api/store.py to confirm the recovery-handshake HTTP contract carries lease_ttl_seconds and the durable Security Center store writes last_heartbeat_at, lease_ttl_seconds, and lease_expires_at for the canonical runtime client instead of relying on projection-only fallback.",
-      "observationPoint": "The guard proves sec-e2e-027 still freezes durable lease persistence into the API/store seam: RecoveryHandshakeRequest carries lease_ttl_seconds, deploy/api/store.py writes durable heartbeat lease fields, and overview/timeline do not rely on projection-only runtime-heartbeat fallback from updated_at_ns as the source of truth for TTL expiry. Current repository state passes this guard."
+      "controlPoint": "Read deploy/api/app.py and deploy/api/store.py to confirm the recovery-handshake HTTP contract carries lease_ttl_seconds and the durable Security Center store writes last_heartbeat_at, lease_ttl_seconds, and lease_expires_at.",
+      "observationPoint": "The guard proves sec-e2e-027 keeps durable lease persistence in the API/store seam and does not rely on projection-only fallback to hide zero lease fields."
     }
   ],
   "supportingNonExplicitTests": [
@@ -58,153 +84,70 @@
       "name": "security-config-regression",
       "path": "tests/integration/test_security_config.py",
       "kind": "supporting-guardrail",
-      "controlPoint": "Exercise repository-owned security configuration surfaces while Coding/Repair adds heartbeat and recovery-gate behavior behind the frozen explicit entrypoint.",
-      "observationPoint": "Configuration regressions are caught without widening the explicit acceptance boundary for sec-e2e-027.",
+      "controlPoint": "Exercise repository-owned security configuration surfaces while Coding/Repair fixes the full explicit gate.",
+      "observationPoint": "Security configuration regressions are caught without widening or weakening explicit acceptance entrypoints.",
       "expectedStatus": "passed"
     },
     {
-      "name": "security-center-ttl-lease-downgrade-semantics",
+      "name": "lease-recovery-semantics-contract",
       "path": "tests/contract/security/test_lease_recovery_semantics_contract.py",
       "kind": "supporting-guardrail",
-      "controlPoint": "Seed an aligned client into Security Center state with lease timing that has already expired, then read the cloud-side timeline without invoking any prompt-scripted edge lockdown path.",
-      "observationPoint": "The timeline must expose last heartbeat timing, computed lease expiry, lease TTL, autonomous UNTRUSTED downgrade, and recovery_required=true. Current repository state is expected to pass this test.",
+      "controlPoint": "Exercise Security Center lease timing, startup heartbeat, canonical runtime identity, TTL downgrade, and reconnect recovery semantics beneath the frozen sec-e2e-027 entrypoint.",
+      "observationPoint": "The contract tests must keep lease recovery behavior aligned with the sec-e2e-027 business boundary while Coding/Repair restores the explicit acceptance entrypoint.",
       "expectedStatus": "passed"
-    },
-    {
-      "name": "security-center-full-gap-validation-semantics",
-      "path": "tests/contract/security/test_lease_recovery_semantics_contract.py",
-      "kind": "supporting-guardrail",
-      "controlPoint": "Seed an UNTRUSTED client with an open recovery gate, then call recovery_handshake through the explicit-gap-verification trace path using only hash, sequence, and anchor identifiers but no full gap proof.",
-      "observationPoint": "Recovery must remain required and trust must not return to ALIGNED until the cloud mirror validates a full-chain missing-gap proof. Current repository state is expected to pass this test.",
-      "expectedStatus": "passed"
-    },
-    {
-      "name": "runtime-startup-background-heartbeat-semantics",
-      "path": "tests/contract/security/test_lease_recovery_semantics_contract.py",
-      "kind": "supporting-guardrail",
-      "controlPoint": "Start a real QwenPaw runtime and observe Security Center before any user prompt mentions lease warmup or lease expiry.",
-      "observationPoint": "Security Center must already show at least one client lease registration with nonzero last_heartbeat_at and lease_expires_at so active defense does not depend on prompt-scripted warmup wording. Current repository state is expected to pass this test.",
-      "expectedStatus": "passed"
-    },
-    {
-      "name": "security-center-single-online-runtime-identity-semantics",
-      "path": "tests/contract/security/test_lease_recovery_semantics_contract.py",
-      "kind": "supporting-guardrail",
-      "controlPoint": "Start a real QwenPaw runtime, allow startup heartbeat registration, then drive one session-scoped lease warmup through the live console without forking the runtime.",
-      "observationPoint": "Security Center must still project exactly one canonical terminal for that online runtime and must not show a false local-hash `DIVERGED`/`OPEN` recovery gate when no fork point exists. Current repository state is expected to pass and serves as a regression guard for the repaired single-terminal runtime identity.",
-      "expectedStatus": "passed"
-    },
-    {
-      "name": "security-center-durable-lease-persistence-and-stop-downgrade",
-      "path": "tests/contract/security/test_lease_recovery_semantics_contract.py",
-      "kind": "supporting-guardrail",
-      "controlPoint": "Start a real QwenPaw runtime, observe a projected lease-bearing canonical client, inspect the durable Security Center store for that same canonical client, then stop the runtime and wait past the TTL window.",
-      "observationPoint": "Before runtime stop, the durable store must already hold nonzero last_heartbeat_at, lease_ttl_seconds, and lease_expires_at for the canonical runtime client; after TTL expiry, overview and timeline must expose that same client as UNTRUSTED with divergence_reason=lease_ttl_expired and recovery_required=true. Current repository state passes and this guard remains as regression protection.",
-      "expectedStatus": "passed"
-    },
-    {
-      "name": "security-center-startup-normal-admission-semantics",
-      "path": "tests/contract/security/test_lease_recovery_semantics_contract.py",
-      "kind": "supporting-guardrail",
-      "controlPoint": "Start a real QwenPaw runtime from a fresh bootstrap and observe Security Center before any intentional runtime stop, offline lease-expiry demonstration, or session-scoped recovery workflow.",
-      "observationPoint": "Overview and timeline must show one canonical startup terminal with nonzero durable lease fields, trust_state ALIGNED, gap_status CLEAR, recovery_gate_status CLEAR, recovery_required=false, and no missing_gap_proof or other startup divergence reason. Current repository state passes and this guard remains as regression protection for startup normal-admission semantics.",
-      "expectedStatus": "passed"
-    },
-    {
-      "name": "security-center-live-reconnect-gap-proof-restores-access",
-      "path": "tests/contract/security/test_lease_recovery_semantics_contract.py",
-      "kind": "supporting-guardrail",
-      "controlPoint": "Start Security Center API/Web and one real QwenPaw runtime from a reset state, establish a trusted anchor, stop or isolate the runtime until the same canonical client is UNTRUSTED with divergence_reason lease_ttl_expired, then restart the same runtime and attempt a端侧 model or sensitive operation without manually posting a proof to deploy/api.",
-      "observationPoint": "The runtime re-online path must automatically submit a full missing-gap proof equivalent to the proof accepted by deploy/api/store.py, Security Center must project the same canonical client as ALIGNED or TRUSTED with gap_status VALIDATED or CLEAR, recovery_gate_status CLEAR, recovery_required=false, durable lease timing refreshed beyond the observation time, and the端侧 operation must return success instead of 423 recovery-gated blocking. Current repository state now passes this guard and keeps live reconnect recovery frozen as a regression boundary.",
-      "expectedStatus": "passed"
-    },
-    {
-      "name": "security-center-passive-reconnect-web-normalization",
-      "path": "tests/contract/security/test_lease_recovery_semantics_contract.py",
-      "kind": "supporting-guardrail",
-      "controlPoint": "Start Security Center API/Web and one real QwenPaw runtime from a reset state, establish a trusted anchor, stop or isolate the runtime until the same canonical client is UNTRUSTED with divergence_reason lease_ttl_expired, then restart the same runtime and observe Security Center before any restored-access prompt or explicit recovery control point is executed.",
-      "observationPoint": "Implementation Design must decide whether passive reconnect should still show recovery-gated state or should normalize the operator web. If passive reconnect is intended to restore trust, the same canonical client must leave GAP_VALIDATION_REQUIRED, close recovery_gate_status, and project recovery_required=false on heartbeat alone. If not, contracts and showcases must explicitly freeze that Web remains non-normal until the restored-access flow runs.",
-      "expectedStatus": "failed"
     }
   ],
   "expectedFailureRecordsPath": "design/KG/test-failure-records.json",
   "codingTargets": [
     {
+      "testcaseName": "settings-language-roundtrip",
+      "path": "tests/unit/routers/test_settings.py::test_put_then_get_roundtrip",
+      "failureSignal": "Async_Test_Runtime_Gap: pytest cannot execute the async backend settings explicit entrypoint because the active .venv does not load pytest-asyncio or another suitable async pytest plugin.",
+      "nextAction": "Restore repository pytest async support in the execution environment or dependency setup, then rerun the unchanged explicit entrypoint to expose the real PUT/GET language roundtrip assertion."
+    },
+    {
+      "testcaseName": "git-helper-command-runner",
+      "path": "tests/unit/routers/test_git.py::test_git_helper_uses_shared_command_runner",
+      "failureSignal": "Async_Test_Runtime_Gap: pytest cannot execute the pytest.mark.asyncio backend git helper explicit entrypoint; PytestUnknownMarkWarning confirms the async marker is not registered in the active run.",
+      "nextAction": "Restore repository pytest async support in the execution environment or dependency setup, then rerun the unchanged explicit entrypoint to verify shared command-runner delegation."
+    },
+    {
       "testcaseName": "sec-e2e-027-lease-expiry-active-defense",
       "path": "tests/integration/security/test_audit_foundation.py::test_lease_expiry_blocks_untrusted_rejoin_until_gap_sync",
-      "failureSignal": "Regression signal if sec-e2e-027 loses TTL-driven UNTRUSTED downgrade, split pre/post recovery observations, cloud-validated recovery gate semantics, startup background heartbeat registration semantics, or the single-terminal identity boundary between the edge runtime and Security Center.",
-      "nextAction": "Treat the explicit sec-e2e-027 path as a read-only acceptance baseline and preserve its dual-frame observations, startup heartbeat registration semantics, and canonical single-terminal Security Center identity."
-    },
-    {
-      "path": "tests/contract/security/test_lease_recovery_semantics_contract.py::test_runtime_startup_registers_lease_heartbeat_without_prompt",
-      "failureSignal": "Regression signal if Security Center overview ever returns to zero registered lease clients at runtime startup before any user prompt is sent.",
-      "nextAction": "Preserve the product background Heartbeat Emitter so runtime startup continues to register an initial lease heartbeat automatically and periodic emission remains live while the edge runtime is alive."
-    },
-    {
-      "path": "tests/architecture/security-runtime-client-identity-boundary.test.js",
-      "failureSignal": "Regression signal if startup heartbeat, recovery, lockdown, restored-access projection, or timeline reads ever diverge back to different Security Center client ids for the same live runtime.",
-      "nextAction": "Preserve one canonical runtime client id seam in src/qwenpaw/security and keep Security Center alias resolution aligned with that seam."
-    },
-    {
-      "path": "tests/contract/security/test_lease_recovery_semantics_contract.py::test_security_center_projects_one_online_runtime_as_one_canonical_terminal",
-      "failureSignal": "Regression signal if one online runtime is ever projected as multiple canonical Security Center terminals after startup heartbeat plus later session-scoped security traffic, or if a live non-forked runtime reappears as a false DIVERGED/OPEN bootstrap-shadow mismatch.",
-      "nextAction": "Preserve the repaired single-terminal runtime identity by keeping startup heartbeat and later session-scoped security flows aligned to one canonical Security Center terminal while retaining session ids only as metadata or display aliases."
-    },
-    {
-      "path": "tests/contract/security/test_lease_recovery_semantics_contract.py::test_security_center_persists_runtime_lease_fields_and_downgrades_after_stop",
-      "failureSignal": "Regression signal if Security Center overview or timeline can project lease timing for the canonical runtime client while the durable store persists last_heartbeat_at=0 or lease_expires_at=0, or if that same stopped runtime remains ALIGNED instead of downgrading to UNTRUSTED with divergence_reason=lease_ttl_expired.",
-      "nextAction": "Preserve deploy/api/app.py RecoveryHandshakeRequest lease_ttl_seconds passthrough, deploy/api/store.py durable last_heartbeat_at, lease_ttl_seconds, and lease_expires_at writes for the canonical runtime client, and overview/timeline evaluation against those stored lease fields after runtime stop."
-    },
-    {
-      "path": "tests/architecture/security-runtime-lease-persistence-boundary.test.js",
-      "failureSignal": "Static architecture regression signal if the Security Center API contract drops lease_ttl_seconds, if the store stops durably writing lease timing, or if projection-only runtime-heartbeat fallback returns as the apparent source of truth.",
-      "nextAction": "Keep the deploy/api request-model and store-write seam aligned with the durable lease registry contract."
-    },
-    {
-      "path": "tests/contract/security/test_lease_recovery_semantics_contract.py::test_security_center_projects_fresh_runtime_startup_as_aligned_clear_terminal",
-      "failureSignal": "Regression signal if a freshly started online runtime is projected as GAP_VALIDATION_REQUIRED, gap_status REQUIRED, recovery_gate_status OPEN, recovery_required=true, or divergence_reason missing_gap_proof before any offline lease-expiry event has occurred.",
-      "nextAction": "Preserve the repaired startup-heartbeat admission path in deploy/api/store.py and the runtime heartbeat payload contract so a clean canonical startup heartbeat stays ALIGNED/CLEAR while true post-expiry or post-gap rejoin still requires missing-gap validation."
-    },
-    {
-      "path": "tests/contract/security/test_lease_recovery_semantics_contract.py::test_security_center_live_reconnect_gap_proof_restores_access",
-      "failureSignal": "Regression signal if a lease-expired canonical runtime ever restarts and returns to a 423 recovery-gated state, loses automatic reconnect gap-proof submission, fails to refresh canonical lease heartbeat after recovery, or stops restoring end-side access after Security Center projects recovery_required=false.",
-      "nextAction": "Preserve the repaired runtime re-online path so it continues to materialize reconnect gap proof anchors, post the resulting full missing-gap proof automatically, refresh canonical heartbeat after gate closure, and restore端侧 model or sensitive operation access only after Security Center projects recovery_required=false."
-    },
-    {
-      "path": "tests/contract/security/test_lease_recovery_semantics_contract.py::test_security_center_passive_reconnect_web_normalization",
-      "failureSignal": "Expected-failing signal for the current live contradiction: reconnect heartbeat alone continues to advance last_heartbeat_at while Security Center still projects GAP_VALIDATION_REQUIRED, recovery_gate_status OPEN, and divergence_reason missing_gap_proof, so the operator web never returns to normal on passive reconnect.",
-      "nextAction": "Implementation Design must choose whether passive reconnect is itself a trust-restoring control point. If yes, move accepted missing-gap evidence into the reconnect heartbeat or startup reconnect path. If no, keep the restored-access guard as the only trust-restoring control point and update showcase/operator expectations so Web remaining non-normal before restored access is intentional."
+      "failureSignal": "Lease_Expiry_Active_Defense_Gap: the frozen explicit entrypoint reports Recovery_Control_Point_Missing and Post_Recovery_Model_Access_Restore_Missing; post-recovery trust remains DIVERGED even though the post-recovery console status is 200.",
+      "nextAction": "Repair production security and Security Center recovery behavior beneath tests/integration/security/harness.py so the distinct missing-gap recovery control point becomes observable and model access is restored only after continuity validation."
     }
   ],
   "taskExecutionPlan": {
-    "executionStrategy": "Keep sec-e2e-027 on its one frozen explicit entrypoint with two sequential control points and two distinct console observation points, preserve the already-green startup-heartbeat, single-terminal runtime identity, durable lease-persistence, startup normal-admission, stopped-runtime downgrade, and restored-access recovery guards, and explicitly resolve the remaining passive reconnect ambiguity instead of letting live operator expectations drift from the implemented control points.",
+    "executionStrategy": "Treat the 9-entry full explicit pytest command as the acceptance gate. First make the backend async unit entrypoints executable without touching their bodies, then repair the sec-e2e-027 production recovery seam beneath the protected harness, and finally rerun the same full explicit command until all 9 pass in one run.",
     "tasks": [
       {
-        "taskId": "security-center-startup-normal-admission-005",
-        "title": "Preserve clean startup admission",
-        "objective": "Keep the repaired single-terminal runtime identity, startup normal-admission semantics, and durable lease timing intact so a fresh canonical startup heartbeat remains ALIGNED/CLEAR normal online state instead of regressing to a recovery-gated missing-gap terminal.",
+        "taskId": "explicit-gate-async-runtime-001",
+        "title": "Restore pytest async execution",
+        "objective": "Make the active repository test environment execute async explicit pytest functions so backend settings and git helper assertions can run normally.",
         "relatedTestcases": [
-          "sec-e2e-027-lease-expiry-active-defense"
+          "settings-language-roundtrip",
+          "git-helper-command-runner"
         ],
         "targetPaths": [
-          "deploy/api/store.py",
-          "src/qwenpaw/security/audit_foundation.py",
-          "tests/contract/security/test_lease_recovery_semantics_contract.py"
+          "pyproject.toml",
+          "tests/unit/routers/test_settings.py",
+          "tests/unit/routers/test_git.py"
         ],
         "steps": [
-          "In deploy/api/store.py, preserve the clean startup heartbeat admission branch that distinguishes normal bootstrap from true recovery-gated rejoin paths so a fresh canonical runtime heartbeat does not inherit missing_gap_proof or GAP_VALIDATION_REQUIRED by default.",
-          "Preserve one canonical runtime client id and the already-green durable lease timing path while maintaining startup trust-state convergence; future changes must not reintroduce multiple canonical terminals or zeroed lease fields.",
-          "Keep missing-gap validation semantics reserved for real post-expiry or post-gap recovery attempts. Fresh startup must continue to converge to trust_state ALIGNED, gap_status CLEAR, recovery_gate_status CLEAR, and recovery_required=false unless Security Center has already observed a real expired lease, fork, tamper event, or continuity gap.",
-          "Do not rewrite the frozen sec-e2e-027 explicit entrypoint, GIVEN/WHEN/THEN body, or the split pre_recovery_console_status/post_recovery_console_status observation contract while preserving this closed seam."
+          "Do not edit tests/unit/routers/test_settings.py or tests/unit/routers/test_git.py unless an upstream architecture change explicitly unfreezes them.",
+          "Inspect the active dependency installation and pytest plugin discovery path; the evidence command showed pytest_asyncio is absent from .venv.",
+          "Restore pytest-asyncio or an equivalent async pytest plugin through the repository-supported dependency/setup path, not by converting async tests to synchronous wrappers.",
+          "Rerun tests/unit/routers/test_settings.py::test_put_then_get_roundtrip and tests/unit/routers/test_git.py::test_git_helper_uses_shared_command_runner unchanged."
         ],
-        "completionSignal": "tests/contract/security/test_lease_recovery_semantics_contract.py::test_security_center_projects_fresh_runtime_startup_as_aligned_clear_terminal remains green while tests/contract/security/test_lease_recovery_semantics_contract.py::test_runtime_startup_registers_lease_heartbeat_without_prompt, tests/contract/security/test_lease_recovery_semantics_contract.py::test_security_center_projects_one_online_runtime_as_one_canonical_terminal, and tests/contract/security/test_lease_recovery_semantics_contract.py::test_security_center_persists_runtime_lease_fields_and_downgrades_after_stop also remain green."
+        "completionSignal": "Both backend explicit unit entrypoints execute their assertion bodies and pass without xfail, skip, or assertion weakening."
       },
       {
-        "taskId": "security-center-live-reconnect-recovery-006",
-        "title": "Resolve passive reconnect behavior",
-        "objective": "Remove the current ambiguity between restored-access recovery and passive reconnect heartbeat so operator web expectations, runtime control points, and Security Center recovery semantics describe the same product behavior.",
+        "taskId": "sec-e2e-027-recovery-control-002",
+        "title": "Repair lease recovery control point",
+        "objective": "Make the frozen sec-e2e-027 entrypoint observe a distinct missing-gap recovery control point and post-recovery trust restoration.",
         "dependsOn": [
-          "security-center-startup-normal-admission-005"
+          "explicit-gate-async-runtime-001"
         ],
         "relatedTestcases": [
           "sec-e2e-027-lease-expiry-active-defense"
@@ -213,42 +156,75 @@
           "src/qwenpaw/security/audit_foundation.py",
           "src/qwenpaw/app/_app.py",
           "src/qwenpaw/app/routers/console.py",
+          "deploy/api/app.py",
           "deploy/api/store.py",
-          "tests/contract/security/test_lease_recovery_semantics_contract.py"
+          "deploy/web"
         ],
         "steps": [
-          "Add an expected-failing guard that observes Security Center immediately after runtime reconnect heartbeat and before any restored-access prompt, so Implementation Design can freeze whether Web should still be recovery-gated or already normalized at that moment.",
-          "If passive reconnect should restore trust, move accepted missing-gap proof submission into the reconnect heartbeat or startup reconnect path in src/qwenpaw/security/audit_foundation.py so deploy/api/store.py stops returning missing_gap_proof on heartbeat alone.",
-          "If passive reconnect should not restore trust, preserve the current restored-access proof path in src/qwenpaw/app/routers/console.py as the only trust-restoring control point and update showcase/operator-facing contracts so Web remaining non-normal before restored access is intentional rather than surprising.",
-          "In both cases, preserve canonical runtime identity, durable lease timing, startup normal-admission, and stopped-runtime TTL downgrade semantics."
+          "Keep tests/integration/security/test_audit_foundation.py and tests/integration/security/harness.py read-only; do not weaken Recovery_Control_Point_Missing or Post_Recovery_Model_Access_Restore_Missing assertions.",
+          "Trace the denied rejoin flow, recovery handshake flow, and post-recovery model access flow for the same canonical runtime client id.",
+          "Repair production behavior so continuity validation closes the recovery gate and Security Center no longer projects post-recovery trust as DIVERGED for the recovered client.",
+          "Preserve the pre-recovery denial frame: UNTRUSTED trust state and 423 denial must remain observable before missing-gap verification.",
+          "Preserve separate pre_recovery_console_status and post_recovery_console_status observations rather than reusing a mutable final state."
         ],
-        "completionSignal": "Implementation Design explicitly freezes the passive reconnect behavior, tests/contract/security/test_lease_recovery_semantics_contract.py::test_security_center_live_reconnect_gap_proof_restores_access remains green, and the new passive reconnect guard either turns green through implementation or is replaced by clarified architecture and showcase wording that matches the implemented control point."
+        "completionSignal": "tests/integration/security/test_audit_foundation.py::test_lease_expiry_blocks_untrusted_rejoin_until_gap_sync passes unchanged and still proves denied rejoin before recovery plus restored model access only after continuity validation."
+      },
+      {
+        "taskId": "full-explicit-gate-003",
+        "title": "Reprove full explicit gate",
+        "objective": "Demonstrate that all repository-declared explicit testcases pass together in one evidence run.",
+        "dependsOn": [
+          "explicit-gate-async-runtime-001",
+          "sec-e2e-027-recovery-control-002"
+        ],
+        "relatedTestcases": [
+          "cli-version-surface",
+          "agents-list-surface",
+          "task-help-surface",
+          "settings-language-roundtrip",
+          "git-helper-command-runner",
+          "sec-e2e-024-end-to-end-non-repudiation-evidence-chain",
+          "sec-e2e-025-audit-integrity-self-healing-lockdown",
+          "sec-e2e-027-lease-expiry-active-defense",
+          "sec-e2e-021-prompt-injection-tool-guard-enforced"
+        ],
+        "targetPaths": [
+          "design/KG/test-failure-records.json",
+          "design/KG/ImplementationToCodingHandoff.json"
+        ],
+        "steps": [
+          "Rerun the exact full explicit pytest command recorded in design/KG/test-failure-records.json.",
+          "Require 9 passed in one run; partial success is not delivery acceptance.",
+          "If failures remain, refresh design/KG/test-failure-records.json with the new command, exit code, failing node, business category, and first actionable failure message.",
+          "Do not mark failures xfail or skip and do not remove any entrypoint from the command."
+        ],
+        "completionSignal": "The full explicit pytest command exits 0 with all 9 entrypoints passed, and design/KG/test-failure-records.json contains no stale unresolved failure for a now-passing explicit testcase."
       }
     ]
   },
   "frozenFiles": [
     "design/KG/SystemArchitecture.json",
     "design/KG/IntentToImplementationHandoff.json",
-    "design/KG/ImplementationToCodingHandoff.json",
-    "design/KG/test-failure-records.json",
     "OVERALL_ARCHITECTURE.md",
     "src/qwenpaw/ARCHITECTURE.md",
     "src/qwenpaw/security/ARCHITECTURE.md",
+    "src/qwenpaw/cli/ARCHITECTURE.md",
     "deploy/ARCHITECTURE.md",
     "deploy/api/ARCHITECTURE.md",
     "deploy/web/ARCHITECTURE.md",
     "tests/ARCHITECTURE.md",
-    "tests/integration/conftest.py",
-    "tests/architecture/security-runtime-lease-persistence-boundary.test.js",
-    "tests/architecture/security-runtime-client-identity-boundary.test.js",
-    "tests/contract/security/test_lease_recovery_semantics_contract.py",
     "tests/integration/security/ARCHITECTURE.md",
     "tests/integration/security/harness.py",
     "tests/integration/security/test_audit_foundation.py",
-    "tests/architecture/security-audit-contract-boundaries.test.js",
-    "tests/architecture/security-explicit-entrypoint-traceability.test.js"
+    "tests/unit/cli/test_cli_version.py",
+    "tests/unit/cli/test_cli_agents.py",
+    "tests/unit/cli/test_cli_task.py",
+    "tests/unit/routers/test_settings.py",
+    "tests/unit/routers/test_git.py"
   ],
   "openGaps": [
-    "Passive reconnect GAP: on live runtime reconnect, Security Center heartbeats continue to refresh last_heartbeat_at but the canonical client remains GAP_VALIDATION_REQUIRED with recovery_gate_status OPEN and divergence_reason missing_gap_proof until the restored-access prompt path runs."
+    "The active .venv is missing pytest async plugin support, so tests/unit/routers/test_settings.py::test_put_then_get_roundtrip and tests/unit/routers/test_git.py::test_git_helper_uses_shared_command_runner currently fail before business assertions execute.",
+    "tests/integration/security/test_audit_foundation.py::test_lease_expiry_blocks_untrusted_rejoin_until_gap_sync still reports category=\"Lease_Expiry_Active_Defense_Gap\" because the distinct recovery control point and post-recovery model-access restoration are not yet contract-ready.",
+    "design/KG/SystemArchitecture.json models only the 4 security explicit testcases; the 5 CLI/backend unit explicit entrypoints are declared by tests/ARCHITECTURE.md and OVERALL_ARCHITECTURE.md, so they are handed to Coding/Repair through design/KG/test-failure-records.json, codingTargets, and taskExecutionPlan rather than schema-validated explicitEntrypoints."
   ]
 }
