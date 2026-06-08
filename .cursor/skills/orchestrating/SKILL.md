@@ -14,3 +14,5 @@ When the @Coding-and-repairing subagent has done the coding and repairing, you [
 When the @implementation-design subagent has done the audit, you [MUST] ask @intention-design subagent to audit the delivery of the implementation.
 
 If any audit fails, you [MUST] ask the corresponding subagent to fix the problem until the audit passes.
+
+The design of the acceptance testcases of @implementation-design subagent [MUST] be audited by @intention-design subagent before the handoff to @coding-and-repairing subagent.
