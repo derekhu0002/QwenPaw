@@ -479,3 +479,99 @@ sequenceDiagram
 - 人类责任与系统行为必须分离。`User` 是请求和确认主体，`Agent` 是执行主体，`SystemService` 是后台安全行为主体。
 - 所有高风险动作必须能链接到 `PolicyDecision` 和 `AuditRecord`，否则无法支撑追责和合规证明。
 - 完整性证据应至少包含 `prior_hash`、`current_hash`、`payload_hash` 和 `Checkpoint`，并允许投影到 Security Center 形成外部可观测点。
+
+## 主要风险检测规则
+
+本节基于当前已定义事件推导风险检测规则。规则的目标不是替代工具守卫，而是在审计层形成可追责、可告警、可合规解释的二次检测能力。
+
+### 规则输入范围
+
+第一阶段规则只依赖当前已经定义或可投影的事件：
+
+- 边缘侧：`USER_CONFIRMATION`、`SECURITY_REJECTION`、`AUDIT_INTEGRITY_LOCKDOWN`、`LEASE_HEARTBEAT`、`MODEL_ACCESS_RESTORED`、`RECOVERY_RECONNECT_PROOF`
+- 云侧：`SECURITY_REJECTION` 投影、`AUDIT_LOCKDOWN` 投影、`alert`
+
+推荐检测维度：
+
+- `Subject`：`user_id`、`request_user_id`、`agent_id`、`runtime_client_id`
+- `Context`：`session_id`、`channel`、`trace_id/run_id`、`event_sequence`
+- `Object`：`tool_name`、`high_risk_tool_name`、`ModelProvider`、`AuditRecord`、`Checkpoint`
+- `Decision`：`decision`、`guard_decision`、`rejection_reason`、`guard_rule_id`、`trust_state`、`recovery_required`
+- `Evidence`：`prior_hash`、`current_hash`、`payload_hash`、`Security_Rejection_Nonce`、`cloud_shadow_hash`、`alert_latency_ms`
+
+### 规则表
+
+| 规则 ID      | 风险名称                    | 关联本体                                                        | 依赖事件                                                                          | 检测逻辑                                                                                                                                          | 严重级别              | 推荐处置                                                                          |
+| ---------- | ----------------------- | ----------------------------------------------------------- | ----------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- | ----------------- | ----------------------------------------------------------------------------- |
+| `AUD-R001` | 高风险工具缺失可信确认             | `Agent -> ToolAccessEvent -> Tool`、`ApprovalDecision`       | `SECURITY_REJECTION`、`USER_CONFIRMATION`                                      | 同一 `session_id + tool_name` 出现 `SECURITY_REJECTION`，且近邻链路中不存在有效 `USER_CONFIRMATION` 或确认摘要不匹配。                                                 | `HIGH`            | 阻断工具执行，生成实时告警，要求用户重新确认。                                                       |
+| `AUD-R002` | Prompt Injection 诱导绕过审批 | `RiskFinding -> PolicyDecision`                             | `SECURITY_REJECTION`                                                          | `rejection_reason` 指向缺失可信上下文或绕过确认，或 `guard_category` / `guard_rule_id` 命中 prompt injection、test mode、maintenance mode 等绕过类规则。                 | `HIGH`            | 保留 `Security_Rejection_Nonce`，向 Security Center 投影 Voucher，聚合到用户和 Agent 风险画像。 |
+| `AUD-R003` | 同一主体高频拒绝                | `User`、`Agent`、`SecurityRejectionEvent`                     | `SECURITY_REJECTION`、云侧 `alert`                                               | 在固定窗口内，同一 `user_id`、`agent_id` 或 `session_id` 的拒绝次数超过阈值，或命中多个不同 `guard_rule_id`。                                                              | `MEDIUM` / `HIGH` | 触发行为异常告警；若连续命中高危规则，临时提升该主体后续工具调用审批级别。                                         |
+| `AUD-R004` | 审计链检查点丢失                | `AuditRecord -> Checkpoint`                                 | `AUDIT_INTEGRITY_LOCKDOWN`                                                    | `checkpoint_missing=true` 或 `checkpoint_loss_detected=true`。                                                                                  | `CRITICAL`        | 立即进入 `UNTRUSTED`，阻断敏感工具，要求执行恢复握手和缺口证明。                                        |
+| `AUD-R005` | 审计链哈希分叉                 | `AuditRecord -> HashAnchor -> CloudProjection`              | `AUDIT_INTEGRITY_LOCKDOWN`、云侧 `AUDIT_LOCKDOWN` 投影                             | `hash_divergence_curve` 存在本地链头和云侧影子哈希不一致，或存在 `fork_point_event_id`。                                                                           | `CRITICAL`        | 锁定运行时，展示 hash-break curve，保留分叉点作为取证入口。                                        |
+| `AUD-R006` | 锁定态后仍尝试敏感操作             | `AuditIntegrityEvent -> PolicyDecision -> Tool`             | `AUDIT_INTEGRITY_LOCKDOWN`、`SECURITY_REJECTION`                               | 某 `Runtime` 处于 `UNTRUSTED` 或 `recovery_required=true` 后，继续出现同一运行时的高风险 `tool_name` 请求或拒绝事件。                                                    | `HIGH`            | 保持阻断，升级告警，提示管理员排查自动化脚本或被控 Agent。                                              |
+| `AUD-R007` | 租约心跳中断导致运行时失信           | `SystemService -> RuntimeTrustEvent -> Runtime`             | `LEASE_HEARTBEAT`、云侧 `alert`                                                  | 云侧在租约 TTL 后未收到同一 `runtime_client_id` 的心跳，信任态降级为 `UNTRUSTED` 或 `recovery_required=true`。                                                       | `HIGH`            | 阻断重连后的模型访问和敏感工具，要求缺口证明。                                                       |
+| `AUD-R008` | 未完成缺口证明即恢复访问            | `RecoveryReconnectProof -> PolicyDecision -> ModelProvider` | `RECOVERY_RECONNECT_PROOF`、`MODEL_ACCESS_RESTORED`                            | 出现 `MODEL_ACCESS_RESTORED`，但同一 `runtime_client_id/session_id` 最近不存在被云侧接受的 `RECOVERY_RECONNECT_PROOF`，或恢复时 `gap_status` 未达到 `VALIDATED/CLEAR`。 | `CRITICAL`        | 标记恢复流程异常，撤销恢复态，重新打开 recovery gate。                                            |
+| `AUD-R009` | 拒绝凭证绑定异常                | `SecurityRejectionEvent -> NonceVoucher`                    | `SECURITY_REJECTION`、云侧 `SECURITY_REJECTION` 投影                               | `Security_Rejection_Nonce` 缺失，或 `security_rejection_nonce_binding_hash` 无法由 `run_id + session_id + user_id + tool_name + current_hash` 复核。    | `HIGH`            | 不信任该拒绝记录的云侧展示态，要求重新拉取边缘审计记录并标记证据异常。                                           |
+| `AUD-R010` | 云侧投影延迟异常                | `CloudProjection -> Alert`                                  | 云侧 `SECURITY_REJECTION` 投影、云侧 `AUDIT_LOCKDOWN` 投影、`alert`                     | `alert_latency_ms` 超过目标阈值，或边缘事件已落盘但云侧长时间无对应 `trace_id` 投影。                                                                                    | `MEDIUM`          | 标记 Security Center 可观测性降级；排查网络、API、SSE 或投影任务。                                 |
+| `AUD-R011` | 确认人与请求人不一致              | `User -> ApprovalEvent -> ToolAccessEvent`                  | `USER_CONFIRMATION`                                                           | `user_id/context_user_id` 与 `request_user_id` 不一致，且无明确代理授权或审批委托上下文。                                                                           | `HIGH`            | 阻断或要求二次确认；记录为潜在越权审批。                                                          |
+| `AUD-R012` | 确认后工具效果顺序异常             | `ApprovalEvent -> ToolAccessEvent -> Evidence`              | `USER_CONFIRMATION`                                                           | `tool_effect_at` 早于 `confirmed_at`，或 `released_at` 早于确认事件落盘时间。                                                                                | `CRITICAL`        | 判定为不可否认证据失效，进入锁定或要求人工复核。                                                      |
+| `AUD-R013` | 高风险工具跨 Agent 委托链异常      | `User -> Agent -> SubAgent -> Tool`                         | `USER_CONFIRMATION`、`SECURITY_REJECTION`                                      | `chain` 中 `employee -> agent -> plugin -> tool` 缺失关键节点，或 `delegated_agent_name` 与实际 `agent_id` 不一致。                                           | `MEDIUM` / `HIGH` | 要求补齐上下文；对不完整委托链上的高风险动作提升审批级别。                                                 |
+| `AUD-R014` | 重复恢复或反复分叉               | `Runtime -> AuditIntegrityEvent -> CloudProjection`         | `AUDIT_INTEGRITY_LOCKDOWN`、`RECOVERY_RECONNECT_PROOF`、`MODEL_ACCESS_RESTORED` | 同一 `runtime_client_id` 在短窗口内多次出现锁定、恢复、再次锁定，或多个 `fork_point_event_id` 连续变化。                                                                    | `HIGH`            | 进入人工恢复模式，暂停自动恢复，要求管理员导出审计证据。                                                  |
+| `AUD-R015` | 告警已生成但前端不可见             | `Alert -> SecurityCenter -> Operator`                       | 云侧 `alert`、云侧投影字段                                                             | 云侧已有 `alert`，但边缘记录或投影记录缺失 `operator_web_projection`、`red_alert_state=VISIBLE` 或 `operator_popup_state=VISIBLE`。                               | `MEDIUM`          | 标记运营面展示异常；保留 API 侧告警作为准确信源。                                                   |
+
+### 规则关系图
+
+```mermaid
+flowchart TD
+    EventStream["Audit Event Stream"]
+    Confirmation["USER_CONFIRMATION"]
+    Rejection["SECURITY_REJECTION"]
+    Lockdown["AUDIT_INTEGRITY_LOCKDOWN"]
+    Heartbeat["LEASE_HEARTBEAT"]
+    RecoveryProof["RECOVERY_RECONNECT_PROOF"]
+    Restored["MODEL_ACCESS_RESTORED"]
+    CloudAlert["Cloud alert"]
+
+    R1["AUD-R001<br/>缺失可信确认"]
+    R2["AUD-R002<br/>审批绕过诱导"]
+    R3["AUD-R003<br/>高频拒绝"]
+    R4["AUD-R004/R005/R006<br/>审计完整性异常"]
+    R5["AUD-R007/R008/R014<br/>租约与恢复异常"]
+    R6["AUD-R009/R010/R015<br/>投影与告警异常"]
+
+    EventStream --> Confirmation
+    EventStream --> Rejection
+    EventStream --> Lockdown
+    EventStream --> Heartbeat
+    EventStream --> RecoveryProof
+    EventStream --> Restored
+    EventStream --> CloudAlert
+
+    Confirmation --> R1
+    Rejection --> R1
+    Rejection --> R2
+    Rejection --> R3
+    Lockdown --> R4
+    Heartbeat --> R5
+    RecoveryProof --> R5
+    Restored --> R5
+    Rejection --> R6
+    Lockdown --> R6
+    CloudAlert --> R6
+```
+
+### 规则分层
+
+- **L1 阻断规则**：`AUD-R001`、`AUD-R004`、`AUD-R005`、`AUD-R008`、`AUD-R011`、`AUD-R012`。这些规则一旦命中，应直接阻断或保持 `UNTRUSTED`。
+- **L2 实时告警规则**：`AUD-R002`、`AUD-R003`、`AUD-R006`、`AUD-R007`、`AUD-R009`、`AUD-R014`。这些规则应投影到 Security Center 并通知管理员。
+- **L3 可观测性与合规规则**：`AUD-R010`、`AUD-R013`、`AUD-R015`。这些规则主要用于审计质量、证据完整性和合规报告。
+
+### 后续扩展规则
+
+当后续补齐 `ToolAccessEvent`、`FileAccessEvent`、`ConfigChangeEvent` 后，应新增以下检测方向：
+
+- **工具滥用检测**：同一 Agent 在短窗口内大量调用执行命令、浏览器、外部 API 等高权限工具。
+- **敏感文件访问检测**：访问 `.qwenpaw.secret`、凭证文件、密钥目录或企业敏感路径时生成独立审计事件。
+- **配置变更审计检测**：安全策略、模型 Provider、渠道配置、Agent 权限发生变更时，必须形成 `ConfigChangeEvent` 并进入哈希链。
+- **外联与数据外传检测**：工具调用外部 endpoint 时，将域名、URL hash、数据类型和风险等级纳入审计。
+- **合规导出检测**：导出审计日志时生成 `ExportEvent`，记录导出范围、导出人、导出哈希和时间窗口。
