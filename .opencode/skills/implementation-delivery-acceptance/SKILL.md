@@ -1,6 +1,7 @@
 ---
 name: implementation-delivery-acceptance
 description: audit the implementation delivery against the intention architecture contract, and identify any gaps or next steps if not met
+argument-hint: scope
 disable-model-invocation: true
 ---
 

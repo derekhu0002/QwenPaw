@@ -1,6 +1,7 @@
 ---
 name: coding-delivery-acceptance
 description: audit the coding delivery against the implementation architecture contract, and identify any gaps or next steps if not met
+argument-hint: scope
 disable-model-invocation: true
 ---
 

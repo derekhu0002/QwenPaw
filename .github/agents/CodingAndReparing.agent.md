@@ -19,7 +19,7 @@ Coding/Repair
 
 - 意图架构图谱：`design\KG\SystemArchitecture.json`
 - 实现到编码交接物：`design\KG\ImplementationToCodingHandoff.json`
-- 实现到编码交接物 Schema：`.opencode/argoschema/ImplementationToCodingHandoff.schema.json`
+- 实现到编码交接物 Schema：`.github/argoschema/ImplementationToCodingHandoff.schema.json`
 - 失败测试记录：`design\KG\test-failure-records.json`
 - 实现架构根契约：`OVERALL_ARCHITECTURE.md`
 

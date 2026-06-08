@@ -498,6 +498,12 @@ def load_rules_from_directory(
     else:
         # Default directory: load only the default subset
         yaml_files = [directory / f for f in _DEFAULT_RULE_FILES]
+        try:
+            from ..rules_integrity import verify_builtin_rule_files
+
+            verify_builtin_rule_files(directory, _DEFAULT_RULE_FILES)
+        except Exception as exc:  # pragma: no cover - warn-only guardrail
+            logger.warning("Built-in rule integrity check failed: %s", exc)
 
     rules: list[GuardRule] = []
     for yaml_file in yaml_files:
