@@ -38,6 +38,14 @@ export interface ToolGuardRulesIntegrity {
   findings: ToolGuardRuleIntegrityFinding[];
 }
 
+export interface ToolGuardRulesIntegrityRepair {
+  ok: boolean;
+  message: string;
+  source_url: string;
+  backup_path?: string | null;
+  integrity: ToolGuardRulesIntegrity;
+}
+
 // ── File Guard types ──────────────────────────────────────────────
 
 export interface FileGuardResponse {
@@ -119,6 +127,12 @@ export const securityApi = {
   getToolGuardRulesIntegrity: () =>
     request<ToolGuardRulesIntegrity>(
       "/config/security/tool-guard/rules-integrity",
+    ),
+
+  repairToolGuardRulesIntegrity: () =>
+    request<ToolGuardRulesIntegrityRepair>(
+      "/config/security/tool-guard/rules-integrity/repair",
+      { method: "POST" },
     ),
 
   // ── File Guard ─────────────────────────────────────────────────

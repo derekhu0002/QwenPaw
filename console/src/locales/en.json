@@ -1992,7 +1992,9 @@
     "loadFailed": "Failed to load tool guard settings",
     "rulesIntegrity": {
       "tamperedTitle": "Built-in detection rules have been tampered with",
-      "tamperedDetail": "Please check whether dangerous_shell_commands.yaml, rules_manifest.json, and rules_manifest.sig are from the official release package."
+      "repairButton": "Repair",
+      "repairSuccess": "Built-in detection rules repaired",
+      "repairFailed": "Failed to repair built-in detection rules"
     },
     "rules": {
       "title": "Detection Rules",

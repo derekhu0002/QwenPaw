@@ -28,6 +28,8 @@ function SecurityPage() {
     handleReset,
     mergedRules,
     rulesIntegrity,
+    repairingRulesIntegrity,
+    handleRepairRulesIntegrity,
     builtinRules,
     customRules,
     toggleRule,
@@ -87,22 +89,25 @@ function SecurityPage() {
 
       {rulesIntegrity && !rulesIntegrity.ok && (
         <div className={styles.integrityAlert}>
-          <div className={styles.integrityAlertTitle}>
-            {t("security.rulesIntegrity.tamperedTitle", {
-              defaultValue: "内置检测规则已被篡改",
-            })}
+          <div className={styles.integrityAlertMain}>
+            <span className={styles.integrityAlertIcon}>!</span>
+            <span className={styles.integrityAlertTitle}>
+              {t("security.rulesIntegrity.tamperedTitle", {
+                defaultValue: "内置检测规则已被篡改",
+              })}
+            </span>
           </div>
-          <div className={styles.integrityAlertDetail}>
-            {t("security.rulesIntegrity.tamperedDetail", {
-              defaultValue:
-                "请检查 dangerous_shell_commands.yaml、rules_manifest.json 和 rules_manifest.sig 是否来自官方发布包。",
+          <Button
+            danger
+            type="primary"
+            loading={repairingRulesIntegrity}
+            onClick={handleRepairRulesIntegrity}
+            className={styles.integrityRepairButton}
+          >
+            {t("security.rulesIntegrity.repairButton", {
+              defaultValue: "修复",
             })}
-            {rulesIntegrity.findings.length > 0 && (
-              <span className={styles.integrityAlertReason}>
-                {` ${rulesIntegrity.findings[0].reason}`}
-              </span>
-            )}
-          </div>
+          </Button>
         </div>
       )}
 

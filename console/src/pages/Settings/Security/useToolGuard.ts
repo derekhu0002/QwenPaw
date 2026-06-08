@@ -23,6 +23,7 @@ export function useToolGuard() {
   >({});
   const [rulesIntegrity, setRulesIntegrity] =
     useState<ToolGuardRulesIntegrity | null>(null);
+  const [repairingRulesIntegrity, setRepairingRulesIntegrity] = useState(false);
   const [enabled, setEnabled] = useState(true);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -72,6 +73,17 @@ export function useToolGuard() {
     const timer = window.setInterval(fetchRulesIntegrity, 5000);
     return () => window.clearInterval(timer);
   }, [fetchRulesIntegrity]);
+
+  const repairRulesIntegrity = useCallback(async () => {
+    setRepairingRulesIntegrity(true);
+    try {
+      const result = await api.repairToolGuardRulesIntegrity();
+      setRulesIntegrity(result.integrity);
+      return result;
+    } finally {
+      setRepairingRulesIntegrity(false);
+    }
+  }, []);
 
   const toggleRule = useCallback(
     (ruleId: string, currentlyDisabled: boolean) => {
@@ -180,6 +192,8 @@ export function useToolGuard() {
     mergedRules,
     shellEvasionChecks,
     rulesIntegrity,
+    repairingRulesIntegrity,
+    repairRulesIntegrity,
     toggleShellEvasionCheck,
     loading,
     error,

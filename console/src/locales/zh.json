@@ -1841,7 +1841,9 @@
     "loadFailed": "加载工具防护设置失败",
     "rulesIntegrity": {
       "tamperedTitle": "内置检测规则已被篡改",
-      "tamperedDetail": "请检查 dangerous_shell_commands.yaml、rules_manifest.json 和 rules_manifest.sig 是否来自官方发布包。"
+      "repairButton": "修复",
+      "repairSuccess": "内置检测规则已修复",
+      "repairFailed": "修复内置检测规则失败"
     },
     "rules": {
       "title": "检测规则",

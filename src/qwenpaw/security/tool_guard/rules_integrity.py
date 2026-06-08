@@ -7,14 +7,21 @@ status through a lightweight in-process cache.
 """
 from __future__ import annotations
 
+import base64
+import binascii
 import hashlib
 import json
 import logging
+import os
+import shutil
+import tempfile
+import time
 from dataclasses import asdict, dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+import httpx
 from cryptography.exceptions import InvalidSignature
 from cryptography.hazmat.primitives.asymmetric.ed25519 import (
     Ed25519PublicKey,
@@ -26,11 +33,27 @@ MANIFEST_NAME = "rules_manifest.json"
 SIGNATURE_NAME = "rules_manifest.sig"
 SIGNATURE_SCHEME = "ed25519-v1"
 HASH_SCHEME = "sha256"
+DANGEROUS_SHELL_RULES_NAME = "dangerous_shell_commands.yaml"
+RECOVERY_COMMIT = "058c52847faeb98fc0dea6ef56ac6d4a80f5e907"
+RECOVERY_SOURCE_URL = (
+    "https://raw.githubusercontent.com/axjlpl2026-commits/QwenPaw/"
+    f"{RECOVERY_COMMIT}/src/qwenpaw/security/tool_guard/rules/"
+    f"{DANGEROUS_SHELL_RULES_NAME}"
+)
+RECOVERY_API_URL = (
+    "https://api.github.com/repos/axjlpl2026-commits/QwenPaw/contents/"
+    f"src/qwenpaw/security/tool_guard/rules/{DANGEROUS_SHELL_RULES_NAME}"
+    f"?ref={RECOVERY_COMMIT}"
+)
+RECOVERY_HTTP_TIMEOUT = httpx.Timeout(90.0, connect=60.0, read=30.0)
+RECOVERY_ATTEMPTS_PER_SOURCE = 2
+RECOVERY_USER_AGENT = "QwenPaw-rule-integrity-repair/1.0"
+MAX_RECOVERY_FILE_BYTES = 1024 * 1024
 
 # Public key for the official built-in tool-rule manifest signature.
 # The matching private key is used only by release tooling and is not shipped.
 _PUBLIC_KEY_HEX = (
-    "de908efdc39b232c0d1be7721f6e76ced600a69e0ffe4a20635a3608e3e3f157"
+    "db31cea4a9fc8fd92d1e34a095d33699848f52bc5695f0768d697963e3966a7e"
 )
 
 
@@ -61,6 +84,22 @@ class RuleIntegrityResult:
     def to_dict(self) -> dict[str, Any]:
         data = asdict(self)
         data["findings"] = [f.to_dict() for f in self.findings]
+        return data
+
+
+@dataclass(frozen=True)
+class RuleIntegrityRepairResult:
+    """Result of attempting to restore the built-in rule file."""
+
+    ok: bool
+    message: str
+    source_url: str
+    backup_path: str | None
+    integrity: RuleIntegrityResult
+
+    def to_dict(self) -> dict[str, Any]:
+        data = asdict(self)
+        data["integrity"] = self.integrity.to_dict()
         return data
 
 
@@ -136,6 +175,104 @@ def _verify_signature(rules_dir: Path, manifest_bytes: bytes) -> bool:
     public_key = Ed25519PublicKey.from_public_bytes(bytes.fromhex(_PUBLIC_KEY_HEX))
     public_key.verify(signature, manifest_bytes)
     return True
+
+
+def _load_verified_manifest(rules_dir: Path) -> dict[str, Any]:
+    loaded = _load_manifest(rules_dir)
+    if loaded is None:
+        raise FileNotFoundError(MANIFEST_NAME)
+
+    manifest, manifest_bytes = loaded
+    if manifest.get("signature_scheme") != SIGNATURE_SCHEME:
+        raise ValueError(
+            f"unsupported signature scheme: "
+            f"{manifest.get('signature_scheme')!r}",
+        )
+    if manifest.get("hash_scheme") != HASH_SCHEME:
+        raise ValueError(
+            f"unsupported hash scheme: {manifest.get('hash_scheme')!r}",
+        )
+    _verify_signature(rules_dir, manifest_bytes)
+    return manifest
+
+
+def _expected_sha256(manifest: dict[str, Any], filename: str) -> str:
+    files = manifest.get("files", {})
+    if not isinstance(files, dict):
+        raise ValueError("manifest 'files' is not an object")
+
+    entry = files.get(filename)
+    if not isinstance(entry, dict):
+        raise ValueError(f"manifest missing entry for {filename}")
+
+    expected = entry.get("sha256")
+    if not isinstance(expected, str) or not expected:
+        raise ValueError(f"manifest missing sha256 for {filename}")
+    return expected
+
+
+def _download_raw_rule_file(client: httpx.Client) -> bytes:
+    response = client.get(
+        RECOVERY_SOURCE_URL,
+        headers={"Accept": "text/plain"},
+        follow_redirects=True,
+    )
+    response.raise_for_status()
+    return response.content
+
+
+def _download_api_rule_file(client: httpx.Client) -> bytes:
+    response = client.get(
+        RECOVERY_API_URL,
+        headers={"Accept": "application/vnd.github+json"},
+        follow_redirects=True,
+    )
+    response.raise_for_status()
+    payload = response.json()
+    if not isinstance(payload, dict):
+        raise ValueError("GitHub contents response is not an object")
+    if payload.get("type") != "file":
+        raise ValueError(f"GitHub contents response is not a file: {payload.get('type')!r}")
+    if payload.get("encoding") != "base64":
+        raise ValueError(
+            f"unsupported GitHub contents encoding: {payload.get('encoding')!r}",
+        )
+
+    encoded = payload.get("content")
+    if not isinstance(encoded, str) or not encoded:
+        raise ValueError("GitHub contents response missing file content")
+    return base64.b64decode(encoded, validate=False)
+
+
+def _download_recovery_content() -> tuple[bytes, str]:
+    errors: list[str] = []
+    headers = {"User-Agent": RECOVERY_USER_AGENT}
+    sources = (
+        (RECOVERY_SOURCE_URL, _download_raw_rule_file),
+        (RECOVERY_API_URL, _download_api_rule_file),
+    )
+
+    with httpx.Client(headers=headers, timeout=RECOVERY_HTTP_TIMEOUT) as client:
+        for source_url, downloader in sources:
+            for attempt in range(1, RECOVERY_ATTEMPTS_PER_SOURCE + 1):
+                try:
+                    return downloader(client), source_url
+                except (
+                    httpx.HTTPError,
+                    ValueError,
+                    json.JSONDecodeError,
+                    binascii.Error,
+                ) as exc:
+                    errors.append(
+                        f"{source_url} attempt={attempt} "
+                        f"error={type(exc).__name__}: {exc}",
+                    )
+                    if attempt < RECOVERY_ATTEMPTS_PER_SOURCE:
+                        time.sleep(attempt)
+
+    raise RuntimeError(
+        "failed to download trusted rule file; " + " | ".join(errors),
+    )
 
 
 def _log_failure(result: RuleIntegrityResult) -> None:
@@ -321,5 +458,81 @@ def verify_default_builtin_rule_files() -> RuleIntegrityResult:
 
     return verify_builtin_rule_files(
         _default_rules_dir(),
-        ["dangerous_shell_commands.yaml"],
+        [DANGEROUS_SHELL_RULES_NAME],
     )
+
+
+def repair_default_builtin_rule_file() -> RuleIntegrityRepairResult:
+    """Restore the default dangerous shell command rules from the trusted source."""
+
+    rules_dir = _default_rules_dir()
+    target_path = rules_dir / DANGEROUS_SHELL_RULES_NAME
+    backup_path: Path | None = None
+    source_url = RECOVERY_SOURCE_URL
+
+    try:
+        manifest = _load_verified_manifest(rules_dir)
+        expected_sha256 = _expected_sha256(manifest, DANGEROUS_SHELL_RULES_NAME)
+
+        content, source_url = _download_recovery_content()
+        if len(content) > MAX_RECOVERY_FILE_BYTES:
+            raise ValueError(
+                f"downloaded rule file is too large: {len(content)} bytes",
+            )
+
+        actual_sha256 = hashlib.sha256(content).hexdigest()
+        if actual_sha256 != expected_sha256:
+            raise ValueError(
+                "downloaded rule file sha256 mismatch: "
+                f"expected={expected_sha256} actual={actual_sha256}",
+            )
+
+        rules_dir.mkdir(parents=True, exist_ok=True)
+        if target_path.exists():
+            timestamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S%fZ")
+            backup_path = target_path.with_name(
+                f"{target_path.name}.repair-backup.{timestamp}",
+            )
+            shutil.copy2(target_path, backup_path)
+
+        fd, tmp_name = tempfile.mkstemp(
+            prefix=f"{DANGEROUS_SHELL_RULES_NAME}.tmp.",
+            dir=rules_dir,
+        )
+        tmp_path = Path(tmp_name)
+        try:
+            with os.fdopen(fd, "wb") as fh:
+                fh.write(content)
+                fh.flush()
+                os.fsync(fh.fileno())
+            os.replace(tmp_path, target_path)
+        finally:
+            if tmp_path.exists():
+                tmp_path.unlink()
+
+        integrity = verify_default_builtin_rule_files()
+        return RuleIntegrityRepairResult(
+            ok=integrity.ok,
+            message=(
+                "Built-in tool guard rules were repaired."
+                if integrity.ok
+                else "Rule file was replaced, but integrity is still failing."
+            ),
+            source_url=source_url,
+            backup_path=str(backup_path) if backup_path else None,
+            integrity=integrity,
+        )
+    except Exception as exc:  # pylint: disable=broad-except
+        integrity = verify_default_builtin_rule_files()
+        logger.error(
+            "Built-in tool guard rule repair failed: source_url=%s error=%s",
+            source_url,
+            exc,
+        )
+        return RuleIntegrityRepairResult(
+            ok=False,
+            message=f"Failed to repair built-in tool guard rules: {exc}",
+            source_url=source_url,
+            backup_path=str(backup_path) if backup_path else None,
+            integrity=integrity,
+        )
