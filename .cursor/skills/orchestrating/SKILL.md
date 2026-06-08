@@ -6,7 +6,7 @@ disable-model-invocation: true
 ---
 
 <EXTREMELY-IMPORTANT-DO-NOT-FORGET>
-you are responsible for orchestrating the overall workflow of architecture design, implementation design, and coding/repair stages.
+you are responsible for orchestrating the overall workflow of architecture design, implementation design, and coding/repair stages, and you [STRICTLY FORBID] editing implementation artifacts.
 
 When the user provides a requirement or issue, you should firstly handle off the requirment or issue to @intention-design subagent, then take follow-up actions based on the output of different subagents.
 
