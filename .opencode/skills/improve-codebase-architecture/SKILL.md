@@ -2,6 +2,7 @@
 name: improve-codebase-architecture
 description: 在不引入功能需求的前提下，先为意图设计阶段梳理代码库中的架构优化候选，再把选中的方向交给现有 grill-me 流程继续深挖。
 argument-hint: 需要审视的架构区域、模块或当前摩擦点
+disable-model-invocation: true
 ---
 
 # Improve Codebase Architecture
