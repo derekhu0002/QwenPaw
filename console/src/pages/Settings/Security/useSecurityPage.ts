@@ -70,8 +70,11 @@ export function useSecurityPage() {
     enabled,
     setEnabled,
     mergedRules,
+    rulesIntegrity,
     shellEvasionChecks,
     toggleShellEvasionCheck,
+    repairingRulesIntegrity,
+    repairRulesIntegrity,
     loading,
     error,
     fetchAll,
@@ -89,6 +92,23 @@ export function useSecurityPage() {
   const [previewRule, setPreviewRule] = useState<MergedRule | null>(null);
 
   const { message } = useAppMessage();
+
+  const handleRepairRulesIntegrity = useCallback(async () => {
+    try {
+      const result = await repairRulesIntegrity();
+      if (result.ok && result.integrity.ok) {
+        message.success(t("security.rulesIntegrity.repairSuccess"));
+        return;
+      }
+      message.error(result.message || t("security.rulesIntegrity.repairFailed"));
+    } catch (err) {
+      const errMsg =
+        err instanceof Error
+          ? err.message
+          : t("security.rulesIntegrity.repairFailed");
+      message.error(errMsg);
+    }
+  }, [message, repairRulesIntegrity, t]);
 
   // Form handlers
   const handleSave = useCallback(async () => {
@@ -229,6 +249,9 @@ export function useSecurityPage() {
     mergedRules,
     builtinRules,
     customRules,
+    rulesIntegrity,
+    repairingRulesIntegrity,
+    handleRepairRulesIntegrity,
     toggleRule,
     toggleAutoDeny,
     deleteCustomRule,

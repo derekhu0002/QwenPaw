@@ -501,11 +501,28 @@ async def lifespan(  # pylint: disable=too-many-statements,too-many-branches
                 exc_info=True,
             )
 
+    async def _periodic_rule_integrity_check():
+        from ..security.tool_guard.rules_integrity import (
+            verify_default_builtin_rule_files,
+        )
+
+        while True:
+            await asyncio.to_thread(verify_default_builtin_rule_files)
+            await asyncio.sleep(5)
+
     _bg_task = asyncio.create_task(_background_startup())
+    _rule_integrity_task = asyncio.create_task(
+        _periodic_rule_integrity_check(),
+    )
 
     try:
         yield
     finally:
+        if not _rule_integrity_task.done():
+            _rule_integrity_task.cancel()
+            with suppress(asyncio.CancelledError):
+                await _rule_integrity_task
+
         # Cancel background startup if still in progress
         if not _bg_task.done():
             _bg_task.cancel()
@@ -627,34 +644,21 @@ _CONSOLE_STATIC_ENV = "QWENPAW_CONSOLE_STATIC_DIR"
 
 def _resolve_console_static_dir() -> str:
     from ..constant import EnvVarLoader
+    from .console_static import resolve_console_static_dir
 
     static_dir = EnvVarLoader.get_str(_CONSOLE_STATIC_ENV)
-    if static_dir:
-        return static_dir
-    # Shipped dist lives in the package as static data
-    pkg_dir = Path(__file__).resolve().parent.parent
-    candidate = pkg_dir / "console"
-    if candidate.is_dir() and (candidate / "index.html").exists():
-        return str(candidate)
-
-    # Fallback to repo data
-    repo_dir = pkg_dir.parent.parent
-    candidate = repo_dir / "console" / "dist"
-    if candidate.is_dir() and (candidate / "index.html").exists():
-        return str(candidate)
-
-    # Fallback to cwd data
     cwd = Path(os.getcwd())
-    for subdir in ("console/dist", "console_dist"):
-        candidate = cwd / subdir
-        if candidate.is_dir() and (candidate / "index.html").exists():
-            return str(candidate)
-
-    fallback = cwd / "console" / "dist"
-    logger.warning(
-        f"Console static directory not found. Falling back to '{fallback}'.",
+    pkg_dir = Path(__file__).resolve().parent.parent
+    resolved = resolve_console_static_dir(
+        static_dir,
+        cwd=cwd,
+        pkg_dir=pkg_dir,
     )
-    return str(fallback)
+    if not (Path(resolved) / "index.html").exists():
+        logger.warning(
+            f"Console static directory not found. Falling back to '{resolved}'.",
+        )
+    return resolved
 
 
 _CONSOLE_STATIC_DIR = _resolve_console_static_dir()

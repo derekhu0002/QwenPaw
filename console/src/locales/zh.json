@@ -1839,6 +1839,12 @@
     "saveSuccess": "工具防护设置已保存",
     "saveFailed": "保存工具防护设置失败",
     "loadFailed": "加载工具防护设置失败",
+    "rulesIntegrity": {
+      "tamperedTitle": "内置检测规则已被篡改",
+      "repairButton": "修复",
+      "repairSuccess": "内置检测规则已修复",
+      "repairFailed": "修复内置检测规则失败"
+    },
     "rules": {
       "title": "检测规则",
       "description": "规则定义了触发安全警告的正则表达式模式。内置规则可以禁用；自定义规则可以添加、编辑或删除。",

@@ -27,6 +27,9 @@ function SecurityPage() {
     handleSave,
     handleReset,
     mergedRules,
+    rulesIntegrity,
+    repairingRulesIntegrity,
+    handleRepairRulesIntegrity,
     builtinRules,
     customRules,
     toggleRule,
@@ -83,6 +86,30 @@ function SecurityPage() {
         parent={t("security.parent")}
         current={t("security.security")}
       />
+
+      {rulesIntegrity && !rulesIntegrity.ok && (
+        <div className={styles.integrityAlert}>
+          <div className={styles.integrityAlertMain}>
+            <span className={styles.integrityAlertIcon}>!</span>
+            <span className={styles.integrityAlertTitle}>
+              {t("security.rulesIntegrity.tamperedTitle", {
+                defaultValue: "内置检测规则已被篡改",
+              })}
+            </span>
+          </div>
+          <Button
+            danger
+            type="primary"
+            loading={repairingRulesIntegrity}
+            onClick={handleRepairRulesIntegrity}
+            className={styles.integrityRepairButton}
+          >
+            {t("security.rulesIntegrity.repairButton", {
+              defaultValue: "修复",
+            })}
+          </Button>
+        </div>
+      )}
 
       <div className={styles.content}>
         <Tabs

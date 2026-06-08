@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 
+import asyncio
 from datetime import datetime, timezone
 from typing import Any, List, Optional
 
@@ -717,6 +718,85 @@ async def get_builtin_rules() -> List[ToolGuardRuleConfig]:
         )
         for r in rules
     ]
+
+
+class ToolGuardRuleIntegrityFindingResponse(BaseModel):
+    file: str
+    reason: str
+    expected_sha256: Optional[str] = None
+    actual_sha256: Optional[str] = None
+    detail: str = ""
+
+
+class ToolGuardRuleIntegrityResponse(BaseModel):
+    ok: bool
+    status: str
+    message: str
+    checked_at: Optional[str] = None
+    findings: List[ToolGuardRuleIntegrityFindingResponse] = Field(
+        default_factory=list,
+    )
+
+
+class ToolGuardRuleIntegrityRepairResponse(BaseModel):
+    ok: bool
+    message: str
+    source_url: str
+    backup_path: Optional[str] = None
+    integrity: ToolGuardRuleIntegrityResponse
+
+
+@router.get(
+    "/security/tool-guard/rules-integrity",
+    response_model=ToolGuardRuleIntegrityResponse,
+    summary="Get built-in tool guard rule integrity status",
+)
+async def get_tool_guard_rules_integrity() -> ToolGuardRuleIntegrityResponse:
+    from ...security.tool_guard.rules_integrity import (
+        get_last_rule_integrity_status,
+    )
+
+    status = get_last_rule_integrity_status()
+    return ToolGuardRuleIntegrityResponse(
+        ok=status.ok,
+        status=status.status,
+        message=status.message,
+        checked_at=status.checked_at,
+        findings=[
+            ToolGuardRuleIntegrityFindingResponse(**finding.to_dict())
+            for finding in status.findings
+        ],
+    )
+
+
+@router.post(
+    "/security/tool-guard/rules-integrity/repair",
+    response_model=ToolGuardRuleIntegrityRepairResponse,
+    summary="Repair built-in tool guard rule files from trusted source",
+)
+async def repair_tool_guard_rules_integrity() -> ToolGuardRuleIntegrityRepairResponse:
+    from ...security.tool_guard.rules_integrity import (
+        repair_default_builtin_rule_file,
+    )
+
+    result = await asyncio.to_thread(repair_default_builtin_rule_file)
+    integrity = ToolGuardRuleIntegrityResponse(
+        ok=result.integrity.ok,
+        status=result.integrity.status,
+        message=result.integrity.message,
+        checked_at=result.integrity.checked_at,
+        findings=[
+            ToolGuardRuleIntegrityFindingResponse(**finding.to_dict())
+            for finding in result.integrity.findings
+        ],
+    )
+    return ToolGuardRuleIntegrityRepairResponse(
+        ok=result.ok,
+        message=result.message,
+        source_url=result.source_url,
+        backup_path=result.backup_path,
+        integrity=integrity,
+    )
 
 
 # ── Security / File Guard ────────────────────────────────────────────
