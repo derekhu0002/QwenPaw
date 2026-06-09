@@ -143,6 +143,14 @@
           "Input": "In a live conversation, submit nested or deceptive instructions that claim the agent is in test mode or otherwise exempt from approval, then drive the agent toward a tool whose configured risk level is High without providing a valid trusted context or confirmation artifact.",
           "acceptanceCriteria": "tests/integration/security/test_audit_foundation.py::test_prompt_injection_cannot_bypass_high_risk_tool_guard",
           "TestResults": "The high-risk tool remains blocked at the tool-call layer, the guard rejects execution because the required trusted context and confirmation are absent, and the attempted bypass is recorded as a rejected security-relevant event rather than silently executing."
+        },
+        {
+          "name": "sec-e2e-029-builtin-rule-line-ending-invariant",
+          "description": "Built-in dangerous shell command rules must pass integrity verification when only line endings differ between LF and CRLF representations of the same semantic content.",
+          "type": "Acceptance Test",
+          "Input": "Stage the official signed manifest bundle with LF-canonical and CRLF-only transformations of the same dangerous_shell_commands.yaml content, then run verify_builtin_rule_files against a semantic tamper that removes a required rule without updating the manifest.",
+          "acceptanceCriteria": "tests/unit/security/tool_guard/test_rules_integrity.py::test_builtin_rule_line_ending_invariant",
+          "TestResults": "LF-canonical and CRLF-only branches return ok=true with status ok; semantic tamper returns ok=false with status tampered and sha256_mismatch; Windows checkout must not false-positive tamper when content is unchanged."
         }
       ]
     },
@@ -233,6 +241,26 @@
       "archimate_aspect": "Active Structure",
       "browser_path": "QwenPaw Platform/Backend Runtime/Local Security Audit Foundation/High Risk Tool Guard",
       "description": "Interceptor that evaluates every tool invocation against the configured risk policy at the tool-call boundary. Whenever an agent attempts to invoke a tool marked with High risk level, it pauses execution, requires trusted Security Context provenance plus a user-provided confirmation token or signature, records the confirmation as a synchronous L1 USER_CONFIRMATION audit event, and only then releases the blocked tool execution path. Prompt content, nested instructions, or claimed test-mode narratives cannot bypass this enforcement.\n#file:design/prd/企业级个人助理平台安全基础设施设计方案 (基于 QwenPaw/AgentScope.md"
+    },
+    {
+      "id": "intent-builtin-tool-rule-integrity",
+      "parent": "intent-high-risk-tool-guard",
+      "name": "Built-in Tool Rule Integrity",
+      "type": "Application Component",
+      "archimate_layer": "Application",
+      "archimate_aspect": "Active Structure",
+      "browser_path": "QwenPaw Platform/Backend Runtime/Local Security Audit Foundation/High Risk Tool Guard/Built-in Tool Rule Integrity",
+      "description": "Out-of-band integrity verification for bundled dangerous shell command rules. Compares LF-normalized SHA-256 digests against a signed manifest, warns on semantic tamper without blocking rule loading in the first implementation, and supports trusted repair from a pinned official source.\n#file:design/DesignDocByHuangsiyu/security_config_integrity_design.md\n#file:src/qwenpaw/security/tool_guard/rules_integrity.py\n#file:src/qwenpaw/security/tool_guard/rules/rules_manifest.json",
+      "attributes": [
+        {
+          "name": "hash_normalization_rule",
+          "value": "SHA-256 over LF-normalized UTF-8 content; CRLF and lone CR drift must not false-positive when semantic rule content is unchanged"
+        },
+        {
+          "name": "warn_only_policy",
+          "value": "Integrity failures are logged and surfaced through the rules-integrity API and Security settings UI, but bundled rules continue loading until a future strict mode is introduced"
+        }
+      ]
     },
     {
       "id": "intent-audit-uplink-manager",
@@ -451,6 +479,16 @@
       "target_id": "intent-audit-event",
       "source_name": "High Risk Tool Guard",
       "target_name": "Audit Event"
+    },
+    {
+      "id": "rel-high-risk-tool-guard-builtin-rule-integrity",
+      "statement": "High Risk Tool Guard owns Built-in Tool Rule Integrity as the out-of-band verification seam for bundled dangerous shell command rules.",
+      "name": "Composition",
+      "archimate_category": "Structural",
+      "source_id": "intent-high-risk-tool-guard",
+      "target_id": "intent-builtin-tool-rule-integrity",
+      "source_name": "High Risk Tool Guard",
+      "target_name": "Built-in Tool Rule Integrity"
     },
     {
       "id": "rel-uplink-manager-foundation",
@@ -690,6 +728,7 @@
         "intent-audit-checkpoint-anchor",
         "intent-tiered-audit-stream",
         "intent-high-risk-tool-guard",
+        "intent-builtin-tool-rule-integrity",
         "intent-audit-uplink-manager",
         "intent-heartbeat-emitter",
         "intent-audit-uplink-service",
@@ -712,6 +751,7 @@
         "rel-audit-foundation-tiered-stream",
         "rel-audit-foundation-high-risk-tool-guard",
         "rel-high-risk-tool-guard-audit-event",
+        "rel-high-risk-tool-guard-builtin-rule-integrity",
         "rel-uplink-manager-foundation",
         "rel-uplink-manager-heartbeat-emitter",
         "rel-heartbeat-emitter-audit-event",
@@ -751,6 +791,7 @@
         "intent-audit-checkpoint-anchor",
         "intent-tiered-audit-stream",
         "intent-high-risk-tool-guard",
+        "intent-builtin-tool-rule-integrity",
         "intent-audit-uplink-manager",
         "intent-heartbeat-emitter",
         "intent-audit-uplink-service",
@@ -768,6 +809,7 @@
         "rel-audit-foundation-tiered-stream",
         "rel-audit-foundation-high-risk-tool-guard",
         "rel-high-risk-tool-guard-audit-event",
+        "rel-high-risk-tool-guard-builtin-rule-integrity",
         "rel-uplink-manager-foundation",
         "rel-uplink-manager-heartbeat-emitter",
         "rel-heartbeat-emitter-audit-event",
@@ -797,6 +839,7 @@
         "intent-security-schema-contract",
         "intent-audit-event",
         "intent-high-risk-tool-guard",
+        "intent-builtin-tool-rule-integrity",
         "intent-audit-uplink-manager",
         "intent-heartbeat-emitter",
         "intent-audit-uplink-service",
@@ -811,6 +854,7 @@
         "rel-audit-foundation-audit-event",
         "rel-audit-foundation-high-risk-tool-guard",
         "rel-high-risk-tool-guard-audit-event",
+        "rel-high-risk-tool-guard-builtin-rule-integrity",
         "rel-uplink-manager-foundation",
         "rel-uplink-manager-heartbeat-emitter",
         "rel-heartbeat-emitter-audit-event",

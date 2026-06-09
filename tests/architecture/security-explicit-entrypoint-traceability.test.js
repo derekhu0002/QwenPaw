@@ -29,6 +29,11 @@ const frozenExplicitTestcases = [
         entryPath: 'tests/integration/security/test_audit_foundation.py::test_normal_offline_reconnect_clears_without_gap_recovery',
         requiredTestMarker: 'def test_normal_offline_reconnect_clears_without_gap_recovery',
     },
+    {
+        testcaseName: 'sec-e2e-029-builtin-rule-line-ending-invariant',
+        entryPath: 'tests/unit/security/tool_guard/test_rules_integrity.py::test_builtin_rule_line_ending_invariant',
+        requiredTestMarker: 'def test_builtin_rule_line_ending_invariant',
+    },
 ];
 const codingQueueTestcases = [
     {
@@ -44,6 +49,11 @@ const codingQueueTestcases = [
     {
         testcaseName: 'sec-e2e-028-normal-offline-reconnect-clear-state',
         entryPath: 'tests/integration/security/test_audit_foundation.py::test_normal_offline_reconnect_clears_without_gap_recovery',
+        initialExecutionStatus: 'passed',
+    },
+    {
+        testcaseName: 'sec-e2e-029-builtin-rule-line-ending-invariant',
+        entryPath: 'tests/unit/security/tool_guard/test_rules_integrity.py::test_builtin_rule_line_ending_invariant',
         initialExecutionStatus: 'passed',
     },
 ];
@@ -177,6 +187,58 @@ assert.strictEqual(
     'passed',
     'Resolved sec-e2e-028 handoff status must be passed after the full explicit gate is green.',
 );
+assert.ok(
+    !(handoff.codingTargets || []).some(
+        target => target.testcaseName === 'sec-e2e-029-builtin-rule-line-ending-invariant',
+    ),
+    'Implementation handoff must not keep sec-e2e-029 in codingTargets after the explicit gate is resolved.',
+);
+assert.ok(
+    !(failureRecords || []).some(
+        record => record.testcasename === 'sec-e2e-029-builtin-rule-line-ending-invariant',
+    ),
+    'Failure records must not keep a stale sec-e2e-029 failure after runArchitectureTests passes.',
+);
+const resolvedLineEndingHandoff = (handoff.explicitEntrypoints || []).find(
+    entry => entry.testcaseName === 'sec-e2e-029-builtin-rule-line-ending-invariant',
+);
+assert.ok(
+    resolvedLineEndingHandoff,
+    'Implementation handoff must keep the resolved sec-e2e-029 explicit entrypoint.',
+);
+assert.strictEqual(
+    resolvedLineEndingHandoff.initialExecutionStatus,
+    'passed',
+    'Resolved sec-e2e-029 handoff status must be passed after the full explicit gate is green.',
+);
+
+const toolGuardRulesIntegrityTestBody = fs.readFileSync(
+    path.join(repoRoot, 'tests', 'unit', 'security', 'tool_guard', 'test_rules_integrity.py'),
+    'utf8',
+);
+const toolGuardRulesIntegrityHarnessBody = fs.readFileSync(
+    path.join(repoRoot, 'tests', 'unit', 'security', 'tool_guard', 'harness.py'),
+    'utf8',
+);
+
+for (const marker of [
+    '# GIVEN',
+    '# WHEN',
+    '# THEN',
+    'def test_builtin_rule_line_ending_invariant',
+    'def test_sha256_normalized_content_shared_helper_contract',
+    'Line_Ending_Invariant_Gap',
+    'Rules_Integrity_Status_Projection_Gap',
+    'Semantic_Tamper_Detection_Gap',
+    'Normalized_Content_Hash_Drift',
+    'Manifest_Baseline_Digest_Mismatch',
+    'Manifest_Runtime_Hash_Drift',
+]) {
+    assert.ok(
+        toolGuardRulesIntegrityTestBody.includes(marker) || toolGuardRulesIntegrityHarnessBody.includes(marker),
+        `The frozen sec-e2e-029 entrypoint must keep the marker: ${marker}`,
+    );
+}
 
 for (const marker of [
     '# // GIVEN',

@@ -147,12 +147,13 @@ def get_last_rule_integrity_status() -> RuleIntegrityResult:
     return _last_status or _UNKNOWN_RESULT
 
 
+def _sha256_normalized_content(content_bytes: bytes) -> str:
+    normalized = content_bytes.replace(b"\r\n", b"\n").replace(b"\r", b"\n")
+    return hashlib.sha256(normalized).hexdigest()
+
+
 def _sha256_file(path: Path) -> str:
-    digest = hashlib.sha256()
-    with open(path, "rb") as fh:
-        for chunk in iter(lambda: fh.read(1024 * 1024), b""):
-            digest.update(chunk)
-    return digest.hexdigest()
+    return _sha256_normalized_content(path.read_bytes())
 
 
 def _load_manifest(rules_dir: Path) -> tuple[dict[str, Any], bytes] | None:
@@ -480,7 +481,7 @@ def repair_default_builtin_rule_file() -> RuleIntegrityRepairResult:
                 f"downloaded rule file is too large: {len(content)} bytes",
             )
 
-        actual_sha256 = hashlib.sha256(content).hexdigest()
+        actual_sha256 = _sha256_normalized_content(content)
         if actual_sha256 != expected_sha256:
             raise ValueError(
                 "downloaded rule file sha256 mismatch: "

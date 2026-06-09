@@ -11,9 +11,9 @@ Or set:
 from __future__ import annotations
 
 import argparse
-import hashlib
 import json
 import os
+import sys
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -34,13 +34,13 @@ RULE_FILES = ("dangerous_shell_commands.yaml",)
 MANIFEST_NAME = "rules_manifest.json"
 SIGNATURE_NAME = "rules_manifest.sig"
 
+_SRC_ROOT = Path(__file__).resolve().parents[1] / "src"
+if str(_SRC_ROOT) not in sys.path:
+    sys.path.insert(0, str(_SRC_ROOT))
 
-def _sha256_file(path: Path) -> str:
-    digest = hashlib.sha256()
-    with open(path, "rb") as fh:
-        for chunk in iter(lambda: fh.read(1024 * 1024), b""):
-            digest.update(chunk)
-    return digest.hexdigest()
+from qwenpaw.security.tool_guard.rules_integrity import (  # noqa: E402
+    _sha256_normalized_content,
+)
 
 
 def _canonical_json(data: dict) -> bytes:
@@ -68,7 +68,7 @@ def build_manifest() -> dict:
             raise FileNotFoundError(rule_path)
         files[filename] = {
             "required": True,
-            "sha256": _sha256_file(rule_path),
+            "sha256": _sha256_normalized_content(rule_path.read_bytes()),
         }
     return {
         "files": files,
