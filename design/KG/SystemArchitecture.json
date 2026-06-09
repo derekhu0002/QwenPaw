@@ -97,6 +97,10 @@
         {
           "name": "recovery_release_rule",
           "value": "For a lease-expired or otherwise UNTRUSTED canonical client, successful full-chain missing-gap validation by the cloud mirror must close the recovery gate and restore normal model access for that same client. Continuing to project UNTRUSTED or return recovery-gated model-access denial after valid proof is a security availability failure; restoring access before valid proof remains a security integrity failure."
+        },
+        {
+          "name": "normal_offline_reconnect_rule",
+          "value": "A normally stopped or briefly offline canonical client whose local audit head still matches the cloud shadow, has no tamper evidence, has no missing sequence, and has not crossed the lease-expiry recovery boundary must be admitted as normal continuity on reconnect. Security Center backend and operator web must project ALIGNED or TRUSTED with gap_status CLEAR, recovery_gate_status CLEAR, and recovery_required false. If the lease did expire, the client may require full-chain missing-gap validation, but once a valid locally constructible proof is accepted the state must clear; a persistent GAP_VALIDATION_REQUIRED/REQUIRED/OPEN display after normal proof acceptance is an availability failure."
         }
       ],
       "testcases": [
@@ -123,6 +127,14 @@
           "Input": "Let a client miss its heartbeat long enough to exceed the lease TTL, observe the cloud dashboard state turn untrusted, then reconnect the device and attempt to resume model access without first completing the missing-gap verification.",
           "acceptanceCriteria": "tests/integration/security/test_audit_foundation.py::test_lease_expiry_blocks_untrusted_rejoin_until_gap_sync",
           "TestResults": "Security Center marks the device untrusted when the lease expires, denies restored authorization on reconnect until the full missing hash gap is validated, then closes recovery_required for the same canonical client, projects ALIGNED or TRUSTED, and allows normal model access to return. Keeping the client UNTRUSTED or returning a recovery-gated denial after valid missing-gap proof fails this acceptance boundary just as much as restoring access before proof."
+        },
+        {
+          "name": "sec-e2e-028-normal-offline-reconnect-clear-state",
+          "description": "When a trusted QwenPaw runtime is normally stopped or briefly offline without audit tamper, missing sequence, clone/replay evidence, or lease-expiry recovery debt, reconnecting the same canonical client must not be displayed as a missing-gap recovery incident.",
+          "type": "Acceptance Test",
+          "Input": "Start from a trusted canonical client with Security Center showing normal continuity, stop or disconnect the runtime through a normal offline path without mutating local audit evidence, then restart the same canonical client and attempt ordinary model access.",
+          "acceptanceCriteria": "tests/integration/security/test_audit_foundation.py::test_normal_offline_reconnect_clears_without_gap_recovery",
+          "TestResults": "Security Center backend and operator web show the same canonical client as ALIGNED or TRUSTED with gap_status CLEAR, recovery_gate_status CLEAR, and recovery_required false after reconnect; ordinary model access returns 200. The client must not remain in GAP_VALIDATION_REQUIRED, gap_status REQUIRED, recovery_gate_status OPEN, or a 'gap pending validation' operator display unless a real lease-expiry, tamper, missing sequence, hash divergence, clone, or replay condition has been observed."
         },
         {
           "name": "sec-e2e-021-prompt-injection-tool-guard-enforced",

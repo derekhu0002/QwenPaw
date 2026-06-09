@@ -2,7 +2,7 @@
 
 ## Scope
 - Freeze the stable implementation boundaries that currently realize QwenPaw in this repository.
-- Materialize the `sec-e2e-024`, `sec-e2e-025`, `sec-e2e-027`, and `sec-e2e-021` explicit acceptance entrypoints as repository-owned, read-only testcase bodies plus their harness abstractions.
+- Materialize the `sec-e2e-024`, `sec-e2e-025`, `sec-e2e-027`, `sec-e2e-028`, and `sec-e2e-021` explicit acceptance entrypoints as repository-owned, read-only testcase bodies plus their harness abstractions.
 - Constrain the explicit security slice to a real-environment acceptance baseline that uses the live app subprocess, real HTTP surfaces, isolated working directories, and a separately contracted cloud-side Security Center boundary.
 - Record where intent is already directly implemented, where current code only provides transitional evidence, and which gaps are intentionally handed to Coding/Repair.
 
@@ -20,7 +20,7 @@
     - intent-local-security-audit-foundation
     - intent-high-risk-tool-guard
   contract: src/qwenpaw/security/ARCHITECTURE.md
-  role: Stable backend-owned boundary for trusted security context provenance, high-risk confirmation evidence, local audit-chain semantics, heartbeat/uplink evidence emission, reconnect gating, and the local projection/query seam consumed by `sec-e2e-024`, `sec-e2e-025`, and `sec-e2e-027`.
+  role: Stable backend-owned boundary for trusted security context provenance, high-risk confirmation evidence, local audit-chain semantics, heartbeat/uplink evidence emission, lease-aware reconnect gating, normal-offline reconnect admission, and the local projection/query seam consumed by `sec-e2e-024`, `sec-e2e-025`, `sec-e2e-027`, and `sec-e2e-028`.
 
 - path: src/qwenpaw/cli
   kind: OperatorCli
@@ -92,6 +92,7 @@
 - direct testcase materialization: `tests/integration/security/test_audit_foundation.py::test_audit_integrity_self_healing_lockdown` is the read-only explicit entrypoint for `sec-e2e-025-audit-integrity-self-healing-lockdown`.
 - direct testcase materialization detail: `sec-e2e-025-audit-integrity-self-healing-lockdown` now freezes the historical tamper branch where three high-risk records are created, the second committed non-tail record is edited by operating-system means, the next high-risk boundary must enter `UNTRUSTED`, and Security Center backend/web must remain recovery-required rather than `CLEAR` until cloud-validated full-chain recovery.
 - direct testcase materialization: `tests/integration/security/test_audit_foundation.py::test_lease_expiry_blocks_untrusted_rejoin_until_gap_sync` is the read-only explicit entrypoint for `sec-e2e-027-lease-expiry-active-defense`, and its implementation-architecture contract freezes one entrypoint with two control points plus two distinct console observation points: `pre_recovery_console_status` for the denied rejoin frame before missing-gap verification and `post_recovery_console_status` for the restored-access frame after continuity validation.
+- direct testcase materialization: `tests/integration/security/test_audit_foundation.py::test_normal_offline_reconnect_clears_without_gap_recovery` is the read-only explicit entrypoint for `sec-e2e-028-normal-offline-reconnect-clear-state`, and its implementation-architecture contract freezes the non-incident reconnect branch: trusted audit head, normal offline stop, same canonical client restarted before lease expiry, Security Center backend/web projecting `ALIGNED` or `TRUSTED` with `gap_status=CLEAR`, `recovery_gate_status=CLEAR`, `recovery_required=false`, and ordinary model access `200`.
 - direct testcase materialization: `tests/integration/security/test_audit_foundation.py::test_prompt_injection_cannot_bypass_high_risk_tool_guard` is the read-only explicit entrypoint for `sec-e2e-021-prompt-injection-tool-guard-enforced`.
 
 ## Explicit Testcase Materialization
@@ -125,6 +126,16 @@
   entrypoint: tests/integration/security/test_audit_foundation.py::test_audit_integrity_self_healing_lockdown
   runtime_mode: real-app-subprocess
 
+- testcase: sec-e2e-027-lease-expiry-active-defense
+  intent_element: intent-local-security-audit-foundation
+  entrypoint: tests/integration/security/test_audit_foundation.py::test_lease_expiry_blocks_untrusted_rejoin_until_gap_sync
+  runtime_mode: real-app-subprocess
+
+- testcase: sec-e2e-028-normal-offline-reconnect-clear-state
+  intent_element: intent-local-security-audit-foundation
+  entrypoint: tests/integration/security/test_audit_foundation.py::test_normal_offline_reconnect_clears_without_gap_recovery
+  runtime_mode: real-app-subprocess
+
 - testcase: sec-e2e-021-prompt-injection-tool-guard-enforced
   intent_element: intent-high-risk-tool-guard
   entrypoint: tests/integration/security/test_audit_foundation.py::test_prompt_injection_cannot_bypass_high_risk_tool_guard
@@ -135,7 +146,7 @@
 - tests/architecture/root-architecture-deliverables.test.js guards that the expected architecture deliverables exist at stable repository paths.
 - tests/architecture/validator-bootstrap-traceability.test.js guards the wiring between `package.json` validation commands and bundled validator assets.
 - tests/architecture/security-audit-contract-boundaries.test.js guards the frozen boundary between `src/qwenpaw/security`, the explicit security entrypoint zone, the separate Security Center deployment boundary, and the root/runtime/test contracts that reference them.
-- tests/architecture/security-explicit-entrypoint-traceability.test.js guards that `sec-e2e-024`, `sec-e2e-025`, `sec-e2e-027`, and `sec-e2e-021` stay mounted to the read-only explicit entrypoints and that the implementation handoff keeps the same paths plus the frozen execution-state traceability for `sec-e2e-027`.
+- tests/architecture/security-explicit-entrypoint-traceability.test.js guards that `sec-e2e-024`, `sec-e2e-025`, `sec-e2e-027`, `sec-e2e-028`, and `sec-e2e-021` stay mounted to the read-only explicit entrypoints and that the implementation handoff keeps the same paths plus frozen execution-state traceability for open security gaps.
 
 ## Frozen Files For Downstream Coding
 - design/KG/SystemArchitecture.json

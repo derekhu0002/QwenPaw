@@ -169,4 +169,5 @@ if __name__ == "__main__":
         host=os.environ.get("SECURITY_CENTER_API_HOST", "127.0.0.1"),
         port=int(os.environ.get("SECURITY_CENTER_API_PORT", "8091")),
         reload=False,
+        timeout_graceful_shutdown=2,
     )

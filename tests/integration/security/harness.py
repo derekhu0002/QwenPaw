@@ -2,7 +2,12 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 import re
+import signal
+import subprocess
+import sys
+import threading
 import time
 from contextlib import contextmanager
 from dataclasses import dataclass
@@ -19,6 +24,19 @@ _HTTP_TIMEOUT = 45.0
 _STREAM_READ_TIMEOUT = 5.0
 _RUNTIME_SETTLE_SECONDS = 5.0
 _RUNTIME_POLL_INTERVAL_SECONDS = 0.25
+_RUNTIME_RESTART_READY_SECONDS = 70.0
+
+
+def _drain_process_output(stream: Any, buffer: list[str]) -> None:
+    try:
+        for line in iter(stream.readline, ""):
+            buffer.append(line)
+            try:
+                print(f"[app server] {line}", end="", flush=True)
+            except (OSError, ValueError):
+                pass
+    finally:
+        stream.close()
 
 
 def _canonical_json(value: Any) -> str:
@@ -259,6 +277,50 @@ class LeaseExpiryRecoveryObservation:
                 self.post_recovery_backend_api_projection_ready,
                 self.post_recovery_operator_web_projection_ready,
                 self.post_recovery_model_access_ready,
+                not self.failure_reasons,
+            ),
+        )
+
+
+@dataclass(frozen=True)
+class NormalOfflineReconnectRequest:
+    authenticated_employee: EmployeeIdentity
+    normal_offline_action_label: str
+    restored_model_access_label: str
+    security_center_backend_api_name: str
+    security_center_operator_web_name: str
+
+
+@dataclass(frozen=True)
+class NormalOfflineReconnectObservation:
+    baseline_client_registration_ready: bool
+    trusted_audit_head_ready: bool
+    normal_offline_control_point_ready: bool
+    runtime_restarted_before_lease_expiry: bool
+    backend_clear_projection_ready: bool
+    operator_web_clear_projection_ready: bool
+    ordinary_model_access_ready: bool
+    no_gap_validation_required: bool
+    model_access_status: int | None
+    baseline_client_id: str | None
+    baseline_trust_state: str | None
+    post_reconnect_trust_state: str | None
+    post_reconnect_gap_status: str | None
+    post_reconnect_recovery_gate_status: str | None
+    post_reconnect_recovery_required: bool | None
+    failure_reasons: tuple[str, ...]
+
+    def reconnects_clear_without_gap_recovery(self) -> bool:
+        return all(
+            (
+                self.baseline_client_registration_ready,
+                self.trusted_audit_head_ready,
+                self.normal_offline_control_point_ready,
+                self.runtime_restarted_before_lease_expiry,
+                self.backend_clear_projection_ready,
+                self.operator_web_clear_projection_ready,
+                self.ordinary_model_access_ready,
+                self.no_gap_validation_required,
                 not self.failure_reasons,
             ),
         )
@@ -1056,6 +1118,334 @@ class SecurityAuditHarness:
                 if self._latest_console_status is not None
                 else "<missing>"
             ),
+        )
+        if self._latest_console_error:
+            lines.append("runtime_console_error=" + self._latest_console_error)
+        lines.append("runtime_working_dir=" + str(self._app_server.working_dir))
+        return "\n".join(lines)
+
+    def verify_normal_offline_reconnect_clears_without_gap_recovery(
+        self,
+        request: NormalOfflineReconnectRequest,
+    ) -> NormalOfflineReconnectObservation:
+        if self._app_server.startup_error is not None:
+            return NormalOfflineReconnectObservation(
+                baseline_client_registration_ready=False,
+                trusted_audit_head_ready=False,
+                normal_offline_control_point_ready=False,
+                runtime_restarted_before_lease_expiry=False,
+                backend_clear_projection_ready=False,
+                operator_web_clear_projection_ready=False,
+                ordinary_model_access_ready=False,
+                no_gap_validation_required=False,
+                model_access_status=None,
+                baseline_client_id=None,
+                baseline_trust_state=None,
+                post_reconnect_trust_state=None,
+                post_reconnect_gap_status=None,
+                post_reconnect_recovery_gate_status=None,
+                post_reconnect_recovery_required=None,
+                failure_reasons=(
+                    "Real_Runtime_Bootstrap_Blocking_Dependency: the real app "
+                    "subprocess could not finish startup, so sec-e2e-028 could "
+                    "not drive a live normal-offline reconnect flow.",
+                ),
+            )
+
+        before_trace_names = {path.name for path in self._trace_files()}
+        self._submit_console_prompt(
+            user_id=request.authenticated_employee.employee_id,
+            session_id=request.authenticated_employee.authenticated_session_id,
+            prompt=(
+                "Establish a trusted audit head for normal QwenPaw model "
+                "access before a graceful offline reconnect."
+            ),
+        )
+        self._collect_runtime_artifacts(
+            session_id=request.authenticated_employee.authenticated_session_id,
+            before_trace_names=before_trace_names,
+        )
+        baseline_access_status = self._latest_console_status
+        baseline_overview, baseline_client = self._poll_security_center_client_projection(
+            requested_client_id=request.authenticated_employee.authenticated_session_id,
+        )
+        baseline_client_id = self._client_lookup_id(
+            baseline_client,
+            fallback=request.authenticated_employee.authenticated_session_id,
+        )
+        baseline_timeline = self._read_security_center_api_json(
+            f"/security-center/v1/operator/timelines/{quote(baseline_client_id, safe='')}",
+        ) if baseline_client_id else {}
+        baseline_trust_state = self._find_first_scalar(
+            baseline_timeline,
+            keys=("trust_state",),
+        ) or self._find_first_scalar(
+            baseline_client if isinstance(baseline_client, dict) else {},
+            keys=("trust_state",),
+        )
+        baseline_gap_status = self._find_first_scalar(
+            baseline_timeline,
+            keys=("gap_status",),
+        ) or self._find_first_scalar(
+            baseline_client if isinstance(baseline_client, dict) else {},
+            keys=("gap_status",),
+        )
+        baseline_recovery_gate_status = self._find_first_scalar(
+            baseline_timeline,
+            keys=("recovery_gate_status",),
+        ) or self._find_first_scalar(
+            baseline_client if isinstance(baseline_client, dict) else {},
+            keys=("recovery_gate_status",),
+        )
+        baseline_recovery_required = self._find_first_scalar(
+            baseline_timeline,
+            keys=("recovery_required",),
+        )
+        if baseline_recovery_required is None:
+            baseline_recovery_required = self._find_first_scalar(
+                baseline_client if isinstance(baseline_client, dict) else {},
+                keys=("recovery_required",),
+            )
+
+        baseline_client_registration_ready = isinstance(baseline_client, dict)
+        trusted_audit_head_ready = all(
+            (
+                baseline_client_registration_ready,
+                baseline_access_status == 200,
+                str(baseline_trust_state or "") in {"ALIGNED", "TRUSTED"},
+                str(baseline_gap_status or "") == "CLEAR",
+                str(baseline_recovery_gate_status or "") == "CLEAR",
+                baseline_recovery_required is False,
+            ),
+        )
+
+        restart_ready, restarted_before_expiry, restart_error = self._restart_runtime_normally_before_lease_expiry(
+            baseline_client=baseline_client if isinstance(baseline_client, dict) else {},
+            baseline_timeline=baseline_timeline,
+        )
+        normal_offline_control_point_ready = restart_ready and not restart_error
+
+        before_reconnect_trace_names = {path.name for path in self._trace_files()}
+        self._submit_console_prompt(
+            user_id=request.authenticated_employee.employee_id,
+            session_id=request.authenticated_employee.authenticated_session_id,
+            prompt=(
+                "Resume ordinary model access after a normal offline window "
+                "that stayed inside the lease boundary."
+            ),
+        )
+        self._collect_runtime_artifacts(
+            session_id=request.authenticated_employee.authenticated_session_id,
+            before_trace_names=before_reconnect_trace_names,
+        )
+        model_access_status = self._latest_console_status
+
+        post_reconnect_timeline, post_reconnect_client = self._poll_security_center_clear_projection(
+            client_id=baseline_client_id or request.authenticated_employee.authenticated_session_id,
+        )
+        post_reconnect_trust_state = self._find_first_scalar(
+            post_reconnect_timeline,
+            keys=("trust_state",),
+        ) or self._find_first_scalar(
+            post_reconnect_client if isinstance(post_reconnect_client, dict) else {},
+            keys=("trust_state",),
+        )
+        post_reconnect_gap_status = self._find_first_scalar(
+            post_reconnect_timeline,
+            keys=("gap_status",),
+        ) or self._find_first_scalar(
+            post_reconnect_client if isinstance(post_reconnect_client, dict) else {},
+            keys=("gap_status",),
+        )
+        post_reconnect_recovery_gate_status = self._find_first_scalar(
+            post_reconnect_timeline,
+            keys=("recovery_gate_status",),
+        ) or self._find_first_scalar(
+            post_reconnect_client if isinstance(post_reconnect_client, dict) else {},
+            keys=("recovery_gate_status",),
+        )
+        post_reconnect_recovery_required = self._find_first_scalar(
+            post_reconnect_timeline,
+            keys=("recovery_required",),
+        )
+        if post_reconnect_recovery_required is None:
+            post_reconnect_recovery_required = self._find_first_scalar(
+                post_reconnect_client if isinstance(post_reconnect_client, dict) else {},
+                keys=("recovery_required",),
+            )
+        divergence_reason = self._find_first_scalar(
+            post_reconnect_timeline,
+            keys=("divergence_reason",),
+        ) or self._find_first_scalar(
+            post_reconnect_client if isinstance(post_reconnect_client, dict) else {},
+            keys=("divergence_reason",),
+        )
+        security_center_web_html = self._read_security_center_web_text("/")
+        security_center_web_app = self._read_security_center_web_text("/app.js")
+
+        backend_clear_projection_ready = all(
+            (
+                isinstance(post_reconnect_timeline, dict),
+                str(post_reconnect_trust_state or "") in {"ALIGNED", "TRUSTED"},
+                post_reconnect_gap_status == "CLEAR",
+                post_reconnect_recovery_gate_status == "CLEAR",
+                post_reconnect_recovery_required is False,
+            ),
+        )
+        operator_web_clear_projection_ready = all(
+            (
+                backend_clear_projection_ready,
+                "Security Center Operator Web" in security_center_web_html,
+                "renderTimeline" in security_center_web_app,
+                "gap_status" in security_center_web_app,
+                "recovery_gate_status" in security_center_web_app,
+                "recovery_required" in security_center_web_app,
+            ),
+        )
+        ordinary_model_access_ready = model_access_status == 200
+        no_gap_validation_required = all(
+            (
+                backend_clear_projection_ready,
+                divergence_reason in (None, ""),
+                post_reconnect_gap_status not in {"REQUIRED", "GAP_VALIDATION_REQUIRED"},
+                post_reconnect_recovery_gate_status not in {"OPEN", "REQUIRED"},
+            ),
+        )
+
+        failure_reasons: list[str] = []
+        if not baseline_client_registration_ready:
+            failure_reasons.append(
+                "Normal_Reconnect_Client_Registration_Missing: the Security "
+                "Center backend did not project a canonical client before the "
+                "normal offline control point."
+            )
+        if not trusted_audit_head_ready:
+            failure_reasons.append(
+                "Trusted_Audit_Head_Missing: the baseline online client did not "
+                "show ALIGNED or TRUSTED with gap_status=CLEAR, "
+                "recovery_gate_status=CLEAR, recovery_required=false, and "
+                "ordinary model access 200 before offline."
+            )
+        if not normal_offline_control_point_ready:
+            failure_reasons.append(
+                "Normal_Offline_Control_Point_Missing: the harness could not "
+                "gracefully stop and restart the same QwenPaw runtime for the "
+                "normal offline reconnect scenario."
+            )
+        if not restarted_before_expiry:
+            failure_reasons.append(
+                "Lease_Boundary_Crossed_By_Test_Setup: the normal offline "
+                "control point did not prove that reconnect occurred before "
+                "lease expiry; sec-e2e-028 must not exercise sec-e2e-027's "
+                "expired-lease branch."
+            )
+        if not backend_clear_projection_ready:
+            failure_reasons.append(
+                "Normal_Reconnect_Backend_Clear_State_Missing: after normal "
+                "offline reconnect, Security Center backend did not project "
+                "ALIGNED|TRUSTED with gap_status=CLEAR, "
+                "recovery_gate_status=CLEAR, and recovery_required=false."
+            )
+        if not operator_web_clear_projection_ready:
+            failure_reasons.append(
+                "Normal_Reconnect_Operator_Web_Clear_State_Missing: after "
+                "normal offline reconnect, the operator web boundary did not "
+                "remain wired to display backend CLEAR trust and recovery fields."
+            )
+        if not ordinary_model_access_ready:
+            failure_reasons.append(
+                "Normal_Reconnect_Model_Access_200_Missing: ordinary model "
+                "access did not return HTTP 200 after normal offline reconnect."
+            )
+        if not no_gap_validation_required:
+            failure_reasons.append(
+                "Normal_Reconnect_Gap_Validation_False_Positive: the normal "
+                "offline reconnect path still surfaced REQUIRED, OPEN, "
+                "missing_gap_proof, or another recovery-gated state without a "
+                "real lease-expiry, tamper, missing-sequence, clone, or replay "
+                "condition."
+            )
+        if restart_error:
+            failure_reasons.append("Normal_Reconnect_Runtime_Restart_Error: " + restart_error)
+
+        return NormalOfflineReconnectObservation(
+            baseline_client_registration_ready=baseline_client_registration_ready,
+            trusted_audit_head_ready=trusted_audit_head_ready,
+            normal_offline_control_point_ready=normal_offline_control_point_ready,
+            runtime_restarted_before_lease_expiry=restarted_before_expiry,
+            backend_clear_projection_ready=backend_clear_projection_ready,
+            operator_web_clear_projection_ready=operator_web_clear_projection_ready,
+            ordinary_model_access_ready=ordinary_model_access_ready,
+            no_gap_validation_required=no_gap_validation_required,
+            model_access_status=model_access_status,
+            baseline_client_id=baseline_client_id,
+            baseline_trust_state=str(baseline_trust_state) if baseline_trust_state is not None else None,
+            post_reconnect_trust_state=(
+                str(post_reconnect_trust_state)
+                if post_reconnect_trust_state is not None
+                else None
+            ),
+            post_reconnect_gap_status=(
+                str(post_reconnect_gap_status)
+                if post_reconnect_gap_status is not None
+                else None
+            ),
+            post_reconnect_recovery_gate_status=(
+                str(post_reconnect_recovery_gate_status)
+                if post_reconnect_recovery_gate_status is not None
+                else None
+            ),
+            post_reconnect_recovery_required=(
+                bool(post_reconnect_recovery_required)
+                if isinstance(post_reconnect_recovery_required, bool)
+                else None
+            ),
+            failure_reasons=tuple(failure_reasons),
+        )
+
+    def render_normal_offline_reconnect_failure_report(
+        self,
+        *,
+        normal_reconnect_request: NormalOfflineReconnectRequest,
+        normal_reconnect_observation: NormalOfflineReconnectObservation,
+    ) -> str:
+        lines = ['category="Normal_Offline_Reconnect_Clear_State_Gap"']
+        for failure in dict.fromkeys(normal_reconnect_observation.failure_reasons):
+            lines.append(f"- {failure}")
+        lines.append("employee_id=" + normal_reconnect_request.authenticated_employee.employee_id)
+        lines.append("normal_offline_action_label=" + normal_reconnect_request.normal_offline_action_label)
+        lines.append("restored_model_access_label=" + normal_reconnect_request.restored_model_access_label)
+        lines.append("security_center_backend_api_name=" + normal_reconnect_request.security_center_backend_api_name)
+        lines.append("security_center_operator_web_name=" + normal_reconnect_request.security_center_operator_web_name)
+        lines.append("baseline_client_id=" + (normal_reconnect_observation.baseline_client_id or "<missing>"))
+        lines.append("baseline_trust_state=" + (normal_reconnect_observation.baseline_trust_state or "<missing>"))
+        lines.append(
+            "post_reconnect_trust_state="
+            + (normal_reconnect_observation.post_reconnect_trust_state or "<missing>")
+        )
+        lines.append(
+            "post_reconnect_gap_status="
+            + (normal_reconnect_observation.post_reconnect_gap_status or "<missing>")
+        )
+        lines.append(
+            "post_reconnect_recovery_gate_status="
+            + (normal_reconnect_observation.post_reconnect_recovery_gate_status or "<missing>")
+        )
+        lines.append(
+            "post_reconnect_recovery_required="
+            + (
+                str(normal_reconnect_observation.post_reconnect_recovery_required)
+                if normal_reconnect_observation.post_reconnect_recovery_required is not None
+                else "<missing>"
+            )
+        )
+        lines.append(
+            "model_access_status="
+            + (
+                str(normal_reconnect_observation.model_access_status)
+                if normal_reconnect_observation.model_access_status is not None
+                else "<missing>"
+            )
         )
         if self._latest_console_error:
             lines.append("runtime_console_error=" + self._latest_console_error)
@@ -2162,6 +2552,218 @@ class SecurityAuditHarness:
         }
         proof_payload["proof_digest"] = _canonical_hash("audit-gap-proof-v1", proof_payload)
         return proof_payload
+
+    def _restart_runtime_normally_before_lease_expiry(
+        self,
+        *,
+        baseline_client: dict[str, Any],
+        baseline_timeline: dict[str, Any],
+    ) -> tuple[bool, bool, str | None]:
+        lease_expires_at = self._coerce_int(
+            self._find_first_scalar(baseline_timeline, keys=("lease_expires_at",))
+            or self._find_first_scalar(baseline_client, keys=("lease_expires_at",)),
+        )
+        process = self._app_server.process
+        if process.poll() is None:
+            try:
+                if sys.platform == "win32":
+                    process.terminate()
+                else:
+                    process.send_signal(signal.SIGINT)
+                process.wait(timeout=15)
+            except subprocess.TimeoutExpired:
+                process.terminate()
+                try:
+                    process.wait(timeout=5)
+                except subprocess.TimeoutExpired:
+                    process.kill()
+                    process.wait(timeout=5)
+        self._app_server.log_thread.join(timeout=2)
+
+        stopped_before_expiry = (
+            lease_expires_at is not None and time.time_ns() < lease_expires_at
+        )
+
+        repo_root = Path(__file__).resolve().parents[3]
+        env = os.environ.copy()
+        env["QWENPAW_WORKING_DIR"] = str(self._app_server.working_dir)
+        env["QWENPAW_SECRET_DIR"] = str(self._app_server.working_dir.parent / "working.secret")
+        env["QWENPAW_BACKUP_DIR"] = str(self._app_server.working_dir.parent / "working.backups")
+        env["QWENPAW_AUTH_ENABLED"] = "false"
+        env["NO_PROXY"] = "*"
+        env["PYTHONUNBUFFERED"] = "1"
+        env["PYTHONIOENCODING"] = "utf-8"
+        existing_pythonpath = env.get("PYTHONPATH", "").strip()
+        env["PYTHONPATH"] = (
+            str(repo_root / "src")
+            if not existing_pythonpath
+            else os.pathsep.join((str(repo_root / "src"), existing_pythonpath))
+        )
+        if self._app_server.security_center_api_url:
+            env["QWENPAW_SECURITY_CENTER_API_URL"] = self._app_server.security_center_api_url
+        if self._app_server.security_center_web_url:
+            env["QWENPAW_SECURITY_CENTER_WEB_URL"] = self._app_server.security_center_web_url
+
+        restarted_process = subprocess.Popen(
+            [
+                sys.executable,
+                "-m",
+                "qwenpaw",
+                "app",
+                "--host",
+                self._app_server.host,
+                "--port",
+                str(self._app_server.port),
+                "--log-level",
+                "info",
+            ],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            text=True,
+            bufsize=1,
+            encoding="utf-8",
+            errors="replace",
+            env=env,
+            cwd=repo_root,
+        )
+        assert restarted_process.stdout is not None
+        restart_thread = threading.Thread(
+            target=_drain_process_output,
+            args=(restarted_process.stdout, self._app_server.logs),
+            daemon=True,
+        )
+        restart_thread.start()
+        self._app_server.process = restarted_process
+        self._app_server.log_thread = restart_thread
+
+        deadline = time.time() + _RUNTIME_RESTART_READY_SECONDS
+        last_error: str | None = None
+        while time.time() < deadline:
+            if restarted_process.poll() is not None:
+                last_error = (
+                    "qwenpaw app exited during normal offline restart; "
+                    f"exit_code={restarted_process.returncode}; "
+                    f"logs={self._app_server.logs_tail()}"
+                )
+                self._app_server.startup_error = last_error
+                return False, stopped_before_expiry, last_error
+            try:
+                response = self._app_server.client.get(
+                    f"{self._app_server.base_url}/api/version",
+                    timeout=_HTTP_TIMEOUT,
+                )
+                if response.status_code == 200:
+                    self._app_server.startup_error = None
+                    restarted_before_expiry = (
+                        lease_expires_at is not None and time.time_ns() < lease_expires_at
+                    )
+                    return True, stopped_before_expiry and restarted_before_expiry, None
+                last_error = f"unexpected status {response.status_code}"
+            except httpx.HTTPError as exc:
+                last_error = str(exc)
+            time.sleep(_RUNTIME_POLL_INTERVAL_SECONDS)
+
+        last_error = (
+            "qwenpaw app did not become ready after normal offline restart; "
+            f"last_error={last_error}; logs={self._app_server.logs_tail()}"
+        )
+        self._app_server.startup_error = last_error
+        return False, stopped_before_expiry, last_error
+
+    def _poll_security_center_client_projection(
+        self,
+        *,
+        requested_client_id: str,
+    ) -> tuple[dict[str, Any], dict[str, Any] | None]:
+        deadline = time.time() + 8.0
+        last_overview: dict[str, Any] = {}
+        last_client: dict[str, Any] | None = None
+        while time.time() < deadline:
+            overview = self._read_security_center_api_json(
+                "/security-center/v1/operator/overview",
+            )
+            client = self._find_client_state(overview, client_id=requested_client_id)
+            if client is None:
+                client = self._find_single_canonical_client(overview)
+            last_overview = overview
+            last_client = client
+            if isinstance(client, dict):
+                return overview, client
+            time.sleep(_RUNTIME_POLL_INTERVAL_SECONDS)
+        return last_overview, last_client
+
+    def _poll_security_center_clear_projection(
+        self,
+        *,
+        client_id: str,
+    ) -> tuple[dict[str, Any], dict[str, Any] | None]:
+        deadline = time.time() + 8.0
+        last_timeline: dict[str, Any] = {}
+        last_client: dict[str, Any] | None = None
+        while time.time() < deadline:
+            timeline = self._read_security_center_api_json(
+                f"/security-center/v1/operator/timelines/{quote(client_id, safe='')}",
+            )
+            overview = self._read_security_center_api_json(
+                "/security-center/v1/operator/overview",
+            )
+            client = self._find_client_state(overview, client_id=client_id)
+            if client is None:
+                client = self._find_single_canonical_client(overview)
+            last_timeline = timeline
+            last_client = client
+            trust_state = self._find_first_scalar(timeline, keys=("trust_state",))
+            gap_status = self._find_first_scalar(timeline, keys=("gap_status",))
+            recovery_gate_status = self._find_first_scalar(
+                timeline,
+                keys=("recovery_gate_status",),
+            )
+            recovery_required = self._find_first_scalar(
+                timeline,
+                keys=("recovery_required",),
+            )
+            if all(
+                (
+                    str(trust_state or "") in {"ALIGNED", "TRUSTED"},
+                    gap_status == "CLEAR",
+                    recovery_gate_status == "CLEAR",
+                    recovery_required is False,
+                ),
+            ):
+                return timeline, client
+            time.sleep(_RUNTIME_POLL_INTERVAL_SECONDS)
+        return last_timeline, last_client
+
+    def _find_single_canonical_client(
+        self,
+        overview_payload: dict[str, Any],
+    ) -> dict[str, Any] | None:
+        clients = overview_payload.get("clients")
+        if not isinstance(clients, list):
+            return None
+        canonical_clients = [
+            client
+            for client in clients
+            if isinstance(client, dict)
+            and str(client.get("canonical_client_id") or client.get("client_id") or "").strip()
+        ]
+        if len(canonical_clients) == 1:
+            return canonical_clients[0]
+        return None
+
+    def _client_lookup_id(
+        self,
+        client: dict[str, Any] | None,
+        *,
+        fallback: str,
+    ) -> str:
+        if not isinstance(client, dict):
+            return fallback
+        return str(
+            client.get("client_id")
+            or client.get("canonical_client_id")
+            or fallback,
+        )
 
     def _read_json_response(
         self,

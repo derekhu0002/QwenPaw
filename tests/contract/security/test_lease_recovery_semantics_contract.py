@@ -721,6 +721,88 @@ def test_security_center_projects_fresh_runtime_startup_as_aligned_clear_termina
 
 @pytest.mark.contract
 @pytest.mark.p0
+def test_security_center_keeps_same_head_normal_reconnect_clear(
+    security_center_store: SecurityCenterStore,
+) -> None:
+    """Control point: before lease expiry, the same canonical client reports
+    its already trusted audit head through a normal non-runtime trace without a
+    new missing-gap proof.
+
+    Observation point: Security Center must treat the aligned same-head report
+    as normal continuity and must not open a REQUIRED/OPEN recovery gate.
+    """
+
+    client_id = "session_normal_same_head_reconnect_contract"
+    requested_at_ns = time.time_ns()
+    trusted_anchor_hash = derive_shadow_hash(client_id, "trusted-head")
+
+    # // GIVEN
+    _seed_client_state(
+        security_center_store,
+        client_id=client_id,
+        requested_at_ns=requested_at_ns,
+        overrides={
+            "shadow_hash": trusted_anchor_hash,
+            "trust_state": TRUST_STATE_ALIGNED,
+            "last_trusted_anchor_hash": trusted_anchor_hash,
+            "last_trusted_sequence": 0,
+            "last_trusted_anchor_source": "runtime_heartbeat_online",
+            "last_edge_reported_hash": trusted_anchor_hash,
+            "last_edge_reported_sequence": 0,
+            "gap_status": GAP_STATUS_CLEAR,
+            "recovery_gate_status": RECOVERY_GATE_CLOSED,
+            "recovery_required": False,
+            "last_heartbeat_at": requested_at_ns,
+            "lease_ttl_seconds": 120,
+            "lease_expires_at": requested_at_ns + 120_000_000_000,
+        },
+    )
+
+    # // WHEN
+    recovery_response = _run(
+        security_center_store.recovery_handshake(
+            {
+                "client_id": client_id,
+                "trace_id": "normal-offline-reconnect-same-head",
+                "local_hash": trusted_anchor_hash,
+                "checkpoint_hash": trusted_anchor_hash,
+                "requested_at_ns": requested_at_ns + 1_000_000,
+                "lease_ttl_seconds": 3,
+            },
+        ),
+    )
+    timeline = _run(security_center_store.timeline(client_id))
+
+    # // THEN
+    assert recovery_response["trust_state"] == TRUST_STATE_ALIGNED, (
+        "Normal_Reconnect_Clear_State_Gap: same-head reconnect before lease "
+        f"expiry must stay ALIGNED. Response={recovery_response!r}."
+    )
+    assert recovery_response["gap_status"] == GAP_STATUS_CLEAR, (
+        "Normal_Reconnect_Clear_State_Gap: same-head reconnect before lease "
+        f"expiry must not require missing-gap validation. Response={recovery_response!r}."
+    )
+    assert recovery_response["recovery_gate_status"] == RECOVERY_GATE_CLOSED, (
+        "Normal_Reconnect_Clear_State_Gap: same-head reconnect before lease "
+        f"expiry must keep the recovery gate closed. Response={recovery_response!r}."
+    )
+    assert recovery_response["recovery_required"] is False, (
+        "Normal_Reconnect_Clear_State_Gap: same-head reconnect before lease "
+        f"expiry must not require recovery. Response={recovery_response!r}."
+    )
+    assert isinstance(timeline, dict)
+    assert timeline.get("gap_status") == GAP_STATUS_CLEAR
+    assert timeline.get("recovery_gate_status") == RECOVERY_GATE_CLOSED
+    assert timeline.get("recovery_required") is False
+    assert timeline.get("lease_ttl_seconds") == 120, (
+        "Normal_Reconnect_Clear_State_Gap: an in-window reconnect heartbeat "
+        "must not shorten an existing normal-offline lease into the expired "
+        f"branch. Timeline={timeline!r}."
+    )
+
+
+@pytest.mark.contract
+@pytest.mark.p0
 def test_security_center_projects_one_online_runtime_as_one_canonical_terminal(
     app_server,
 ) -> None:

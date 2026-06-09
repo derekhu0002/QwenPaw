@@ -2,7 +2,7 @@
   "stage": "implementation-to-coding",
   "generatedAt": "2026-06-09",
   "sourceIntentGraphPath": "design/KG/SystemArchitecture.json",
-  "summary": "Implementation Design audited Coding/Repair delivery for the remaining sec-e2e-027 lease-expiry active-defense gap. The frozen entrypoint tests/integration/security/test_audit_foundation.py::test_lease_expiry_blocks_untrusted_rejoin_until_gap_sync and protected harness tests/integration/security/harness.py remain intact, production repairs under deploy/api/store.py, src/qwenpaw/security/audit_foundation.py, and src/qwenpaw/app/routers/console.py now satisfy the block-first/release-after-proof contract, and focused, full explicit pytest, npm run test:argo, plus MCP runArchitectureTests all pass with design/KG/test-failure-records.json empty.",
+  "summary": "Implementation Design audited the Coding/Repair rework for the sec-e2e-027 regression and sec-e2e-028 stability. The frozen tests/integration/security/test_audit_foundation.py plus tests/integration/security/harness.py contracts remain intact, focused sec-e2e-027 and sec-e2e-028 both pass, tests/integration/security/test_audit_foundation.py passes 5/5, npm run test:argo passes 5/5, and design/KG/test-failure-records.json is empty. No production rework remains for Coding/Repair; this handoff is ready for final intention-design audit.",
   "implementationContracts": [
     "OVERALL_ARCHITECTURE.md",
     "src/qwenpaw/ARCHITECTURE.md",
@@ -21,7 +21,7 @@
       "controlPoint": "Run the frozen real-app subprocess acceptance entrypoint: authenticate an employee, delegate a high-risk action through the agent/plugin/tool path, and provide the required confirmation through the protected harness.",
       "observationPoint": "Security Center and the audit query surface must expose a continuous user -> agent -> plugin -> tool evidence chain with a durable confirmation artifact digest and no anonymous or fallback-system identity link.",
       "initialExecutionStatus": "passed",
-      "initialExecutionCommand": ".\\.venv\\Scripts\\python.exe -m pytest tests/unit/cli/test_cli_version.py::test_cli_version_option_outputs_current_version tests/unit/cli/test_cli_agents.py::test_agents_list_uses_shared_tool_helper tests/unit/cli/test_cli_task.py::test_task_command_registered_in_cli tests/unit/routers/test_settings.py::test_put_then_get_roundtrip tests/unit/routers/test_git.py::test_git_helper_uses_shared_command_runner tests/integration/security/test_audit_foundation.py::test_end_to_end_non_repudiation_evidence_chain tests/integration/security/test_audit_foundation.py::test_audit_integrity_self_healing_lockdown tests/integration/security/test_audit_foundation.py::test_lease_expiry_blocks_untrusted_rejoin_until_gap_sync tests/integration/security/test_audit_foundation.py::test_prompt_injection_cannot_bypass_high_risk_tool_guard -q"
+      "initialExecutionCommand": ".\\.venv\\Scripts\\python.exe -m pytest tests/integration/security/test_audit_foundation.py::test_end_to_end_non_repudiation_evidence_chain -q"
     },
     {
       "testcaseName": "sec-e2e-025-audit-integrity-self-healing-lockdown",
@@ -37,7 +37,15 @@
       "controlPoint": "Run the frozen real-app subprocess acceptance entrypoint: let a trusted client miss the lease window, observe denied rejoin before missing-gap verification, then drive the distinct recovery control point and restored-access attempt.",
       "observationPoint": "Security Center must mark the same canonical client UNTRUSTED after lease expiry, the pre-recovery console status must show denied rejoin before proof, the recovery control point must accept full-chain missing-gap validation, and the post-recovery trust projection plus console access must become ALIGNED or TRUSTED/200 only after continuity validation.",
       "initialExecutionStatus": "passed",
-      "initialExecutionCommand": ".\\.venv\\Scripts\\python.exe -m pytest tests/unit/cli/test_cli_version.py::test_cli_version_option_outputs_current_version tests/unit/cli/test_cli_agents.py::test_agents_list_uses_shared_tool_helper tests/unit/cli/test_cli_task.py::test_task_command_registered_in_cli tests/unit/routers/test_settings.py::test_put_then_get_roundtrip tests/unit/routers/test_git.py::test_git_helper_uses_shared_command_runner tests/integration/security/test_audit_foundation.py::test_end_to_end_non_repudiation_evidence_chain tests/integration/security/test_audit_foundation.py::test_audit_integrity_self_healing_lockdown tests/integration/security/test_audit_foundation.py::test_lease_expiry_blocks_untrusted_rejoin_until_gap_sync tests/integration/security/test_audit_foundation.py::test_prompt_injection_cannot_bypass_high_risk_tool_guard -q"
+      "initialExecutionCommand": ".\\.venv\\Scripts\\python.exe -m pytest tests/integration/security/test_audit_foundation.py::test_lease_expiry_blocks_untrusted_rejoin_until_gap_sync -q"
+    },
+    {
+      "testcaseName": "sec-e2e-028-normal-offline-reconnect-clear-state",
+      "entryPath": "tests/integration/security/test_audit_foundation.py::test_normal_offline_reconnect_clears_without_gap_recovery",
+      "controlPoint": "Run the frozen real-app subprocess acceptance entrypoint: establish trusted audit-head continuity, stop the runtime through a normal offline path without mutating local audit evidence, restart the same canonical client before lease expiry, and attempt ordinary model access.",
+      "observationPoint": "Security Center backend and operator web must show the same canonical client as ALIGNED or TRUSTED with gap_status=CLEAR, recovery_gate_status=CLEAR, recovery_required=false, no missing-gap validation incident, and ordinary model access must return 200.",
+      "initialExecutionStatus": "passed",
+      "initialExecutionCommand": ".\\.venv\\Scripts\\python.exe -m pytest tests/integration/security/test_audit_foundation.py::test_normal_offline_reconnect_clears_without_gap_recovery -q"
     },
     {
       "testcaseName": "sec-e2e-021-prompt-injection-tool-guard-enforced",
@@ -45,7 +53,7 @@
       "controlPoint": "Run the frozen real-app subprocess acceptance entrypoint: submit nested deceptive instructions claiming test or maintenance mode while targeting a High risk tool without trusted provenance or confirmation.",
       "observationPoint": "The high-risk tool must remain blocked at the tool-call boundary, rejection must be recorded as durable security evidence with trace-bound nonce semantics, and Security Center/operator surfaces must expose the rejected attempt rather than silently executing.",
       "initialExecutionStatus": "passed",
-      "initialExecutionCommand": ".\\.venv\\Scripts\\python.exe -m pytest tests/unit/cli/test_cli_version.py::test_cli_version_option_outputs_current_version tests/unit/cli/test_cli_agents.py::test_agents_list_uses_shared_tool_helper tests/unit/cli/test_cli_task.py::test_task_command_registered_in_cli tests/unit/routers/test_settings.py::test_put_then_get_roundtrip tests/unit/routers/test_git.py::test_git_helper_uses_shared_command_runner tests/integration/security/test_audit_foundation.py::test_end_to_end_non_repudiation_evidence_chain tests/integration/security/test_audit_foundation.py::test_audit_integrity_self_healing_lockdown tests/integration/security/test_audit_foundation.py::test_lease_expiry_blocks_untrusted_rejoin_until_gap_sync tests/integration/security/test_audit_foundation.py::test_prompt_injection_cannot_bypass_high_risk_tool_guard -q"
+      "initialExecutionCommand": ".\\.venv\\Scripts\\python.exe -m pytest tests/integration/security/test_audit_foundation.py::test_prompt_injection_cannot_bypass_high_risk_tool_guard -q"
     }
   ],
   "criticalNonExplicitTests": [
@@ -61,21 +69,21 @@
       "path": "tests/architecture/security-explicit-entrypoint-traceability.test.js",
       "kind": "explicit-entrypoint-correctness-guard",
       "controlPoint": "Read SystemArchitecture.json, ImplementationToCodingHandoff.json, test-failure-records.json, tests/integration/security/test_audit_foundation.py, and tests/integration/security/harness.py.",
-      "observationPoint": "The guard proves security acceptanceCriteria, handoff entryPath, failure record path, GIVEN/WHEN/THEN markers, harness method names, and business failure category strings remain frozen for security explicit entrypoints."
+      "observationPoint": "The guard proves sec-e2e-024/sec-e2e-025/sec-e2e-027/sec-e2e-028/sec-e2e-021 acceptanceCriteria, handoff entryPath, failure record path, GIVEN/WHEN/THEN markers, harness method names, and business failure category strings remain frozen."
     },
     {
       "name": "security-runtime-client-identity-boundary",
       "path": "tests/architecture/security-runtime-client-identity-boundary.test.js",
       "kind": "key-implementation-traceability-guard",
       "controlPoint": "Read src/qwenpaw/security/audit_foundation.py and deploy/api/store.py to compare the client id used by startup heartbeat against the client ids used by recovery, lockdown, and restored-access projection.",
-      "observationPoint": "The guard proves one live runtime must use one canonical Security Center client id across heartbeat, recovery, lockdown, and restored-access projection."
+      "observationPoint": "The guard proves one live runtime must use one canonical Security Center client id across heartbeat, recovery, lockdown, restored-access projection, and now normal-offline reconnect CLEAR projection."
     },
     {
       "name": "security-runtime-lease-persistence-boundary",
       "path": "tests/architecture/security-runtime-lease-persistence-boundary.test.js",
       "kind": "key-implementation-traceability-guard",
       "controlPoint": "Read deploy/api/app.py and deploy/api/store.py to confirm the recovery-handshake HTTP contract carries lease_ttl_seconds and the durable Security Center store writes last_heartbeat_at, lease_ttl_seconds, and lease_expires_at.",
-      "observationPoint": "The guard proves sec-e2e-027 keeps durable lease persistence in the API/store seam and does not rely on projection-only fallback to hide zero lease fields."
+      "observationPoint": "The guard proves durable lease persistence stays in the API/store seam and cannot be replaced by projection-only fallback while repairing sec-e2e-028."
     }
   ],
   "supportingNonExplicitTests": [
@@ -91,54 +99,55 @@
       "name": "lease-recovery-semantics-contract",
       "path": "tests/contract/security/test_lease_recovery_semantics_contract.py",
       "kind": "supporting-guardrail",
-      "controlPoint": "Exercise Security Center lease timing, startup heartbeat, canonical runtime identity, TTL downgrade, and reconnect recovery semantics beneath the frozen sec-e2e-027 entrypoint.",
-      "observationPoint": "The contract tests must keep lease recovery behavior aligned with the sec-e2e-027 business boundary while Coding/Repair restores the explicit acceptance entrypoint.",
+      "controlPoint": "Exercise Security Center lease timing, startup heartbeat, canonical runtime identity, TTL downgrade, and reconnect recovery semantics beneath sec-e2e-027 and sec-e2e-028.",
+      "observationPoint": "The contract tests keep lease-expiry recovery separate from normal-offline reconnect CLEAR semantics while Coding/Repair restores the explicit sec-e2e-028 entrypoint.",
       "expectedStatus": "passed"
     }
   ],
   "expectedFailureRecordsPath": "design/KG/test-failure-records.json",
   "codingTargets": [
     {
-      "testcaseName": "full-explicit-gate-resolved",
-      "path": "design/KG/test-failure-records.json",
-      "failureSignal": "No_Open_Failure: all current explicit testcase gates pass and design/KG/test-failure-records.json is empty after Coding/Repair.",
-      "nextAction": "No Coding/Repair action remains for sec-e2e-027; preserve frozen tests and send this state to Intention Design for final intent audit."
+      "testcaseName": "sec-e2e-027-lease-expiry-active-defense",
+      "path": "tests/integration/security/test_audit_foundation.py::test_lease_expiry_blocks_untrusted_rejoin_until_gap_sync",
+      "failureSignal": "resolved: sec-e2e-027 now passes unchanged, design/KG/test-failure-records.json is empty, and no open Coding/Repair failure signal remains.",
+      "nextAction": "No Coding/Repair production rework remains. Keep the frozen explicit entrypoints and protected harness unchanged, preserve sec-e2e-027 block-first/release-after-proof semantics plus sec-e2e-028 normal reconnect CLEAR stability, and pass this resolved state to @intention-design for final intent audit."
     }
   ],
   "taskExecutionPlan": {
-    "executionStrategy": "Treat the focused sec-e2e-027 pytest entrypoint, full 9-entry explicit pytest command, npm run test:argo, and MCP runArchitectureTests result as the closure evidence. Keep tests/integration/security/test_audit_foundation.py and tests/integration/security/harness.py unchanged and hand the resolved state to Intention Design for final audit.",
+    "executionStrategy": "Treat sec-e2e-027 and sec-e2e-028 as resolved by the audited Coding/Repair rework. Preserve sec-e2e-025 tamper lockdown, sec-e2e-027 lease-expiry block-first/release-after-proof, and sec-e2e-028 normal reconnect CLEAR semantics. No further production changes are authorized by this handoff unless final intention-design audit reopens the intent boundary.",
     "tasks": [
       {
-        "taskId": "sec-e2e-027-recovery-release-001",
-        "title": "Audit lease recovery release",
-        "objective": "Confirm the frozen sec-e2e-027 entrypoint observes post-recovery trust restoration and model access for the same canonical client after full-chain missing-gap proof.",
+        "taskId": "sec-e2e-027-028-regression-stability-001",
+        "title": "Keep lease and reconnect stable",
+        "objective": "Preserve sec-e2e-027 block-first/release-after-proof behavior and sec-e2e-028 normal reconnect CLEAR behavior after the startup/readiness and shutdown-budget repair.",
         "relatedTestcases": [
-          "sec-e2e-027-lease-expiry-active-defense"
+          "sec-e2e-027-lease-expiry-active-defense",
+          "sec-e2e-028-normal-offline-reconnect-clear-state"
         ],
         "targetPaths": [
-          "src/qwenpaw/security/audit_foundation.py",
           "src/qwenpaw/app/_app.py",
+          "src/qwenpaw/security/audit_foundation.py",
           "src/qwenpaw/app/routers/console.py",
           "deploy/api/app.py",
           "deploy/api/store.py",
           "deploy/web"
         ],
         "steps": [
-          "Keep tests/integration/security/test_audit_foundation.py and tests/integration/security/harness.py read-only; do not weaken Recovery_Control_Point_Missing or Post_Recovery_Model_Access_Restore_Missing assertions.",
-          "Verify the denied rejoin flow, recovery handshake flow, and post-recovery model access flow for the same canonical runtime client id and session timeline.",
-          "Confirm production behavior closes recovery_required after continuity validation and no longer projects post-recovery trust as UNTRUSTED for the recovered client.",
-          "Confirm the pre-recovery denial frame remains observable before missing-gap verification.",
-          "Confirm separate pre_recovery_console_status and post_recovery_console_status observations remain present.",
-          "Rerun tests/integration/security/test_audit_foundation.py::test_lease_expiry_blocks_untrusted_rejoin_until_gap_sync unchanged and require post_recovery_trust_state in {ALIGNED, TRUSTED} plus post_recovery_console_status=200."
+          "Keep tests/integration/security/test_audit_foundation.py, tests/integration/security/harness.py, and tests/integration/conftest.py read-only; do not xfail, skip, or weaken Lease_Expiry_Active_Defense_Gap or Normal_Offline_Reconnect_Clear_State_Gap assertions.",
+          "Preserve the lightweight security startup path: unauthenticated integration-mode Security Center runtime may serve HTTP readiness, heartbeat, and recovery paths before heavy agent/plugin preload completes.",
+          "For true lease expiry, pre-proof reconnect must deny model access at the security boundary before missing-gap proof.",
+          "After valid missing-gap verification for the same canonical client, deploy/api and runtime projection must move to ALIGNED or TRUSTED with recovery_required=false and restored model access 200.",
+          "For normal reconnect before lease expiry, Security Center backend/web must remain ALIGNED or TRUSTED with gap_status=CLEAR, recovery_gate_status=CLEAR, recovery_required=false, and ordinary model access 200.",
+          "Rerun focused sec-e2e-027, focused sec-e2e-028, tests/integration/security/test_audit_foundation.py -q, and npm run test:argo before any future release affecting this boundary."
         ],
-        "completionSignal": "tests/integration/security/test_audit_foundation.py::test_lease_expiry_blocks_untrusted_rejoin_until_gap_sync passes unchanged and still proves denied rejoin before recovery plus restored model access only after continuity validation."
+        "completionSignal": "Focused sec-e2e-027 and sec-e2e-028 both pass unchanged, and npm run test:argo exits 0 with design/KG/test-failure-records.json empty."
       },
       {
-        "taskId": "full-explicit-gate-002",
-        "title": "Reprove full explicit gate",
-        "objective": "Demonstrate that all repository-declared explicit testcases pass together in one evidence run.",
+        "taskId": "full-explicit-gate-after-sec-e2e-028-002",
+        "title": "Preserve full explicit gate",
+        "objective": "Keep all repository-declared explicit testcases passing together after the sec-e2e-027 and sec-e2e-028 stability repair.",
         "dependsOn": [
-          "sec-e2e-027-recovery-release-001"
+          "sec-e2e-027-028-regression-stability-001"
         ],
         "relatedTestcases": [
           "cli-version-surface",
@@ -149,6 +158,7 @@
           "sec-e2e-024-end-to-end-non-repudiation-evidence-chain",
           "sec-e2e-025-audit-integrity-self-healing-lockdown",
           "sec-e2e-027-lease-expiry-active-defense",
+          "sec-e2e-028-normal-offline-reconnect-clear-state",
           "sec-e2e-021-prompt-injection-tool-guard-enforced"
         ],
         "targetPaths": [
@@ -156,12 +166,14 @@
           "design/KG/ImplementationToCodingHandoff.json"
         ],
         "steps": [
-          "Rerun the exact full explicit pytest command recorded in design/KG/test-failure-records.json.",
-          "Require 9 passed in one run; partial success is not delivery acceptance.",
-          "If failures remain, refresh design/KG/test-failure-records.json with the new command, exit code, failing node, business category, and first actionable failure message.",
-          "Do not mark failures xfail or skip and do not remove any entrypoint from the command."
+          "Run the focused sec-e2e-027 pytest entrypoint unchanged.",
+          "Run the focused sec-e2e-028 pytest entrypoint unchanged and keep it below the Argo 120s budget.",
+          "Run npm run validate:system-architecture and npm run validate:handoff:implementation.",
+          "Run npm run test:argo so design/KG/test-failure-records.json is refreshed by the architecture runner.",
+          "If a future failure appears, update design/KG/test-failure-records.json with the failing entrypoint, command, exit code, business category, and first actionable failure message.",
+          "Do not remove sec-e2e-028 from SystemArchitecture.json or from the explicit pytest command to make the gate pass."
         ],
-        "completionSignal": "The full explicit pytest command exits 0 with all 9 entrypoints passed, and design/KG/test-failure-records.json contains no stale unresolved failure for a now-passing explicit testcase."
+        "completionSignal": "The focused sec-e2e-027 and sec-e2e-028 entrypoints, handoff validation, and Argo explicit gate exit 0 with no stale failure record."
       }
     ]
   },
@@ -176,9 +188,11 @@
     "deploy/api/ARCHITECTURE.md",
     "deploy/web/ARCHITECTURE.md",
     "tests/ARCHITECTURE.md",
+    "tests/integration/conftest.py",
     "tests/integration/security/ARCHITECTURE.md",
     "tests/integration/security/harness.py",
     "tests/integration/security/test_audit_foundation.py",
+    "tests/architecture/security-explicit-entrypoint-traceability.test.js",
     "tests/unit/cli/test_cli_version.py",
     "tests/unit/cli/test_cli_agents.py",
     "tests/unit/cli/test_cli_task.py",
@@ -186,6 +200,8 @@
     "tests/unit/routers/test_git.py"
   ],
   "openGaps": [
-    "No unresolved sec-e2e-027 implementation gap remains after the current audit evidence. design/KG/SystemArchitecture.json models only the 4 security explicit testcases; the 5 CLI/backend unit explicit entrypoints remain declared by tests/ARCHITECTURE.md and OVERALL_ARCHITECTURE.md and are covered by the full explicit pytest command."
+    "No open sec-e2e-027 or sec-e2e-028 implementation architecture gap remains after the audited Coding/Repair rework. Focused sec-e2e-027 passed in 39.40s, focused sec-e2e-028 passed in 58.59s, tests/integration/security/test_audit_foundation.py passed 5/5 in 74.06s, and npm run test:argo passed 5/5 with design/KG/test-failure-records.json empty.",
+    "SystemArchitecture.json contains sec-e2e-027 and sec-e2e-028 acceptanceCriteria as frozen tests/integration/security/test_audit_foundation.py entrypoints; Implementation Design did not modify the intent graph during this audit.",
+    "Final @intention-design audit should verify that the repaired production behavior still matches the intent distinction between lease-expiry active defense and normal offline reconnect."
   ]
 }

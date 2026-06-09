@@ -12,7 +12,7 @@ element_path: tests/integration/security
 ### Responsibility
 - Own the read-only explicit security acceptance entrypoints required by the intent graph for audit-foundation scenarios.
 - Keep testcase bodies business-readable and GIVEN/WHEN/THEN-shaped by routing live app-subprocess HTTP, logs, and working-directory inspection through local harness abstractions instead of raw plumbing in the testcase body.
-- Freeze runtime-inspection expectations for `sec-e2e-024`, `sec-e2e-025`, `sec-e2e-027`, and `sec-e2e-021`: tool-boundary context spying, direct physical ledger inspection, local hash-chain verification, second committed non-tail audit-record tamper detection with readable `UNTRUSTED` state, lease-expiry-driven `UNTRUSTED` downgrade plus reconnect gating, durable rejected-event evidence with trace-bound nonce semantics, and pre-execution evidence ordering.
+- Freeze runtime-inspection expectations for `sec-e2e-024`, `sec-e2e-025`, `sec-e2e-027`, `sec-e2e-028`, and `sec-e2e-021`: tool-boundary context spying, direct physical ledger inspection, local hash-chain verification, second committed non-tail audit-record tamper detection with readable `UNTRUSTED` state, lease-expiry-driven `UNTRUSTED` downgrade plus reconnect gating, normal-offline reconnect CLEAR projection, durable rejected-event evidence with trace-bound nonce semantics, and pre-execution evidence ordering.
 - Constrain the explicit security slice to run against the real `app_server` fixture rather than repository source inspection or in-memory-only doubles.
 
 ### Out Of Scope
@@ -40,6 +40,10 @@ element_path: tests/integration/security
   entry_path: test_audit_foundation.py::test_lease_expiry_blocks_untrusted_rejoin_until_gap_sync
   control_point: within one frozen explicit entrypoint, first let a previously trusted device session miss its lease heartbeat window and attempt rejoin before missing-gap verification, then drive a second controlled recovery step plus a second model-access attempt after continuity validation
   observation_point: the resulting observations prove or disprove two distinct frames: a pre-recovery frame with lease-heartbeat projection, Security Center `UNTRUSTED` downgrade, denied rejoin at model-access scope, and a frozen `pre_recovery_console_status`; and a post-recovery frame with a distinct recovery control point, distinct backend and operator-web trust-state projection, restored model access only after continuity is proven, and a frozen `post_recovery_console_status`
+- testcase_name: sec-e2e-028-normal-offline-reconnect-clear-state
+  entry_path: test_audit_foundation.py::test_normal_offline_reconnect_clears_without_gap_recovery
+  control_point: establish trusted audit-head continuity through ordinary model access, stop the runtime through a normal offline path without mutating local audit evidence, restart the same canonical client before lease expiry, then attempt ordinary model access again
+  observation_point: the resulting observations prove or disprove that Security Center backend and operator web project the same canonical client as `ALIGNED` or `TRUSTED` with `gap_status=CLEAR`, `recovery_gate_status=CLEAR`, `recovery_required=false`, no missing-gap validation incident, and model access `200`
 - testcase_name: sec-e2e-021-prompt-injection-tool-guard-enforced
   entry_path: test_audit_foundation.py::test_prompt_injection_cannot_bypass_high_risk_tool_guard
   control_point: submit deceptive nested instructions that claim test mode or maintenance mode while targeting a configured High risk tool without trusted provenance or confirmation
@@ -52,4 +56,5 @@ element_path: tests/integration/security
 - The testcase body in `test_audit_foundation.py` is frozen as a business contract baseline. Coding/Repair may realize runtime behavior underneath the harness, but should not rewrite the business wording, GIVEN/WHEN/THEN structure, or explicit entrypoint paths without an upstream architecture change.
 - In the current repository state, the harness is still expected to fail with business-readable `Audit_Integrity_Lockdown_Gap` if the live runtime only detects checkpoint loss or tail truncation and does not detect OS-level editing of the second committed non-tail audit record before the next high-risk boundary.
 - sec-e2e-027 is now frozen around two control points and two console observation points inside one explicit entrypoint, and the current repository evidence shows that baseline can execute without sharing one mutable final console status across both frames.
+- sec-e2e-028 is now frozen around a separate normal-offline branch. It must not be satisfied by weakening sec-e2e-027: before lease expiry and without tamper, missing sequence, clone, replay, or hash divergence, no gap validation is required and backend/web must remain CLEAR.
 - When the shared real-environment bootstrap itself is incomplete, the explicit entrypoint must still fail inside the testcase body with a readable runtime bootstrap blocker rather than disappearing behind fixture setup noise.

@@ -24,11 +24,26 @@ const frozenExplicitTestcases = [
         entryPath: 'tests/integration/security/test_audit_foundation.py::test_lease_expiry_blocks_untrusted_rejoin_until_gap_sync',
         requiredTestMarker: 'def test_lease_expiry_blocks_untrusted_rejoin_until_gap_sync',
     },
+    {
+        testcaseName: 'sec-e2e-028-normal-offline-reconnect-clear-state',
+        entryPath: 'tests/integration/security/test_audit_foundation.py::test_normal_offline_reconnect_clears_without_gap_recovery',
+        requiredTestMarker: 'def test_normal_offline_reconnect_clears_without_gap_recovery',
+    },
 ];
 const codingQueueTestcases = [
     {
         testcaseName: 'sec-e2e-025-audit-integrity-self-healing-lockdown',
         entryPath: 'tests/integration/security/test_audit_foundation.py::test_audit_integrity_self_healing_lockdown',
+        initialExecutionStatus: 'passed',
+    },
+    {
+        testcaseName: 'sec-e2e-027-lease-expiry-active-defense',
+        entryPath: 'tests/integration/security/test_audit_foundation.py::test_lease_expiry_blocks_untrusted_rejoin_until_gap_sync',
+        initialExecutionStatus: 'passed',
+    },
+    {
+        testcaseName: 'sec-e2e-028-normal-offline-reconnect-clear-state',
+        entryPath: 'tests/integration/security/test_audit_foundation.py::test_normal_offline_reconnect_clears_without_gap_recovery',
         initialExecutionStatus: 'passed',
     },
 ];
@@ -114,9 +129,10 @@ assert.ok(
 );
 assert.ok(
     !(handoff.codingTargets || []).some(
-        target => target.testcaseName === 'sec-e2e-027-lease-expiry-active-defense',
+        target => target.testcaseName === 'sec-e2e-027-lease-expiry-active-defense'
+        && String(target.failureSignal || '').startsWith('Lease_Expiry_Active_Defense_Gap'),
     ),
-    'Implementation handoff must not keep sec-e2e-027 in codingTargets after the explicit gate is resolved.',
+    'Implementation handoff must not keep a stale open sec-e2e-027 coding failure after the explicit gate is resolved.',
 );
 assert.ok(
     !(failureRecords || []).some(
@@ -129,12 +145,37 @@ const resolvedLeaseExpiryHandoff = (handoff.explicitEntrypoints || []).find(
 );
 assert.ok(
     resolvedLeaseExpiryHandoff,
-    'Implementation handoff must keep the resolved sec-e2e-027 explicit entrypoint.',
+    'Implementation handoff must keep the sec-e2e-027 explicit entrypoint.',
 );
 assert.strictEqual(
     resolvedLeaseExpiryHandoff.initialExecutionStatus,
     'passed',
     'Resolved sec-e2e-027 handoff status must be passed after the full explicit gate is green.',
+);
+assert.ok(
+    !(handoff.codingTargets || []).some(
+        target => target.testcaseName === 'sec-e2e-028-normal-offline-reconnect-clear-state'
+        && String(target.failureSignal || '').startsWith('Normal_Offline_Reconnect_Clear_State_Gap'),
+    ),
+    'Implementation handoff must not keep a stale open sec-e2e-028 coding failure after the explicit gate is resolved.',
+);
+assert.ok(
+    !(failureRecords || []).some(
+        record => record.testcasename === 'sec-e2e-028-normal-offline-reconnect-clear-state',
+    ),
+    'Failure records must not keep a stale sec-e2e-028 failure after runArchitectureTests passes.',
+);
+const resolvedNormalReconnectHandoff = (handoff.explicitEntrypoints || []).find(
+    entry => entry.testcaseName === 'sec-e2e-028-normal-offline-reconnect-clear-state',
+);
+assert.ok(
+    resolvedNormalReconnectHandoff,
+    'Implementation handoff must keep the resolved sec-e2e-028 explicit entrypoint.',
+);
+assert.strictEqual(
+    resolvedNormalReconnectHandoff.initialExecutionStatus,
+    'passed',
+    'Resolved sec-e2e-028 handoff status must be passed after the full explicit gate is green.',
 );
 
 for (const marker of [
@@ -145,6 +186,7 @@ for (const marker of [
     'def test_end_to_end_non_repudiation_evidence_chain',
     'def test_audit_integrity_self_healing_lockdown',
     'def test_lease_expiry_blocks_untrusted_rejoin_until_gap_sync',
+    'def test_normal_offline_reconnect_clears_without_gap_recovery',
     'def test_prompt_injection_cannot_bypass_high_risk_tool_guard',
     'for_app_server',
     'expect_context_propagation',
@@ -156,7 +198,11 @@ for (const marker of [
     'tampered_record_position_from_start',
     'second_committed_audit_record_history_edit',
     'verify_lease_expiry_blocks_untrusted_rejoin_until_gap_sync',
+    'verify_normal_offline_reconnect_clears_without_gap_recovery',
     'recovery_control_point_ready',
+    'runtime_restarted_before_lease_expiry',
+    'backend_clear_projection_ready',
+    'no_gap_validation_required',
     'pre_recovery_lease_monitor_projection_ready',
     'post_recovery_backend_api_projection_ready',
     'post_recovery_operator_web_projection_ready',
@@ -164,6 +210,7 @@ for (const marker of [
     'render_non_repudiation_failure_report',
     'render_audit_integrity_lockdown_failure_report',
     'render_lease_expiry_failure_report',
+    'render_normal_offline_reconnect_failure_report',
     'render_prompt_injection_guard_failure_report',
     'security_center_backend_api_name',
     'security_center_operator_web_name',
@@ -184,6 +231,7 @@ for (const categoryMarker of [
     'category="Non_Repudiation_Gap"',
     'category="Audit_Integrity_Lockdown_Gap"',
     'category="Lease_Expiry_Active_Defense_Gap"',
+    'category="Normal_Offline_Reconnect_Clear_State_Gap"',
     'category="Prompt_Injection_Guard_Gap"',
     'pre_recovery_console_status',
     'post_recovery_console_status',
@@ -196,6 +244,9 @@ for (const categoryMarker of [
     'Historical_Record_Tamper_Not_Detected',
     'Security_Center_Clear_State_Not_Blocked',
     'Lease_Heartbeat_Projection_Missing',
+    'Normal_Reconnect_Backend_Clear_State_Missing',
+    'Normal_Reconnect_Gap_Validation_False_Positive',
+    'Normal_Reconnect_Model_Access_200_Missing',
 ]) {
     assert.ok(
         harnessBody.includes(categoryMarker),
@@ -213,10 +264,13 @@ for (const harnessMethod of [
     '_tamper_committed_historical_audit_record',
     'verify_lease_expiry_blocks_untrusted_rejoin_until_gap_sync',
     '_attempt_missing_gap_verification',
+    'verify_normal_offline_reconnect_clears_without_gap_recovery',
+    '_restart_runtime_normally_before_lease_expiry',
     'verify_prompt_injection_guard_enforced',
     'render_non_repudiation_failure_report',
     'render_audit_integrity_lockdown_failure_report',
     'render_lease_expiry_failure_report',
+    'render_normal_offline_reconnect_failure_report',
     'render_prompt_injection_guard_failure_report',
 ]) {
     assert.ok(

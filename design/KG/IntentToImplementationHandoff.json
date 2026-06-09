@@ -2,7 +2,7 @@
   "stage": "intent-to-implementation",
   "generatedAt": "2026-06-09",
   "sourceIntentGraphPath": "design/KG/SystemArchitecture.json",
-  "summary": "Intent clarification for the full explicit security gate: all declared explicit acceptance testcases must pass without weakening frozen entrypoints. sec-e2e-025 remains governed by whole-ledger tamper detection, and the remaining sec-e2e-027 failure is a lease-recovery release gap: after a lease-expired canonical client proves the full missing gap to the cloud mirror, Security Center must close recovery_required, project ALIGNED or TRUSTED for that same client, and normal model access must return; keeping UNTRUSTED or 423 after valid proof is not an acceptable secure state.",
+  "summary": "Intent clarification for normal offline reconnect: sec-e2e-025 remains the tamper/continuity-loss boundary, sec-e2e-027 remains the lease-expiry recovery-proof boundary, and new sec-e2e-028 freezes the normal offline or graceful reconnect boundary. A trusted canonical client that reconnects without tamper, missing sequence, clone/replay evidence, or lease-expiry recovery debt must return to ALIGNED or TRUSTED with gap_status CLEAR, recovery_gate_status CLEAR, recovery_required=false, and ordinary model access available; Security Center Web must not keep displaying 'gap pending validation' for that normal path.",
   "intentElementIds": [
     "intent-qwenpaw-platform",
     "intent-backend-runtime",
@@ -124,6 +124,17 @@
       "implementationNotes": "Preserve the two control points and two console observation points; do not collapse denied and restored frames into one mutable final status. Repair production recovery release semantics for the same canonical client rather than editing tests/integration/security/test_audit_foundation.py or tests/integration/security/harness.py."
     },
     {
+      "name": "sec-e2e-028-normal-offline-reconnect-clear-state",
+      "mountedElementId": "intent-local-security-audit-foundation",
+      "mountedElementName": "Local Security Audit Foundation",
+      "type": "Acceptance Test",
+      "controlPoint": "Run tests/integration/security/test_audit_foundation.py::test_normal_offline_reconnect_clears_without_gap_recovery against the real app_server fixture: establish a trusted canonical client with Security Center showing normal continuity, stop or disconnect the runtime through a normal offline path without mutating local audit evidence, restart the same canonical client, and attempt ordinary model access.",
+      "observationPoint": "Security Center backend and operator web must show the same canonical client as ALIGNED or TRUSTED with gap_status CLEAR, recovery_gate_status CLEAR, and recovery_required=false; ordinary model access must return 200. The operator web must not keep the client in GAP_VALIDATION_REQUIRED, gap_status REQUIRED, recovery_gate_status OPEN, or a 'gap pending validation' display unless a real lease expiry, tamper, missing sequence, hash divergence, clone, or replay condition has been observed.",
+      "acceptanceBoundary": "tests/integration/security/test_audit_foundation.py::test_normal_offline_reconnect_clears_without_gap_recovery must be added or frozen by Implementation Design as the explicit acceptance entrypoint for normal offline reconnect.",
+      "requiredEntryKind": "explicit-testcase-entry",
+      "implementationNotes": "Do not satisfy this by weakening sec-e2e-027. Implementation Design must keep the normal reconnect branch separate from lease-expiry active defense: before the lease-expiry boundary, no gap validation should be required; after lease expiry, a valid locally constructible full-chain proof may be required but must clear the Security Center Web state once accepted."
+    },
+    {
       "name": "sec-e2e-021-prompt-injection-tool-guard-enforced",
       "mountedElementId": "intent-high-risk-tool-guard",
       "mountedElementName": "High Risk Tool Guard",
@@ -150,6 +161,7 @@
     "tests/integration/security/test_audit_foundation.py::test_end_to_end_non_repudiation_evidence_chain",
     "tests/integration/security/test_audit_foundation.py::test_audit_integrity_self_healing_lockdown",
     "tests/integration/security/test_audit_foundation.py::test_lease_expiry_blocks_untrusted_rejoin_until_gap_sync",
+    "tests/integration/security/test_audit_foundation.py::test_normal_offline_reconnect_clears_without_gap_recovery",
     "tests/integration/security/test_audit_foundation.py::test_prompt_injection_cannot_bypass_high_risk_tool_guard"
   ],
   "requiredImplementationArtifacts": [
@@ -164,6 +176,7 @@
     "tests/integration/security/ARCHITECTURE.md",
     "tests/integration/security/harness.py",
     "tests/integration/security/test_audit_foundation.py",
+    "tests/contract/security/test_lease_recovery_semantics_contract.py",
     "tests/unit/cli/test_cli_version.py",
     "tests/unit/cli/test_cli_agents.py",
     "tests/unit/cli/test_cli_task.py",
@@ -177,6 +190,31 @@
     "src/qwenpaw/cli"
   ],
   "openQuestions": [
+    {
+      "question": "Is a normal offline/reconnect the same business state as lease-expiry active defense?",
+      "recommendedAnswer": "No. A normal offline or graceful reconnect with the same canonical client, intact audit head, no missing sequence, no clone/replay signal, no tamper evidence, and no lease-expiry recovery debt is normal continuity, not a security incident.",
+      "reason": "The intent graph already reserves recovery-required behavior for real continuity uncertainty. Treating every reconnect as a missing-gap incident creates a security availability failure and contradicts the normal-use showcase where active defense is quiet while the client remains explainably trusted."
+    },
+    {
+      "question": "When should Security Center Web show CLEAR after a normal offline reconnect?",
+      "recommendedAnswer": "It should show CLEAR once the reconnect/startup heartbeat or equivalent alignment preflight confirms the same canonical client is still aligned and no recovery trigger exists. If a lease did expire, CLEAR is allowed only after valid full-chain missing-gap proof is accepted.",
+      "reason": "This preserves the security distinction: no proof burden for a non-incident reconnect, mandatory proof for lease-expiry or continuity-loss recovery, and no stale 'gap pending validation' display after proof acceptance."
+    },
+    {
+      "question": "Does normal offline reconnect require gap validation?",
+      "recommendedAnswer": "Not when the lease has not expired and the local audit head still aligns with the cloud shadow. Gap validation is required only for lease expiry, missing sequence, hash divergence, audit tamper, clone/replay, or another verified continuity-loss signal.",
+      "reason": "Gap validation is the control for unknown missing history. Requiring it on a clean aligned reconnect turns an availability-safe path into a false positive and makes Security Center Web report a nonexistent gap."
+    },
+    {
+      "question": "Does this issue require a new or adjusted explicit acceptance baseline?",
+      "recommendedAnswer": "Yes. Add a new explicit acceptance baseline, sec-e2e-028-normal-offline-reconnect-clear-state, rather than weakening sec-e2e-027.",
+      "reason": "sec-e2e-027 is intentionally the abnormal branch: lease expiry first blocks, then valid proof releases. The reported normal branch needs its own control and observation points so downstream work cannot pass by conflating normal reconnect with attack recovery."
+    },
+    {
+      "question": "Should Coding/Repair start immediately?",
+      "recommendedAnswer": "No. Dispatch Implementation Design first to materialize the new explicit entrypoint, update stable architecture contracts, and refresh design/KG/ImplementationToCodingHandoff.json plus design/KG/test-failure-records.json if the current code fails.",
+      "reason": "The intent stage may define the acceptance boundary, but implementation architecture owns physical entrypoint freezing, stable contract updates, and executable failure records before production code is repaired."
+    },
     {
       "question": "Does this issue require changing design/KG/SystemArchitecture.json?",
       "recommendedAnswer": "Yes. The graph has been clarified to make historical audit-record edits, including a second/non-tail record after several high-risk actions, part of the sec-e2e-025 tamper boundary.",
@@ -209,6 +247,13 @@
     }
   ],
   "notes": [
+    "User reproduction: /orchestrating shows a normally offline QwenPaw client stuck in 'gap pending validation' after reconnect: trust state 'gap pending validation', gap_status REQUIRED, recovery gate OPEN, latest trace cff08c45-2e1e-4310-80f6-a116be3a7834. Expected business outcome is restored trust CLEAR, not a persistent recovery-required display.",
+    "Boundary decision: normal offline/reconnect means the same canonical client returns with intact local audit evidence, no tamper, no missing sequence, no clone/replay signal, and no lease-expiry recovery debt. This is separate from sec-e2e-025 audit tamper and sec-e2e-027 lease-expiry active defense.",
+    "Control point for sec-e2e-028: establish a trusted canonical client, stop or disconnect the runtime through a normal offline path without mutating local audit evidence, restart the same canonical client, and attempt ordinary model access through the real app subprocess.",
+    "Observation point for sec-e2e-028: Security Center backend and operator web must show ALIGNED or TRUSTED, gap_status CLEAR, recovery_gate_status CLEAR, recovery_required=false, no missing_gap_proof/divergence display, and ordinary model access must return 200.",
+    "If the implementation scenario intentionally crosses the lease-expiry boundary, then sec-e2e-027 semantics apply: pre-proof denial is correct, but valid locally constructible full-chain proof must close the gate and the operator web must not remain in REQUIRED/OPEN after proof acceptance.",
+    "Implementation Design must add or freeze tests/integration/security/test_audit_foundation.py::test_normal_offline_reconnect_clears_without_gap_recovery and update OVERALL_ARCHITECTURE.md, src/qwenpaw/security/ARCHITECTURE.md, deploy/api/ARCHITECTURE.md, deploy/web/ARCHITECTURE.md, tests/ARCHITECTURE.md, tests/integration/security/ARCHITECTURE.md, design/KG/ImplementationToCodingHandoff.json, and design/KG/test-failure-records.json as needed.",
+    "Do not edit production code, weaken sec-e2e-025 or sec-e2e-027, mark tests xfail/skip, or treat browser/session ids as separate canonical clients to hide a stale recovery gate.",
     "Problem statement: the reported sec-e2e-025 failure is security-significant. After three high-risk commands produce normal audit records, editing the second committed log entry must not allow a later high-risk command to execute and must not leave Security Center Web in CLEAR.",
     "Acceptance criteria: sec-e2e-025 must cover committed historical record edit tamper as well as checkpoint loss or tail truncation. Control point: create a multi-record high-risk audit baseline, edit a committed non-tail audit record by operating-system means, then attempt another high-risk action without recovery. Observation point: high-risk execution is refused, local trust becomes UNTRUSTED, Security Center backend/operator web show recovery_required or equivalent UNTRUSTED state, and CLEAR is impossible until cloud-validated full-chain recovery succeeds.",
     "Evidence command: .\\.venv\\Scripts\\python.exe -m pytest tests/unit/cli/test_cli_version.py::test_cli_version_option_outputs_current_version tests/unit/cli/test_cli_agents.py::test_agents_list_uses_shared_tool_helper tests/unit/cli/test_cli_task.py::test_task_command_registered_in_cli tests/unit/routers/test_settings.py::test_put_then_get_roundtrip tests/unit/routers/test_git.py::test_git_helper_uses_shared_command_runner tests/integration/security/test_audit_foundation.py::test_end_to_end_non_repudiation_evidence_chain tests/integration/security/test_audit_foundation.py::test_audit_integrity_self_healing_lockdown tests/integration/security/test_audit_foundation.py::test_lease_expiry_blocks_untrusted_rejoin_until_gap_sync tests/integration/security/test_audit_foundation.py::test_prompt_injection_cannot_bypass_high_risk_tool_guard -q",

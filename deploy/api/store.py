@@ -672,7 +672,7 @@ class SecurityCenterStore:
                     divergence_reason = gap_validation["reason"]
                 else:
                     if established_trusted_anchor and not has_continuity_evidence:
-                        if trace_id.startswith("runtime-heartbeat::") and already_trusted_head:
+                        if already_trusted_head:
                             trust_state = TRUST_STATE_ALIGNED
                             recovery_required = False
                             gap_status = GAP_STATUS_CLEAR
@@ -754,7 +754,17 @@ class SecurityCenterStore:
                     "recovery_required": recovery_required,
                 },
             )
-            if "lease_ttl_seconds" in payload or recovery_release_completed:
+            should_update_lease_timing = False
+            if "lease_ttl_seconds" in payload:
+                should_update_lease_timing = True
+            elif recovery_release_completed:
+                should_update_lease_timing = True
+            if should_update_lease_timing:
+                existing_lease_ttl_seconds = max(
+                    _as_int(client_state.get("lease_ttl_seconds"), DEFAULT_LEASE_TTL_SECONDS),
+                    DEFAULT_LEASE_TTL_SECONDS,
+                )
+                existing_lease_expires_at = _as_int(client_state.get("lease_expires_at"), 0)
                 lease_ttl_seconds = max(
                     _as_int(
                         payload.get("lease_ttl_seconds") or client_state.get("lease_ttl_seconds"),
@@ -762,6 +772,12 @@ class SecurityCenterStore:
                     ),
                     DEFAULT_LEASE_TTL_SECONDS,
                 )
+                if (
+                    existing_lease_expires_at > requested_at_ns
+                    and not recovery_release_completed
+                    and lease_ttl_seconds < existing_lease_ttl_seconds
+                ):
+                    lease_ttl_seconds = existing_lease_ttl_seconds
                 client_state.update(
                     {
                         "last_heartbeat_at": requested_at_ns,

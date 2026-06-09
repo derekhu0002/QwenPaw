@@ -436,6 +436,7 @@ def app_server(  # pylint: disable=too-many-statements,too-many-branches
     logs: list[str] = []
     security_center_api_logs: list[str] = []
     security_center_web_logs: list[str] = []
+    server: AppServer | None = None
     with subprocess.Popen(
         [sys.executable, "-m", "deploy.api.app"],
         stdout=subprocess.PIPE,
@@ -574,7 +575,7 @@ def app_server(  # pylint: disable=too-many-statements,too-many-branches
                     f"logs:\n{''.join(logs)[-4000:]}"
                 )
 
-            yield AppServer(
+            server = AppServer(
                 host=host,
                 port=port,
                 process=process,
@@ -593,8 +594,20 @@ def app_server(  # pylint: disable=too-many-statements,too-many-branches
                 security_center_api_log_thread=security_center_api_log_thread,
                 security_center_web_log_thread=security_center_web_log_thread,
             )
+            yield server
         finally:
             client.close()
+            if (
+                server is not None
+                and server.process is not process
+                and server.process.poll() is None
+            ):
+                try:
+                    server.process.terminate()
+                    server.process.wait(timeout=10)
+                except subprocess.TimeoutExpired:
+                    server.process.kill()
+                    server.process.wait(timeout=5)
             if process.poll() is None:
                 # On POSIX, SIGINT lets uvicorn shut down cleanly so
                 # subprocess coverage data flushes (SIGTERM often skips

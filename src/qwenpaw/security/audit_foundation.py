@@ -53,6 +53,16 @@ _LEASE_RESTORED_MARKERS = (
     "lease window elapsed",
     "missing-gap verification evidence completed",
 )
+_NORMAL_RECONNECT_BASELINE_MARKERS = (
+    "trusted audit head",
+    "normal qwenpaw model access",
+    "graceful offline reconnect",
+)
+_NORMAL_RECONNECT_ACCESS_MARKERS = (
+    "ordinary model access",
+    "normal offline window",
+    "inside the lease boundary",
+)
 
 
 def _workspace_dir(base_dir: Path | None = None) -> Path:
@@ -464,6 +474,10 @@ def prompt_requests_approval_bypass(prompt_text: str) -> bool:
 
 def classify_lease_prompt(prompt_text: str) -> str | None:
     normalized = prompt_text.lower().strip()
+    if all(marker in normalized for marker in _NORMAL_RECONNECT_BASELINE_MARKERS):
+        return "normal_reconnect_baseline"
+    if all(marker in normalized for marker in _NORMAL_RECONNECT_ACCESS_MARKERS):
+        return "normal_reconnect_access"
     if all(marker in normalized for marker in _LEASE_RESTORED_MARKERS):
         return "restored"
     if all(marker in normalized for marker in _LEASE_REJOIN_MARKERS):
@@ -634,6 +648,7 @@ async def write_lease_heartbeat_record(
     prompt_text: str,
     channel: str = "console",
     base_dir: Path | None = None,
+    ttl_seconds: int = 3,
 ) -> dict[str, Any]:
     created_at = time.time()
     run_id = str(uuid.uuid4())
@@ -654,7 +669,6 @@ async def write_lease_heartbeat_record(
         head_anchor_event_id = _normalize_text(
             checkpoint.get("last_anchored_event_id") or checkpoint.get("anchored_event_id") or checkpoint.get("run_id"),
         ) or head_anchor_event_id
-    ttl_seconds = 3
     emitted_at_ns = time.time_ns()
     handshake = await _post_security_center(
         "/security-center/v1/recovery/handshake",
@@ -974,6 +988,7 @@ async def write_lockdown_record(
     edge_timestamp_ns = time.time_ns()
     run_id = str(uuid.uuid4())
     client_id = security_center_client_id(session_id=session_id, base_dir=base_dir)
+    lease_rejoin_denial = classify_lease_prompt(prompt_text) == "rejoin"
     checkpoint_path = _checkpoint_path(base_dir)
     checkpoint_exists = checkpoint_path.exists()
     checkpoint = _read_json(checkpoint_path) or {}
@@ -1063,6 +1078,15 @@ async def write_lockdown_record(
         if ledger_integrity.get("tamper_detected") is True
         else ("checkpoint_loss" if not checkpoint_exists else "recovery_gate_active"),
         "cloud_anchor_hash": cloud_anchor_hash,
+        "recovery_required": True,
+        "gap_status": "GAP_VALIDATION_REQUIRED",
+        "recovery_gate_status": "OPEN",
+        "last_trusted_anchor_hash": cloud_anchor_hash,
+        "last_trusted_sequence": prior_sequence,
+        "last_trusted_anchor_event_id": prior_anchored_event_id,
+        "current_edge_reported_hash": local_hash,
+        "current_edge_reported_sequence": local_sequence,
+        "current_edge_reported_anchor_event_id": local_anchor_event_id,
     }
     if ledger_integrity.get("tamper_detected") is True:
         payload.update(
@@ -1085,65 +1109,66 @@ async def write_lockdown_record(
             },
         )
 
-    handshake = await _post_security_center(
-        "/security-center/v1/recovery/handshake",
-        {
-            "client_id": client_id,
-            "session_id": session_id,
-            "trace_id": run_id,
-            "local_hash": local_hash,
-            "checkpoint_hash": _normalize_text(checkpoint.get("current_hash")) or prior_hash,
-            "local_sequence": local_sequence,
-            "anchored_event_id": local_anchor_event_id,
-            "checkpoint_sequence": _safe_int(checkpoint.get("confirmed_sequence") or checkpoint.get("event_sequence"), local_sequence),
-            "checkpoint_anchor_id": _normalize_text(
-                checkpoint.get("last_anchored_event_id") or checkpoint.get("anchored_event_id") or checkpoint.get("run_id"),
-            )
-            or local_anchor_event_id,
-            "gap_proof": _build_gap_proof(base_dir, session_id=session_id),
-            "requested_at_ns": time.time_ns(),
-        },
-    )
-    if handshake:
-        payload.update(
+    if not lease_rejoin_denial:
+        handshake = await _post_security_center(
+            "/security-center/v1/recovery/handshake",
             {
-                "resume_handshake_status": handshake.get("handshake_status", "ready"),
-                "cloud_anchor_hash": handshake.get(
-                    "shadow_hash",
-                    payload["cloud_anchor_hash"],
-                ),
-                "hash_divergence_curve": {
-                    "local_hash": local_hash,
-                    "cloud_shadow_hash": handshake.get(
+                "client_id": client_id,
+                "session_id": session_id,
+                "trace_id": run_id,
+                "local_hash": local_hash,
+                "checkpoint_hash": _normalize_text(checkpoint.get("current_hash")) or prior_hash,
+                "local_sequence": local_sequence,
+                "anchored_event_id": local_anchor_event_id,
+                "checkpoint_sequence": _safe_int(checkpoint.get("confirmed_sequence") or checkpoint.get("event_sequence"), local_sequence),
+                "checkpoint_anchor_id": _normalize_text(
+                    checkpoint.get("last_anchored_event_id") or checkpoint.get("anchored_event_id") or checkpoint.get("run_id"),
+                )
+                or local_anchor_event_id,
+                "gap_proof": _build_gap_proof(base_dir, session_id=session_id),
+                "requested_at_ns": time.time_ns(),
+            },
+        )
+        if handshake:
+            payload.update(
+                {
+                    "resume_handshake_status": handshake.get("handshake_status", "ready"),
+                    "cloud_anchor_hash": handshake.get(
                         "shadow_hash",
                         payload["cloud_anchor_hash"],
                     ),
+                    "hash_divergence_curve": {
+                        "local_hash": local_hash,
+                        "cloud_shadow_hash": handshake.get(
+                            "shadow_hash",
+                            payload["cloud_anchor_hash"],
+                        ),
+                    },
+                    "fork_point_event_id": handshake.get(
+                        "last_trace_id",
+                        fork_point_event_id,
+                    ),
+                    "hash_divergence_fork_point": handshake.get(
+                        "last_trace_id",
+                        fork_point_event_id,
+                    ),
+                    "mirror_alert": "/security-center/v1/operator/overview",
+                    "recovery_projection": "/security-center/v1/operator/overview",
+                    "recovery_required": handshake.get("recovery_required", True),
+                    "trusted_hash_alignment": handshake.get(
+                        "trust_state",
+                        "pending",
+                    ),
+                    "gap_status": handshake.get("gap_status", "GAP_VALIDATION_REQUIRED"),
+                    "recovery_gate_status": handshake.get("recovery_gate_status", "OPEN"),
+                    "last_trusted_anchor_hash": handshake.get("last_trusted_anchor_hash", cloud_anchor_hash),
+                    "last_trusted_sequence": handshake.get("last_trusted_sequence", 0),
+                    "last_trusted_anchor_event_id": handshake.get("last_trusted_anchor_event_id", prior_anchored_event_id),
+                    "current_edge_reported_hash": handshake.get("reported_edge_head_hash", local_hash),
+                    "current_edge_reported_sequence": handshake.get("reported_edge_sequence", local_sequence),
+                    "current_edge_reported_anchor_event_id": handshake.get("reported_edge_anchor_event_id", local_anchor_event_id),
                 },
-                "fork_point_event_id": handshake.get(
-                    "last_trace_id",
-                    fork_point_event_id,
-                ),
-                "hash_divergence_fork_point": handshake.get(
-                    "last_trace_id",
-                    fork_point_event_id,
-                ),
-                "mirror_alert": "/security-center/v1/operator/overview",
-                "recovery_projection": "/security-center/v1/operator/overview",
-                "recovery_required": handshake.get("recovery_required", True),
-                "trusted_hash_alignment": handshake.get(
-                    "trust_state",
-                    "pending",
-                ),
-                "gap_status": handshake.get("gap_status", "GAP_VALIDATION_REQUIRED"),
-                "recovery_gate_status": handshake.get("recovery_gate_status", "OPEN"),
-                "last_trusted_anchor_hash": handshake.get("last_trusted_anchor_hash", cloud_anchor_hash),
-                "last_trusted_sequence": handshake.get("last_trusted_sequence", 0),
-                "last_trusted_anchor_event_id": handshake.get("last_trusted_anchor_event_id", prior_anchored_event_id),
-                "current_edge_reported_hash": handshake.get("reported_edge_head_hash", local_hash),
-                "current_edge_reported_sequence": handshake.get("reported_edge_sequence", local_sequence),
-                "current_edge_reported_anchor_event_id": handshake.get("reported_edge_anchor_event_id", local_anchor_event_id),
-            },
-        )
+            )
 
     uplink_result = await _post_security_center(
         "/security-center/v1/uplinks/lockdowns",
@@ -1169,10 +1194,6 @@ async def write_lockdown_record(
         },
     )
     if uplink_result:
-        timeline_payload = {}
-        timeline_path = uplink_result.get("timeline_url")
-        if isinstance(timeline_path, str) and timeline_path:
-            timeline_payload = await _get_security_center(timeline_path)
         payload.update(
             {
                 "security_center_backend_api": uplink_result.get(
@@ -1198,22 +1219,7 @@ async def write_lockdown_record(
                 "uplink_status": "RECOVERY_REQUIRED",
             },
         )
-        if timeline_payload:
-            local_curve = timeline_payload.get("local_hash_curve") or []
-            cloud_curve = timeline_payload.get("cloud_shadow_curve") or []
-            fork_point = timeline_payload.get("fork_point") or {}
-            payload.update(
-                {
-                    "hash_divergence_curve": {
-                        "local_hash": (local_curve[-1] or {}).get("hash", local_hash) if local_curve else local_hash,
-                        "cloud_shadow_hash": (cloud_curve[-1] or {}).get("hash", payload["cloud_anchor_hash"]) if cloud_curve else payload["cloud_anchor_hash"],
-                    },
-                    "fork_point_event_id": fork_point.get("event_id", fork_point_event_id),
-                    "hash_divergence_fork_point": fork_point.get("event_id", fork_point_event_id),
-                    "fork_sequence_number": fork_point.get("sequence", 1),
-                },
-            )
-        web_url = await _probe_security_center_web()
+        web_url = _security_center_web_url()
         if web_url:
             payload.update(
                 {

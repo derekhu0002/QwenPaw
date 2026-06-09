@@ -147,4 +147,5 @@ def app_cmd(
         reload=reload,
         workers=1,
         log_level=log_level,
+        timeout_graceful_shutdown=2,
     )

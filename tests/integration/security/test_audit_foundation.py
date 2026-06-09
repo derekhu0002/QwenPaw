@@ -8,6 +8,7 @@ from .harness import (
     EmployeeIdentity,
     HighRiskDelegationRequest,
     LeaseExpiryRecoveryRequest,
+    NormalOfflineReconnectRequest,
     PromptInjectionAttempt,
     SecurityAuditHarness,
 )
@@ -315,4 +316,77 @@ def test_lease_expiry_blocks_untrusted_rejoin_until_gap_sync(app_server) -> None
     assert lease_expiry_observation.blocks_rejoin_until_gap_sync(), harness.render_lease_expiry_failure_report(
         lease_expiry_request=expired_lease_rejoin_attempt,
         lease_expiry_observation=lease_expiry_observation,
+    )
+
+
+@pytest.mark.integration
+@pytest.mark.p0
+def test_normal_offline_reconnect_clears_without_gap_recovery(app_server) -> None:
+    """Control point: establish a trusted QwenPaw audit head, stop the runtime
+    through a normal offline path, restart the same canonical client before
+    lease expiry, then attempt ordinary model access.
+
+    Observation point: Security Center backend and operator web must show
+    ALIGNED or TRUSTED with gap_status CLEAR, recovery_gate_status CLEAR,
+    recovery_required=false, and ordinary model access must return 200 without
+    a missing-gap recovery incident.
+    """
+
+    harness = SecurityAuditHarness.for_app_server(app_server)
+
+    # // GIVEN
+    trusted_device_operator = EmployeeIdentity(
+        employee_id="employee_normal_reconnect_owner",
+        channel_name="local_console",
+        authenticated_session_id="session_normal_offline_reconnect_clear",
+    )
+    clean_offline_reconnect = NormalOfflineReconnectRequest(
+        authenticated_employee=trusted_device_operator,
+        normal_offline_action_label="graceful_runtime_stop_before_lease_expiry",
+        restored_model_access_label="ordinary_model_access_after_clean_reconnect",
+        security_center_backend_api_name="security_center_backend_api",
+        security_center_operator_web_name="security_center_operator_web",
+    )
+
+    # // WHEN
+    normal_reconnect_observation = harness.verify_normal_offline_reconnect_clears_without_gap_recovery(
+        clean_offline_reconnect,
+    )
+
+    # // THEN
+    assert normal_reconnect_observation.baseline_client_registration_ready, harness.render_normal_offline_reconnect_failure_report(
+        normal_reconnect_request=clean_offline_reconnect,
+        normal_reconnect_observation=normal_reconnect_observation,
+    )
+    assert normal_reconnect_observation.trusted_audit_head_ready, harness.render_normal_offline_reconnect_failure_report(
+        normal_reconnect_request=clean_offline_reconnect,
+        normal_reconnect_observation=normal_reconnect_observation,
+    )
+    assert normal_reconnect_observation.normal_offline_control_point_ready, harness.render_normal_offline_reconnect_failure_report(
+        normal_reconnect_request=clean_offline_reconnect,
+        normal_reconnect_observation=normal_reconnect_observation,
+    )
+    assert normal_reconnect_observation.runtime_restarted_before_lease_expiry, harness.render_normal_offline_reconnect_failure_report(
+        normal_reconnect_request=clean_offline_reconnect,
+        normal_reconnect_observation=normal_reconnect_observation,
+    )
+    assert normal_reconnect_observation.backend_clear_projection_ready, harness.render_normal_offline_reconnect_failure_report(
+        normal_reconnect_request=clean_offline_reconnect,
+        normal_reconnect_observation=normal_reconnect_observation,
+    )
+    assert normal_reconnect_observation.operator_web_clear_projection_ready, harness.render_normal_offline_reconnect_failure_report(
+        normal_reconnect_request=clean_offline_reconnect,
+        normal_reconnect_observation=normal_reconnect_observation,
+    )
+    assert normal_reconnect_observation.ordinary_model_access_ready, harness.render_normal_offline_reconnect_failure_report(
+        normal_reconnect_request=clean_offline_reconnect,
+        normal_reconnect_observation=normal_reconnect_observation,
+    )
+    assert normal_reconnect_observation.no_gap_validation_required, harness.render_normal_offline_reconnect_failure_report(
+        normal_reconnect_request=clean_offline_reconnect,
+        normal_reconnect_observation=normal_reconnect_observation,
+    )
+    assert normal_reconnect_observation.reconnects_clear_without_gap_recovery(), harness.render_normal_offline_reconnect_failure_report(
+        normal_reconnect_request=clean_offline_reconnect,
+        normal_reconnect_observation=normal_reconnect_observation,
     )

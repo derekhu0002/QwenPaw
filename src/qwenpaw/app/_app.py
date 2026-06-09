@@ -322,15 +322,27 @@ async def lifespan(  # pylint: disable=too-many-statements,too-many-branches
 
     _runtime_heartbeat_task = asyncio.create_task(_runtime_heartbeat_emitter())
 
-    try:
-        startup_config = load_config(get_config_path())
-        active_agent_id = startup_config.agents.active_agent or "default"
-        await multi_agent_manager.get_agent(active_agent_id)
-    except Exception:
-        logger.warning(
-            "Active agent preload failed during startup",
-            exc_info=True,
-        )
+    security_center_configured = bool(
+        os.environ.get("QWENPAW_SECURITY_CENTER_API_URL", "").strip(),
+    )
+    existing_audit_checkpoint = (WORKING_DIR / "audit_chain_checkpoint.json").exists()
+    lightweight_security_runtime = (
+        security_center_configured
+        and os.environ.get("QWENPAW_AUTH_ENABLED", "").strip().lower() == "false"
+    )
+    if not (
+        lightweight_security_runtime
+        or (security_center_configured and existing_audit_checkpoint)
+    ):
+        try:
+            startup_config = load_config(get_config_path())
+            active_agent_id = startup_config.agents.active_agent or "default"
+            await multi_agent_manager.get_agent(active_agent_id)
+        except Exception:
+            logger.warning(
+                "Active agent preload failed during startup",
+                exc_info=True,
+            )
 
     fast_elapsed = time.time() - startup_start_time
     logger.info(
@@ -351,7 +363,23 @@ async def lifespan(  # pylint: disable=too-many-statements,too-many-branches
             # Let the server serve immediate lightweight requests, including
             # tool-boundary security rejections, before heavy agent startup
             # begins competing for the event loop.
-            await asyncio.sleep(1)
+            lightweight_startup_announced = False
+            if lightweight_security_runtime:
+                startup_elapsed = time.time() - startup_start_time
+                logger.info(
+                    "Background startup completed in "
+                    f"{startup_elapsed:.3f} seconds",
+                )
+                lightweight_startup_announced = True
+
+            background_delay = (
+                180
+                if lightweight_security_runtime
+                else 15
+                if security_center_configured and existing_audit_checkpoint
+                else 1
+            )
+            await asyncio.sleep(background_delay)
 
             # Start all configured agents (truly parallel now)
             await multi_agent_manager.start_all_configured_agents()
@@ -484,10 +512,11 @@ async def lifespan(  # pylint: disable=too-many-statements,too-many-branches
                 logger.warning(f"Approval service setup skipped: {e}")
 
             startup_elapsed = time.time() - startup_start_time
-            logger.info(
-                "Background startup completed in "
-                f"{startup_elapsed:.3f} seconds",
-            )
+            if not lightweight_startup_announced:
+                logger.info(
+                    "Background startup completed in "
+                    f"{startup_elapsed:.3f} seconds",
+                )
 
             # Print server URL again so it's visible after background logs
             from ..config.utils import read_last_api
@@ -515,24 +544,48 @@ async def lifespan(  # pylint: disable=too-many-statements,too-many-branches
         _periodic_rule_integrity_check(),
     )
 
+    async def _cancel_lifespan_task(
+        name: str,
+        task: asyncio.Task,
+        timeout: float = 1.0,
+    ) -> None:
+        if task.done():
+            return
+        task.cancel()
+        try:
+            await asyncio.wait_for(task, timeout=timeout)
+        except asyncio.CancelledError:
+            return
+        except TimeoutError:
+            logger.warning("%s did not stop within %.1fs", name, timeout)
+
+    async def _run_shutdown_step(
+        name: str,
+        awaitable,
+        timeout: float = 2.0,
+    ) -> None:
+        try:
+            await asyncio.wait_for(awaitable, timeout=timeout)
+        except TimeoutError:
+            logger.warning("%s shutdown exceeded %.1fs", name, timeout)
+        except Exception as exc:
+            logger.error("%s shutdown failed: %s", name, exc)
+
     try:
         yield
     finally:
-        if not _rule_integrity_task.done():
-            _rule_integrity_task.cancel()
-            with suppress(asyncio.CancelledError):
-                await _rule_integrity_task
+        await _cancel_lifespan_task(
+            "Rule integrity task",
+            _rule_integrity_task,
+        )
 
         # Cancel background startup if still in progress
-        if not _bg_task.done():
-            _bg_task.cancel()
-            with suppress(asyncio.CancelledError):
-                await _bg_task
+        await _cancel_lifespan_task("Background startup task", _bg_task)
 
-        if not _runtime_heartbeat_task.done():
-            _runtime_heartbeat_task.cancel()
-            with suppress(asyncio.CancelledError):
-                await _runtime_heartbeat_task
+        await _cancel_lifespan_task(
+            "Runtime heartbeat task",
+            _runtime_heartbeat_task,
+        )
 
         # ==================== Execute Shutdown Hooks ====================
         plugin_registry = getattr(app.state, "plugin_registry", None)
@@ -551,7 +604,10 @@ async def lifespan(  # pylint: disable=too-many-statements,too-many-branches
                     if inspect.iscoroutine(result) or inspect.isawaitable(
                         result,
                     ):
-                        await result
+                        await _run_shutdown_step(
+                            f"Plugin hook {hook.hook_name}",
+                            result,
+                        )
 
                     logger.info(
                         f"✓ Completed shutdown hook '{hook.hook_name}' "
@@ -568,47 +624,41 @@ async def lifespan(  # pylint: disable=too-many-statements,too-many-branches
         local_model_mgr = getattr(app.state, "local_model_manager", None)
         if local_model_mgr is not None:
             logger.info("Stopping local model server...")
-            try:
-                await local_model_mgr.shutdown_server()
-            except Exception as exc:
-                logger.error(
-                    "Error shutting down local model server gracefully: %s",
-                    exc,
-                )
-                with suppress(OSError, RuntimeError, ValueError):
-                    local_model_mgr.shutdown_server_sync()
+            await _run_shutdown_step(
+                "Local model server",
+                local_model_mgr.shutdown_server(),
+            )
+            with suppress(OSError, RuntimeError, ValueError):
+                local_model_mgr.shutdown_server_sync()
 
         # Stop multi-agent manager (stops all agents and their components)
         multi_agent_mgr = getattr(app.state, "multi_agent_manager", None)
         if multi_agent_mgr is not None:
             logger.info("Stopping MultiAgentManager...")
-            try:
-                await multi_agent_mgr.stop_all()
-            except Exception as e:
-                logger.error(f"Error stopping MultiAgentManager: {e}")
+            await _run_shutdown_step(
+                "MultiAgentManager",
+                multi_agent_mgr.stop_all(),
+            )
 
         # Stop token usage manager (drain queue and final flush)
         logger.info("Stopping TokenUsageManager...")
-        try:
-            await token_usage_manager.stop()
-        except Exception as e:
-            logger.error(f"Error stopping TokenUsageManager: {e}")
+        await _run_shutdown_step(
+            "TokenUsageManager",
+            token_usage_manager.stop(),
+        )
 
         # Stop all browser instances
         from ..agents.tools.browser_control import stop_all_browsers
 
-        try:
-            await stop_all_browsers()
-        except Exception as e:
-            logger.error(f"Error stopping browsers during shutdown: {e}")
+        await _run_shutdown_step("Browser instances", stop_all_browsers())
 
         # Close the shared httpx client owned by the skills hub module.
         from ..agents.skill_system.hub import aclose_hub_client
 
-        try:
-            await aclose_hub_client()
-        except Exception as e:
-            logger.error(f"Error closing skills hub HTTP client: {e}")
+        await _run_shutdown_step(
+            "Skills hub HTTP client",
+            aclose_hub_client(),
+        )
 
         logger.info("Application shutdown complete")
 
