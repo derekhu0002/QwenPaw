@@ -2,7 +2,7 @@
   "stage": "implementation-to-coding",
   "generatedAt": "2026-06-09",
   "sourceIntentGraphPath": "design/KG/SystemArchitecture.json",
-  "summary": "Implementation Design audited the Coding/Repair rework for the sec-e2e-027 regression and sec-e2e-028 stability. The frozen tests/integration/security/test_audit_foundation.py plus tests/integration/security/harness.py contracts remain intact, focused sec-e2e-027 and sec-e2e-028 both pass, tests/integration/security/test_audit_foundation.py passes 5/5, npm run test:argo passes 5/5, and design/KG/test-failure-records.json is empty. No production rework remains for Coding/Repair; this handoff is ready for final intention-design audit.",
+  "summary": "Implementation Design and Coding/Repair closed sec-e2e-029 built-in rule line-ending invariant. Production now hashes LF-normalized content via shared _sha256_normalized_content in rules_integrity.py and update_tool_rule_manifest.py. Frozen tests/unit/security/tool_guard/test_rules_integrity.py passes 2/2, npm run test:argo passes 6/6, and design/KG/test-failure-records.json is empty.",
   "implementationContracts": [
     "OVERALL_ARCHITECTURE.md",
     "src/qwenpaw/ARCHITECTURE.md",
@@ -54,6 +54,14 @@
       "observationPoint": "The high-risk tool must remain blocked at the tool-call boundary, rejection must be recorded as durable security evidence with trace-bound nonce semantics, and Security Center/operator surfaces must expose the rejected attempt rather than silently executing.",
       "initialExecutionStatus": "passed",
       "initialExecutionCommand": ".\\.venv\\Scripts\\python.exe -m pytest tests/integration/security/test_audit_foundation.py::test_prompt_injection_cannot_bypass_high_risk_tool_guard -q"
+    },
+    {
+      "testcaseName": "sec-e2e-029-builtin-rule-line-ending-invariant",
+      "entryPath": "tests/unit/security/tool_guard/test_rules_integrity.py::test_builtin_rule_line_ending_invariant",
+      "controlPoint": "Stage the official signed manifest bundle into a temporary rules directory, then verify LF-canonical bytes, CRLF-only transformed bytes, and semantic tamper without manifest update via verify_builtin_rule_files.",
+      "observationPoint": "LF-canonical and CRLF-only branches return ok=true with status ok; semantic tamper returns ok=false with status tampered and sha256_mismatch; cached get_last_rule_integrity_status must match each branch.",
+      "initialExecutionStatus": "passed",
+      "initialExecutionCommand": ".\\.venv\\Scripts\\python.exe -m pytest tests/unit/security/tool_guard/test_rules_integrity.py::test_builtin_rule_line_ending_invariant -q"
     }
   ],
   "criticalNonExplicitTests": [
@@ -69,7 +77,14 @@
       "path": "tests/architecture/security-explicit-entrypoint-traceability.test.js",
       "kind": "explicit-entrypoint-correctness-guard",
       "controlPoint": "Read SystemArchitecture.json, ImplementationToCodingHandoff.json, test-failure-records.json, tests/integration/security/test_audit_foundation.py, and tests/integration/security/harness.py.",
-      "observationPoint": "The guard proves sec-e2e-024/sec-e2e-025/sec-e2e-027/sec-e2e-028/sec-e2e-021 acceptanceCriteria, handoff entryPath, failure record path, GIVEN/WHEN/THEN markers, harness method names, and business failure category strings remain frozen."
+      "observationPoint": "The guard proves sec-e2e-024/sec-e2e-025/sec-e2e-027/sec-e2e-028/sec-e2e-021/sec-e2e-029 acceptanceCriteria, handoff entryPath, failure record path, GIVEN/WHEN/THEN markers, harness method names, and business failure category strings remain frozen."
+    },
+    {
+      "name": "tool-guard-rules-integrity-helper-contract",
+      "path": "tests/unit/security/tool_guard/test_rules_integrity.py",
+      "kind": "key-implementation-traceability-guard",
+      "controlPoint": "Hash LF, CRLF, and lone-CR samples plus official rule content through runtime _sha256_normalized_content and the manifest script import path.",
+      "observationPoint": "test_sha256_normalized_content_shared_helper_contract proves all line-ending variants digest identically and match the signed manifest baseline; manifest generation and runtime verify share the same helper."
     },
     {
       "name": "security-runtime-client-identity-boundary",
@@ -107,47 +122,39 @@
   "expectedFailureRecordsPath": "design/KG/test-failure-records.json",
   "codingTargets": [
     {
-      "testcaseName": "sec-e2e-027-lease-expiry-active-defense",
-      "path": "tests/integration/security/test_audit_foundation.py::test_lease_expiry_blocks_untrusted_rejoin_until_gap_sync",
-      "failureSignal": "resolved: sec-e2e-027 now passes unchanged, design/KG/test-failure-records.json is empty, and no open Coding/Repair failure signal remains.",
-      "nextAction": "No Coding/Repair production rework remains. Keep the frozen explicit entrypoints and protected harness unchanged, preserve sec-e2e-027 block-first/release-after-proof semantics plus sec-e2e-028 normal reconnect CLEAR stability, and pass this resolved state to @intention-design for final intent audit."
+      "testcaseName": "stage-closure-sentinel-sec-e2e-029",
+      "path": "design/KG/test-failure-records.json",
+      "failureSignal": "resolved: sec-e2e-029 LF/CRLF line-ending invariant passes; shared _sha256_normalized_content is wired through rules_integrity.py and update_tool_rule_manifest.py; npm run test:argo is 6/6 with empty failure records.",
+      "nextAction": "No Coding/Repair production rework remains for sec-e2e-029. Preserve frozen tests/unit/security/tool_guard/test_rules_integrity.py and harness.py unchanged."
     }
   ],
   "taskExecutionPlan": {
-    "executionStrategy": "Treat sec-e2e-027 and sec-e2e-028 as resolved by the audited Coding/Repair rework. Preserve sec-e2e-025 tamper lockdown, sec-e2e-027 lease-expiry block-first/release-after-proof, and sec-e2e-028 normal reconnect CLEAR semantics. No further production changes are authorized by this handoff unless final intention-design audit reopens the intent boundary.",
+    "executionStrategy": "Treat sec-e2e-029 as resolved by LF-normalized content hashing. Preserve sec-e2e-021 through sec-e2e-028 frozen boundaries and warn-only rules-integrity policy. No further production changes are authorized unless intention-design reopens the intent boundary.",
     "tasks": [
       {
-        "taskId": "sec-e2e-027-028-regression-stability-001",
-        "title": "Keep lease and reconnect stable",
-        "objective": "Preserve sec-e2e-027 block-first/release-after-proof behavior and sec-e2e-028 normal reconnect CLEAR behavior after the startup/readiness and shutdown-budget repair.",
+        "taskId": "sec-e2e-029-line-ending-invariant-001",
+        "title": "Preserve LF/CRLF invariant hashing",
+        "objective": "Keep verify, repair, and manifest generation on shared _sha256_normalized_content so Windows CRLF checkout does not false-positive tamper.",
         "relatedTestcases": [
-          "sec-e2e-027-lease-expiry-active-defense",
-          "sec-e2e-028-normal-offline-reconnect-clear-state"
+          "sec-e2e-029-builtin-rule-line-ending-invariant"
         ],
         "targetPaths": [
-          "src/qwenpaw/app/_app.py",
-          "src/qwenpaw/security/audit_foundation.py",
-          "src/qwenpaw/app/routers/console.py",
-          "deploy/api/app.py",
-          "deploy/api/store.py",
-          "deploy/web"
+          "src/qwenpaw/security/tool_guard/rules_integrity.py",
+          "scripts/update_tool_rule_manifest.py"
         ],
         "steps": [
-          "Keep tests/integration/security/test_audit_foundation.py, tests/integration/security/harness.py, and tests/integration/conftest.py read-only; do not xfail, skip, or weaken Lease_Expiry_Active_Defense_Gap or Normal_Offline_Reconnect_Clear_State_Gap assertions.",
-          "Preserve the lightweight security startup path: unauthenticated integration-mode Security Center runtime may serve HTTP readiness, heartbeat, and recovery paths before heavy agent/plugin preload completes.",
-          "For true lease expiry, pre-proof reconnect must deny model access at the security boundary before missing-gap proof.",
-          "After valid missing-gap verification for the same canonical client, deploy/api and runtime projection must move to ALIGNED or TRUSTED with recovery_required=false and restored model access 200.",
-          "For normal reconnect before lease expiry, Security Center backend/web must remain ALIGNED or TRUSTED with gap_status=CLEAR, recovery_gate_status=CLEAR, recovery_required=false, and ordinary model access 200.",
-          "Rerun focused sec-e2e-027, focused sec-e2e-028, tests/integration/security/test_audit_foundation.py -q, and npm run test:argo before any future release affecting this boundary."
+          "Keep tests/unit/security/tool_guard/test_rules_integrity.py and tests/unit/security/tool_guard/harness.py read-only.",
+          "Do not regenerate rules_manifest.json or rules_manifest.sig unless dangerous_shell_commands.yaml semantic content changes.",
+          "Rerun tests/unit/security/tool_guard/test_rules_integrity.py -q and npm run test:argo before any future release affecting this boundary."
         ],
-        "completionSignal": "Focused sec-e2e-027 and sec-e2e-028 both pass unchanged, and npm run test:argo exits 0 with design/KG/test-failure-records.json empty."
+        "completionSignal": "Focused sec-e2e-029 entrypoint passes and npm run test:argo exits 0 with design/KG/test-failure-records.json empty."
       },
       {
-        "taskId": "full-explicit-gate-after-sec-e2e-028-002",
+        "taskId": "full-explicit-gate-after-sec-e2e-029-002",
         "title": "Preserve full explicit gate",
-        "objective": "Keep all repository-declared explicit testcases passing together after the sec-e2e-027 and sec-e2e-028 stability repair.",
+        "objective": "Keep all repository-declared explicit testcases passing together after sec-e2e-029 delivery.",
         "dependsOn": [
-          "sec-e2e-027-028-regression-stability-001"
+          "sec-e2e-029-line-ending-invariant-001"
         ],
         "relatedTestcases": [
           "cli-version-surface",
@@ -159,21 +166,19 @@
           "sec-e2e-025-audit-integrity-self-healing-lockdown",
           "sec-e2e-027-lease-expiry-active-defense",
           "sec-e2e-028-normal-offline-reconnect-clear-state",
-          "sec-e2e-021-prompt-injection-tool-guard-enforced"
+          "sec-e2e-021-prompt-injection-tool-guard-enforced",
+          "sec-e2e-029-builtin-rule-line-ending-invariant"
         ],
         "targetPaths": [
           "design/KG/test-failure-records.json",
           "design/KG/ImplementationToCodingHandoff.json"
         ],
         "steps": [
-          "Run the focused sec-e2e-027 pytest entrypoint unchanged.",
-          "Run the focused sec-e2e-028 pytest entrypoint unchanged and keep it below the Argo 120s budget.",
           "Run npm run validate:system-architecture and npm run validate:handoff:implementation.",
           "Run npm run test:argo so design/KG/test-failure-records.json is refreshed by the architecture runner.",
-          "If a future failure appears, update design/KG/test-failure-records.json with the failing entrypoint, command, exit code, business category, and first actionable failure message.",
-          "Do not remove sec-e2e-028 from SystemArchitecture.json or from the explicit pytest command to make the gate pass."
+          "Run node tests/architecture/security-explicit-entrypoint-traceability.test.js."
         ],
-        "completionSignal": "The focused sec-e2e-027 and sec-e2e-028 entrypoints, handoff validation, and Argo explicit gate exit 0 with no stale failure record."
+        "completionSignal": "All explicit entrypoints, handoff validation, traceability guard, and Argo explicit gate exit 0 with no stale failure record."
       }
     ]
   },
@@ -192,6 +197,8 @@
     "tests/integration/security/ARCHITECTURE.md",
     "tests/integration/security/harness.py",
     "tests/integration/security/test_audit_foundation.py",
+    "tests/unit/security/tool_guard/test_rules_integrity.py",
+    "tests/unit/security/tool_guard/harness.py",
     "tests/architecture/security-explicit-entrypoint-traceability.test.js",
     "tests/unit/cli/test_cli_version.py",
     "tests/unit/cli/test_cli_agents.py",
@@ -200,8 +207,7 @@
     "tests/unit/routers/test_git.py"
   ],
   "openGaps": [
-    "No open sec-e2e-027 or sec-e2e-028 implementation architecture gap remains after the audited Coding/Repair rework. Focused sec-e2e-027 passed in 39.40s, focused sec-e2e-028 passed in 58.59s, tests/integration/security/test_audit_foundation.py passed 5/5 in 74.06s, and npm run test:argo passed 5/5 with design/KG/test-failure-records.json empty.",
-    "SystemArchitecture.json contains sec-e2e-027 and sec-e2e-028 acceptanceCriteria as frozen tests/integration/security/test_audit_foundation.py entrypoints; Implementation Design did not modify the intent graph during this audit.",
-    "Final @intention-design audit should verify that the repaired production behavior still matches the intent distinction between lease-expiry active defense and normal offline reconnect."
+    "No open sec-e2e-029 implementation architecture gap remains after LF-normalized content hashing delivery. tests/unit/security/tool_guard/test_rules_integrity.py passes 2/2 and npm run test:argo passes 6/6 with design/KG/test-failure-records.json empty.",
+    "Preserve sec-e2e-021 through sec-e2e-028 frozen boundaries unchanged when touching built-in rule integrity."
   ]
 }

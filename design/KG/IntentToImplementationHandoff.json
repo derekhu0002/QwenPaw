@@ -2,13 +2,14 @@
   "stage": "intent-to-implementation",
   "generatedAt": "2026-06-09",
   "sourceIntentGraphPath": "design/KG/SystemArchitecture.json",
-  "summary": "Intent clarification for normal offline reconnect: sec-e2e-025 remains the tamper/continuity-loss boundary, sec-e2e-027 remains the lease-expiry recovery-proof boundary, and new sec-e2e-028 freezes the normal offline or graceful reconnect boundary. A trusted canonical client that reconnects without tamper, missing sequence, clone/replay evidence, or lease-expiry recovery debt must return to ALIGNED or TRUSTED with gap_status CLEAR, recovery_gate_status CLEAR, recovery_required=false, and ordinary model access available; Security Center Web must not keep displaying 'gap pending validation' for that normal path.",
+  "summary": "Intent clarification for built-in tool rule integrity line-ending invariance: sec-e2e-029 freezes LF/CRLF semantic-equivalent verification for dangerous_shell_commands.yaml. sec-e2e-025 remains the tamper/continuity-loss boundary, sec-e2e-027 remains the lease-expiry recovery-proof boundary, and sec-e2e-028 freezes the normal offline reconnect boundary.",
   "intentElementIds": [
     "intent-qwenpaw-platform",
     "intent-backend-runtime",
     "intent-local-operator-cli",
     "intent-local-security-audit-foundation",
     "intent-high-risk-tool-guard",
+    "intent-builtin-tool-rule-integrity",
     "intent-audit-event",
     "intent-audit-checkpoint-anchor",
     "intent-audit-uplink-manager",
@@ -23,6 +24,7 @@
     "rel-cli-backend",
     "rel-backend-security-audit-foundation",
     "rel-audit-foundation-high-risk-tool-guard",
+    "rel-high-risk-tool-guard-builtin-rule-integrity",
     "rel-audit-foundation-audit-event",
     "rel-audit-foundation-checkpoint-anchor",
     "rel-uplink-manager-foundation",
@@ -144,6 +146,17 @@
       "acceptanceBoundary": "tests/integration/security/test_audit_foundation.py::test_prompt_injection_cannot_bypass_high_risk_tool_guard must pass as part of the full explicit-test gate.",
       "requiredEntryKind": "explicit-testcase-entry",
       "implementationNotes": "Fix enforcement at the tool invocation boundary; do not rely on prompt intent classification and do not weaken the rejection evidence requirement."
+    },
+    {
+      "name": "sec-e2e-029-builtin-rule-line-ending-invariant",
+      "mountedElementId": "intent-builtin-tool-rule-integrity",
+      "mountedElementName": "Built-in Tool Rule Integrity",
+      "type": "Acceptance Test",
+      "controlPoint": "Run tests/unit/security/tool_guard/test_rules_integrity.py::test_builtin_rule_line_ending_invariant with the official signed manifest bundle staged into a temporary rules directory: verify LF-canonical bytes, CRLF-only transformed bytes, and semantic tamper without manifest update.",
+      "observationPoint": "LF-canonical and CRLF-only branches return ok=true with status ok via verify_builtin_rule_files and get_last_rule_integrity_status; semantic tamper returns ok=false with status tampered and sha256_mismatch.",
+      "acceptanceBoundary": "tests/unit/security/tool_guard/test_rules_integrity.py::test_builtin_rule_line_ending_invariant must pass as part of the full explicit-test gate.",
+      "requiredEntryKind": "explicit-testcase-entry",
+      "implementationNotes": "Runtime and manifest generation must share _sha256_normalized_content; do not weaken semantic tamper detection to make CRLF branches pass."
     }
   ],
   "frozenBaselines": [
@@ -162,7 +175,8 @@
     "tests/integration/security/test_audit_foundation.py::test_audit_integrity_self_healing_lockdown",
     "tests/integration/security/test_audit_foundation.py::test_lease_expiry_blocks_untrusted_rejoin_until_gap_sync",
     "tests/integration/security/test_audit_foundation.py::test_normal_offline_reconnect_clears_without_gap_recovery",
-    "tests/integration/security/test_audit_foundation.py::test_prompt_injection_cannot_bypass_high_risk_tool_guard"
+    "tests/integration/security/test_audit_foundation.py::test_prompt_injection_cannot_bypass_high_risk_tool_guard",
+    "tests/unit/security/tool_guard/test_rules_integrity.py::test_builtin_rule_line_ending_invariant"
   ],
   "requiredImplementationArtifacts": [
     "design/KG/IntentToImplementationHandoff.json",
