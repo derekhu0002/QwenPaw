@@ -138,3 +138,4 @@ e2e/__pycache__/
 /tmp_*/
 deploy/api/data/security-center-store.json
 .pytest_cache/
+design/persistant-memory/
