@@ -586,6 +586,25 @@ class SecurityCenterStore:
                         "last_trusted_anchor_event_type": "GAP_VALIDATION",
                     },
                 )
+            elif gap_validation["accepted"]:
+                aligned_head_hash = local_hash or expected_reported_hash or shadow_hash
+                trust_state = TRUST_STATE_ALIGNED
+                recovery_required = False
+                gap_status = GAP_STATUS_VALIDATED
+                recovery_gate_status = RECOVERY_GATE_CLOSED
+                divergence_reason = ""
+                shadow_hash = aligned_head_hash or shadow_hash
+                client_state.update(
+                    {
+                        "shadow_hash": shadow_hash,
+                        "last_trusted_anchor_hash": aligned_head_hash or checkpoint_hash or shadow_hash,
+                        "last_trusted_sequence": max(local_sequence, checkpoint_sequence, gap_validation_trusted_sequence),
+                        "last_trusted_anchor_event_id": anchored_event_id or checkpoint_anchor_id,
+                        "last_trusted_anchor_source": "recovery_handshake_gap_validation",
+                        "last_trusted_anchor_trace_id": trace_id or client_state.get("last_handshake_trace_id"),
+                        "last_trusted_anchor_event_type": "GAP_VALIDATION",
+                    },
+                )
             elif (
                 not established_trusted_anchor
                 and local_hash
@@ -646,18 +665,11 @@ class SecurityCenterStore:
                     recovery_gate_status = RECOVERY_GATE_OPEN
                     divergence_reason = "continuity_evidence_missing"
                 elif recovery_gate_open:
-                    if already_trusted_head:
-                        trust_state = TRUST_STATE_ALIGNED
-                        recovery_required = False
-                        gap_status = GAP_STATUS_CLEAR
-                        recovery_gate_status = RECOVERY_GATE_CLOSED
-                        divergence_reason = ""
-                    else:
-                        trust_state = TRUST_STATE_GAP_VALIDATION_REQUIRED
-                        recovery_required = True
-                        gap_status = GAP_STATUS_REQUIRED
-                        recovery_gate_status = RECOVERY_GATE_OPEN
-                        divergence_reason = gap_validation["reason"]
+                    trust_state = TRUST_STATE_GAP_VALIDATION_REQUIRED
+                    recovery_required = True
+                    gap_status = GAP_STATUS_REQUIRED
+                    recovery_gate_status = RECOVERY_GATE_OPEN
+                    divergence_reason = gap_validation["reason"]
                 else:
                     if established_trusted_anchor and not has_continuity_evidence:
                         if trace_id.startswith("runtime-heartbeat::") and already_trusted_head:
@@ -723,6 +735,11 @@ class SecurityCenterStore:
                     recovery_gate_status = RECOVERY_GATE_OPEN
                     divergence_reason = "local_hash_mismatch"
 
+            recovery_release_completed = (
+                recovery_gate_open
+                and not recovery_required
+                and trust_state in {TRUST_STATE_ALIGNED, "TRUSTED"}
+            )
             client_state.update(
                 {
                     "trust_state": trust_state,
@@ -737,8 +754,14 @@ class SecurityCenterStore:
                     "recovery_required": recovery_required,
                 },
             )
-            if "lease_ttl_seconds" in payload:
-                lease_ttl_seconds = max(_as_int(payload.get("lease_ttl_seconds"), DEFAULT_LEASE_TTL_SECONDS), DEFAULT_LEASE_TTL_SECONDS)
+            if "lease_ttl_seconds" in payload or recovery_release_completed:
+                lease_ttl_seconds = max(
+                    _as_int(
+                        payload.get("lease_ttl_seconds") or client_state.get("lease_ttl_seconds"),
+                        DEFAULT_LEASE_TTL_SECONDS,
+                    ),
+                    DEFAULT_LEASE_TTL_SECONDS,
+                )
                 client_state.update(
                     {
                         "last_heartbeat_at": requested_at_ns,

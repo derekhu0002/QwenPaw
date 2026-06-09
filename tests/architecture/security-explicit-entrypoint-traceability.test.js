@@ -27,8 +27,8 @@ const frozenExplicitTestcases = [
 ];
 const codingQueueTestcases = [
     {
-        testcaseName: 'sec-e2e-027-lease-expiry-active-defense',
-        entryPath: 'tests/integration/security/test_audit_foundation.py::test_lease_expiry_blocks_untrusted_rejoin_until_gap_sync',
+        testcaseName: 'sec-e2e-025-audit-integrity-self-healing-lockdown',
+        entryPath: 'tests/integration/security/test_audit_foundation.py::test_audit_integrity_self_healing_lockdown',
         initialExecutionStatus: 'passed',
     },
 ];
@@ -107,10 +107,34 @@ for (const explicitTestcase of codingQueueTestcases) {
 }
 
 assert.ok(
-    !(handoff.explicitEntrypoints || []).some(
-        entry => entry.testcaseName === 'sec-e2e-024-end-to-end-non-repudiation-evidence-chain',
+    !(handoff.codingTargets || []).some(
+        target => target.testcaseName === 'sec-e2e-024-end-to-end-non-repudiation-evidence-chain',
     ),
-    'Implementation handoff must not keep sec-e2e-024 in the coding queue after it has been implemented.',
+    'Implementation handoff must not keep sec-e2e-024 in codingTargets after it has been implemented.',
+);
+assert.ok(
+    !(handoff.codingTargets || []).some(
+        target => target.testcaseName === 'sec-e2e-027-lease-expiry-active-defense',
+    ),
+    'Implementation handoff must not keep sec-e2e-027 in codingTargets after the explicit gate is resolved.',
+);
+assert.ok(
+    !(failureRecords || []).some(
+        record => record.testcasename === 'sec-e2e-027-lease-expiry-active-defense',
+    ),
+    'Failure records must not keep a stale sec-e2e-027 failure after runArchitectureTests passes.',
+);
+const resolvedLeaseExpiryHandoff = (handoff.explicitEntrypoints || []).find(
+    entry => entry.testcaseName === 'sec-e2e-027-lease-expiry-active-defense',
+);
+assert.ok(
+    resolvedLeaseExpiryHandoff,
+    'Implementation handoff must keep the resolved sec-e2e-027 explicit entrypoint.',
+);
+assert.strictEqual(
+    resolvedLeaseExpiryHandoff.initialExecutionStatus,
+    'passed',
+    'Resolved sec-e2e-027 handoff status must be passed after the full explicit gate is green.',
 );
 
 for (const marker of [
@@ -128,6 +152,9 @@ for (const marker of [
     'verify_local_hash_chain_integrity',
     'verify_confirmation_precedes_high_risk_tool_effect',
     'verify_tamper_evidence_forces_lockdown',
+    'baseline_high_risk_action_labels',
+    'tampered_record_position_from_start',
+    'second_committed_audit_record_history_edit',
     'verify_lease_expiry_blocks_untrusted_rejoin_until_gap_sync',
     'recovery_control_point_ready',
     'pre_recovery_lease_monitor_projection_ready',
@@ -164,6 +191,10 @@ for (const categoryMarker of [
     'Security_Rejection_Nonce',
     'Security_Center_Backend_Api_Missing',
     'Security_Center_Operator_Web_Missing',
+    'Historical_Multi_Record_Baseline_Missing',
+    'Second_Historical_Record_Tamper_Missing',
+    'Historical_Record_Tamper_Not_Detected',
+    'Security_Center_Clear_State_Not_Blocked',
     'Lease_Heartbeat_Projection_Missing',
 ]) {
     assert.ok(
@@ -179,6 +210,7 @@ for (const harnessMethod of [
     'verify_local_hash_chain_integrity',
     'verify_confirmation_precedes_high_risk_tool_effect',
     'verify_tamper_evidence_forces_lockdown',
+    '_tamper_committed_historical_audit_record',
     'verify_lease_expiry_blocks_untrusted_rejoin_until_gap_sync',
     '_attempt_missing_gap_verification',
     'verify_prompt_injection_guard_enforced',

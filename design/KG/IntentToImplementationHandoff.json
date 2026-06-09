@@ -1,21 +1,38 @@
 {
   "stage": "intent-to-implementation",
-  "generatedAt": "2026-06-08",
+  "generatedAt": "2026-06-09",
   "sourceIntentGraphPath": "design/KG/SystemArchitecture.json",
-  "summary": "Issue from /orchestrating: the current full explicit testcase suite is not yet guaranteed to pass end-to-end. Intent conclusion: no new SystemArchitecture.json element or relationship is required; existing explicit testcase baselines and implementation contracts already make explicit tests acceptance boundaries. The quality gate is that every repository-declared explicit testcase must pass before delivery is accepted, and failures must be recorded as evidence for Implementation Design or Coding/Repair rather than handled by weakening frozen tests.",
+  "summary": "Intent clarification for the full explicit security gate: all declared explicit acceptance testcases must pass without weakening frozen entrypoints. sec-e2e-025 remains governed by whole-ledger tamper detection, and the remaining sec-e2e-027 failure is a lease-recovery release gap: after a lease-expired canonical client proves the full missing gap to the cloud mirror, Security Center must close recovery_required, project ALIGNED or TRUSTED for that same client, and normal model access must return; keeping UNTRUSTED or 423 after valid proof is not an acceptable secure state.",
   "intentElementIds": [
     "intent-qwenpaw-platform",
     "intent-backend-runtime",
     "intent-local-operator-cli",
     "intent-local-security-audit-foundation",
-    "intent-high-risk-tool-guard"
+    "intent-high-risk-tool-guard",
+    "intent-audit-event",
+    "intent-audit-checkpoint-anchor",
+    "intent-audit-uplink-manager",
+    "intent-heartbeat-emitter",
+    "intent-security-center",
+    "intent-audit-lease-monitor",
+    "intent-cloud-integrity-stub"
   ],
   "relationshipIds": [
     "rel-platform-backend",
     "rel-platform-cli",
     "rel-cli-backend",
     "rel-backend-security-audit-foundation",
-    "rel-audit-foundation-high-risk-tool-guard"
+    "rel-audit-foundation-high-risk-tool-guard",
+    "rel-audit-foundation-audit-event",
+    "rel-audit-foundation-checkpoint-anchor",
+    "rel-uplink-manager-foundation",
+    "rel-uplink-manager-heartbeat-emitter",
+    "rel-heartbeat-emitter-security-center",
+    "rel-uplink-service-security-center",
+    "rel-security-center-lease-monitor",
+    "rel-lease-monitor-cloud-stub",
+    "rel-security-center-cloud-stub",
+    "rel-uplink-manager-cloud-stub"
   ],
   "explicitTestcases": [
     {
@@ -89,11 +106,11 @@
       "mountedElementId": "intent-local-security-audit-foundation",
       "mountedElementName": "Local Security Audit Foundation",
       "type": "Acceptance Test",
-      "controlPoint": "Run tests/integration/security/test_audit_foundation.py::test_audit_integrity_self_healing_lockdown against the real app_server fixture: execute a sensitive action, tamper with local audit or settings artifacts by operating-system means, restart or resume, then attempt sensitive work again.",
-      "observationPoint": "The system raises one business-level data-continuity anomaly, enters local lock mode, refuses sensitive tooling, and exposes recovery requirement through the frozen Security Center backend and operator-web observation surfaces.",
+      "controlPoint": "Run tests/integration/security/test_audit_foundation.py::test_audit_integrity_self_healing_lockdown against the real app_server fixture: execute multiple high-risk actions to create a multi-record audit baseline and cloud anchor, edit a committed local audit record by operating-system means, including the second/non-tail record while leaving later records possible, then attempt another high-risk action without manual trust recovery.",
+      "observationPoint": "The system raises one business-level data-continuity anomaly, enters local UNTRUSTED lock mode before releasing the next high-risk tool, refuses sensitive tooling, and exposes recovery_required/UNTRUSTED through the frozen Security Center backend plus operator-web observation surfaces; Security Center must not show CLEAR until full-chain validation against the cloud mirror succeeds.",
       "acceptanceBoundary": "tests/integration/security/test_audit_foundation.py::test_audit_integrity_self_healing_lockdown must pass as part of the full explicit-test gate.",
       "requiredEntryKind": "explicit-testcase-entry",
-      "implementationNotes": "Failure should drive implementation of tamper detection, checkpoint handling, lock mode, and Security Center projection; do not treat missing checkpoint artifacts as harmless cache misses."
+      "implementationNotes": "Implementation Design must review whether the frozen acceptance body and harness already cover historical-record edit tamper. If they only cover checkpoint loss or tail truncation, update the implementation architecture and explicit acceptance design so this branch is observable before Coding/Repair. Do not treat a locally self-consistent rewritten chain or unchanged checkpoint as CLEAR without cloud-mirror validation."
     },
     {
       "name": "sec-e2e-027-lease-expiry-active-defense",
@@ -101,10 +118,10 @@
       "mountedElementName": "Local Security Audit Foundation",
       "type": "Acceptance Test",
       "controlPoint": "Run tests/integration/security/test_audit_foundation.py::test_lease_expiry_blocks_untrusted_rejoin_until_gap_sync against the real app_server fixture: allow a trusted client to miss the lease window, observe denied rejoin before missing-gap verification, then drive the distinct recovery control point and restored-access attempt.",
-      "observationPoint": "Security Center marks the same canonical client UNTRUSTED after lease expiry, pre_recovery_console_status shows denied rejoin, post_recovery_console_status shows restored trust only after continuity validation, and model access remains blocked until that validation succeeds.",
+      "observationPoint": "Security Center marks the same canonical client UNTRUSTED after lease expiry, pre_recovery_console_status shows denied rejoin before proof, the recovery control point accepts full missing-gap validation, post_recovery_console_status becomes 200 only after that validation, post-recovery trust projects ALIGNED or TRUSTED with recovery_required=false, and continued UNTRUSTED or 423 after valid proof is a failure.",
       "acceptanceBoundary": "tests/integration/security/test_audit_foundation.py::test_lease_expiry_blocks_untrusted_rejoin_until_gap_sync must pass as part of the full explicit-test gate.",
       "requiredEntryKind": "explicit-testcase-entry",
-      "implementationNotes": "Preserve the two control points and two console observation points; do not collapse denied and restored frames into one mutable final status."
+      "implementationNotes": "Preserve the two control points and two console observation points; do not collapse denied and restored frames into one mutable final status. Repair production recovery release semantics for the same canonical client rather than editing tests/integration/security/test_audit_foundation.py or tests/integration/security/harness.py."
     },
     {
       "name": "sec-e2e-021-prompt-injection-tool-guard-enforced",
@@ -152,6 +169,9 @@
     "tests/unit/cli/test_cli_task.py",
     "tests/unit/routers/test_settings.py",
     "tests/unit/routers/test_git.py",
+    "deploy",
+    "deploy/api",
+    "deploy/web",
     "src/qwenpaw",
     "src/qwenpaw/security",
     "src/qwenpaw/cli"
@@ -159,34 +179,47 @@
   "openQuestions": [
     {
       "question": "Does this issue require changing design/KG/SystemArchitecture.json?",
-      "recommendedAnswer": "No immediate graph edit is recommended.",
-      "reason": "The graph already contains the security acceptance baselines and the root implementation contract already enumerates the full explicit entrypoint set. The issue is that the declared acceptance gate is not yet green, which is an implementation-design or repair gap unless a downstream agent proves an explicit testcase is invalid against intent."
+      "recommendedAnswer": "Yes. The graph has been clarified to make historical audit-record edits, including a second/non-tail record after several high-risk actions, part of the sec-e2e-025 tamper boundary.",
+      "reason": "The prior graph already said modify or truncate the local audit store, but the lock-mode wording could be read as checkpoint/startup centered. The user-reported failure shows that downstream agents need an explicit invariant that ledger verification covers any committed record and that CLEAR before recovery validation is a security failure."
     },
     {
-      "question": "What should count as accepted delivery for this issue?",
-      "recommendedAnswer": "All nine explicit testcase entrypoints listed in tests/ARCHITECTURE.md and OVERALL_ARCHITECTURE.md must pass in one evidence run, with the command, exit code, and failure output captured.",
-      "reason": "Partial explicit-test success would leave an intent acceptance boundary unfulfilled. The issue wording says full explicit testcases cannot pass, so the gate must be suite-wide rather than scenario-by-scenario."
+      "question": "What should count as accepted delivery for sec-e2e-025 after this clarification?",
+      "recommendedAnswer": "The sec-e2e-025 acceptance entrypoint must prove both checkpoint/tail tamper and historical committed-record edit tamper, then the full explicit gate must still pass in one evidence run.",
+      "reason": "A test that passes only because it deletes the checkpoint does not cover the reported attack path where the operator edits the second log entry and leaves enough local state for the runtime to continue."
     },
     {
       "question": "Should the next stage first be Implementation Design or Coding/Repair?",
-      "recommendedAnswer": "Dispatch Implementation Design first if the full explicit run reveals missing or stale failure records, unclear ownership, or a need to update ImplementationToCodingHandoff.json; dispatch Coding/Repair directly only after a current failure record clearly maps failures to implementation files without changing frozen tests.",
-      "reason": "Current design/KG/test-failure-records.json is empty, while the issue claims failures exist. That mismatch is evidence collection and handoff hygiene, not yet a concrete code-repair input."
+      "recommendedAnswer": "Dispatch Implementation Design first.",
+      "reason": "The existing ImplementationToCodingHandoff records sec-e2e-025 as passed, while the user-reported live validation fails a now-clarified acceptance branch. Implementation Design needs to decide whether to revise the frozen acceptance entrypoint/harness, update implementation contracts, refresh test-failure records, and only then hand precise coding targets to Coding/Repair."
     },
     {
       "question": "May downstream agents edit explicit testcase bodies or protected harness helpers to make the gate pass?",
       "recommendedAnswer": "No, not without an upstream architecture redesign explicitly changing the acceptance baseline.",
       "reason": "tests/integration/security/ARCHITECTURE.md marks those bodies and harness vocabulary as frozen business contracts. Weakening assertions would hide the quality-gate failure rather than satisfying intent."
+    },
+    {
+      "question": "Does the latest sec-e2e-027 failure require changing the intent architecture?",
+      "recommendedAnswer": "Yes, narrowly. Add an explicit recovery release rule so downstream work treats post-validation continued lockout as a failed acceptance outcome rather than a conservative security fallback.",
+      "reason": "The prior graph already required proof before rejoin and said only then normal model access returns, but the current failure proves downstream agents need the positive release boundary stated as an invariant: valid full-chain missing-gap proof must close recovery_required and restore model access for the same canonical client."
+    },
+    {
+      "question": "Should sec-e2e-027 be made to pass by relaxing recovery assertions or accepting continued 423 after proof?",
+      "recommendedAnswer": "No. Pre-proof denial is required, but post-proof continued denial is a product failure because it prevents legitimate recovery after the cloud mirror has validated continuity.",
+      "reason": "The business/security intent is active defense with recoverability: protect the user while continuity is unknown, then restore normal work once continuity is proven. A permanent or stale UNTRUSTED state after valid proof fails the showcase and the explicit acceptance observation point."
     }
   ],
   "notes": [
-    "Problem statement: the repository-declared full explicit testcase suite is a must-pass acceptance gate. Any failing explicit testcase blocks delivery until either the implementation satisfies the frozen baseline or upstream intent architecture deliberately changes the baseline.",
-    "Acceptance criteria: run all explicit pytest entrypoints from tests/ARCHITECTURE.md in one evidence pass; every entrypoint must pass; failures must be recorded with command, exit code, failing node id, concise failure category, and the first actionable traceback or business-readable failure message.",
+    "Problem statement: the reported sec-e2e-025 failure is security-significant. After three high-risk commands produce normal audit records, editing the second committed log entry must not allow a later high-risk command to execute and must not leave Security Center Web in CLEAR.",
+    "Acceptance criteria: sec-e2e-025 must cover committed historical record edit tamper as well as checkpoint loss or tail truncation. Control point: create a multi-record high-risk audit baseline, edit a committed non-tail audit record by operating-system means, then attempt another high-risk action without recovery. Observation point: high-risk execution is refused, local trust becomes UNTRUSTED, Security Center backend/operator web show recovery_required or equivalent UNTRUSTED state, and CLEAR is impossible until cloud-validated full-chain recovery succeeds.",
     "Evidence command: .\\.venv\\Scripts\\python.exe -m pytest tests/unit/cli/test_cli_version.py::test_cli_version_option_outputs_current_version tests/unit/cli/test_cli_agents.py::test_agents_list_uses_shared_tool_helper tests/unit/cli/test_cli_task.py::test_task_command_registered_in_cli tests/unit/routers/test_settings.py::test_put_then_get_roundtrip tests/unit/routers/test_git.py::test_git_helper_uses_shared_command_runner tests/integration/security/test_audit_foundation.py::test_end_to_end_non_repudiation_evidence_chain tests/integration/security/test_audit_foundation.py::test_audit_integrity_self_healing_lockdown tests/integration/security/test_audit_foundation.py::test_lease_expiry_blocks_untrusted_rejoin_until_gap_sync tests/integration/security/test_audit_foundation.py::test_prompt_injection_cannot_bypass_high_risk_tool_guard -q",
     "Architecture evidence commands: npm run validate:system-architecture and npm run validate:handoff:intent must stay green for this handoff; npm run test:argo should be run by Implementation Design if it updates contracts or failure records.",
-    "Failure log location: write or update design/KG/test-failure-records.json with the current full explicit-test run result. If raw logs are too large, store only stable failure summaries there and keep raw terminal output or CI artifact references outside the intent graph.",
-    "Implementation Design boundary: decide whether current failures require updates to OVERALL_ARCHITECTURE.md, local ARCHITECTURE.md contracts, critical non-explicit guardrails, or design/KG/ImplementationToCodingHandoff.json; do not repair product behavior in that stage.",
+    "Failure log location: write or update design/KG/test-failure-records.json with the current sec-e2e-025 historical-record tamper result and the full explicit-test run result. If raw logs are too large, store only stable failure summaries there and keep raw terminal output or CI artifact references outside the intent graph.",
+    "Implementation Design boundary: first audit whether tests/integration/security/test_audit_foundation.py::test_audit_integrity_self_healing_lockdown and tests/integration/security/harness.py actually drive the reported second-record edit branch. If coverage is absent or only checkpoint-loss based, update implementation architecture, explicit testcase design, and design/KG/ImplementationToCodingHandoff.json before Coding/Repair; do not repair product behavior in that stage.",
+    "Current sec-e2e-027 failure from npm run test:argo: sec-e2e-024 and sec-e2e-025 pass, but tests/integration/security/test_audit_foundation.py::test_lease_expiry_blocks_untrusted_rejoin_until_gap_sync fails with Post_Recovery_Model_Access_Restore_Missing. Observed latest signal: recovery_control_point_ready is satisfied, post_recovery_backend_api_projection_ready and post_recovery_operator_web_projection_ready are satisfied, but post_recovery_trust_state remains UNTRUSTED and post_recovery_console_status remains 423 after missing-gap verification evidence completed.",
+    "sec-e2e-027 control points: control point one is lease expiry plus pre-proof rejoin attempt against the real app_server fixture; control point two is the distinct missing-gap verification step followed by a second restored-access attempt. Observation points: Security Center backend/operator web project UNTRUSTED and recovery_required before proof, the pre-recovery console frame denies model access, the post-recovery projection for the same canonical client closes recovery_required and becomes ALIGNED or TRUSTED after proof, and the post-recovery console frame returns normal model access.",
+    "Implementation Design input for sec-e2e-027: refresh design/KG/ImplementationToCodingHandoff.json and design/KG/test-failure-records.json so the failure signal names Post_Recovery_Model_Access_Restore_Missing with latest observed post_recovery_trust_state=UNTRUSTED and post_recovery_console_status=423, then hand Coding/Repair production targets under src/qwenpaw/security/audit_foundation.py, src/qwenpaw/app/routers/console.py, deploy/api/app.py, deploy/api/store.py, and deploy/web as needed while keeping tests/integration/security/test_audit_foundation.py and tests/integration/security/harness.py frozen.",
     "Coding/Repair boundary: once failure records and ImplementationToCodingHandoff.json clearly identify failing explicit node ids and target implementation files, repair production code under the owning stable elements until the full explicit suite passes.",
     "Do not edit frozen explicit testcase bodies, do not weaken assertions, do not convert real app subprocess acceptance paths into mocks, do not remove failing node ids from the explicit suite, and do not fake pass results by marking tests xfail or skip.",
-    "Recommended next dispatch: implementation-design with this handoff plus a request to run the full explicit evidence command, populate design/KG/test-failure-records.json if failures reproduce, and produce or refresh design/KG/ImplementationToCodingHandoff.json for coding-and-repairing."
+    "Recommended next dispatch: implementation-design with this handoff plus the user reproduction: STEP 1 normal use, STEP 2 perform three high-risk delete-test-file commands and confirm logs, STEP 3 edit the second audit log, STEP 4 attempt another high-risk command and require denial, STEP 5 verify Security Center Web remains UNTRUSTED or recovery-required rather than CLEAR until validated recovery. Implementation Design should produce or refresh design/KG/ImplementationToCodingHandoff.json and then request Coding/Repair."
   ]
 }

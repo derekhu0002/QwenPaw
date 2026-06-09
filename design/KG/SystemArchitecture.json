@@ -63,6 +63,14 @@
           "value": "If startup consistency verification detects settings or audit-anchor divergence, backend runtime enters security lock mode and refuses sensitive tool loading until trust is re-established."
         },
         {
+          "name": "ledger_integrity_verification_rule",
+          "value": "Audit integrity verification must cover the committed audit ledger, not only checkpoint-file presence. Editing, deleting, reordering, or truncating any already-written audit record, including a non-tail record after several high-risk actions, is a tamper signal that must be detected no later than the next high-risk tool boundary or startup/reconnect preflight."
+        },
+        {
+          "name": "security_center_recovery_display_rule",
+          "value": "After audit-ledger tamper is detected, Security Center backend and operator web must keep the affected canonical client in UNTRUSTED or equivalent recovery-required state until full-chain validation against the cloud mirror succeeds; a CLEAR display before that validation is a security failure."
+        },
+        {
           "name": "audit_tiering_rule",
           "value": "L1 critical events use synchronous durable write plus hash-chain and checkpoint updates before returning; L2 informational reasoning events may batch asynchronously and remain visible as pending verification until anchored."
         },
@@ -85,6 +93,10 @@
         {
           "name": "trust_recovery_rule",
           "value": "Whenever a client resumes from UNTRUSTED state, it must perform a mandatory full-chain sync for the missing sequence gap. No new high-risk tools are permitted until the gap is validated by the cloud mirror."
+        },
+        {
+          "name": "recovery_release_rule",
+          "value": "For a lease-expired or otherwise UNTRUSTED canonical client, successful full-chain missing-gap validation by the cloud mirror must close the recovery gate and restore normal model access for that same client. Continuing to project UNTRUSTED or return recovery-gated model-access denial after valid proof is a security availability failure; restoring access before valid proof remains a security integrity failure."
         }
       ],
       "testcases": [
@@ -98,11 +110,11 @@
         },
         {
           "name": "sec-e2e-025-audit-integrity-self-healing-lockdown",
-          "description": "When an employee attempts to hide a sensitive action by deleting records, editing configuration files, or reconnecting after offline tampering, the system must surface a single business-level data continuity anomaly and refuse further sensitive use until trust is re-established.",
+          "description": "When an employee attempts to hide a sensitive action by deleting or editing audit records, editing configuration files, or reconnecting after offline tampering, the system must surface a single business-level data continuity anomaly and refuse further sensitive use until trust is re-established.",
           "type": "Acceptance Test",
-          "Input": "Execute a sensitive action, unplug the network cable, modify or truncate the local audit store or settings database by operating-system means, restart the client, then attempt to reconnect or invoke another sensitive tool.",
+          "Input": "Execute several sensitive actions so the local audit ledger has a multi-record baseline and Security Center has a trusted cloud anchor, then modify or truncate any committed local audit record, checkpoint, or settings database by operating-system means, including editing a non-tail audit record such as the second record. Without manually restoring trust, attempt to reconnect or invoke another sensitive tool.",
           "acceptanceCriteria": "tests/integration/security/test_audit_foundation.py::test_audit_integrity_self_healing_lockdown",
-          "TestResults": "Before the device can continue sensitive work or upload new anchors, the system raises a data continuity anomaly in Security Center, enters local lock mode, and refuses sensitive tools until the local ledger, checkpoint anchors, and cloud mirror are reconciled."
+          "TestResults": "Before the device can continue sensitive work or upload new anchors, the system detects the audit-ledger divergence, raises a data continuity anomaly in Security Center, enters local UNTRUSTED lock mode, refuses sensitive tools at the high-risk boundary, and keeps Security Center backend and operator web recovery-required rather than CLEAR until the local ledger, checkpoint anchors, and cloud mirror are reconciled."
         },
         {
           "name": "sec-e2e-027-lease-expiry-active-defense",
@@ -110,7 +122,7 @@
           "type": "Acceptance Test",
           "Input": "Let a client miss its heartbeat long enough to exceed the lease TTL, observe the cloud dashboard state turn untrusted, then reconnect the device and attempt to resume model access without first completing the missing-gap verification.",
           "acceptanceCriteria": "tests/integration/security/test_audit_foundation.py::test_lease_expiry_blocks_untrusted_rejoin_until_gap_sync",
-          "TestResults": "Security Center marks the device untrusted when the lease expires, denies restored authorization on reconnect until the full missing hash gap is validated, and only then allows the node to regain normal model access."
+          "TestResults": "Security Center marks the device untrusted when the lease expires, denies restored authorization on reconnect until the full missing hash gap is validated, then closes recovery_required for the same canonical client, projects ALIGNED or TRUSTED, and allows normal model access to return. Keeping the client UNTRUSTED or returning a recovery-gated denial after valid missing-gap proof fails this acceptance boundary just as much as restoring access before proof."
         },
         {
           "name": "sec-e2e-021-prompt-injection-tool-guard-enforced",

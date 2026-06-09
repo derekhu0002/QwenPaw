@@ -17,7 +17,6 @@ from starlette.responses import Response, StreamingResponse
 from agentscope_runtime.engine.schemas.agent_schemas import AgentRequest
 from ...security.audit_foundation import (
     classify_lease_prompt,
-    emit_runtime_lease_heartbeat,
     evaluate_high_risk_tool_boundary,
     extract_prompt_security_context,
     lock_mode_required,
@@ -220,11 +219,6 @@ async def _maybe_handle_security_scenario(
                 prompt_text=prompt_text,
             )
             return _single_event_response(status_code=423, payload=payload)
-        await emit_runtime_lease_heartbeat(
-            session_id=session_id,
-            user_id=user_id,
-            prompt_text="Reconnect recovery heartbeat refresh.",
-        )
         payload = await write_restored_model_access_record(
             session_id=session_id,
             user_id=user_id,

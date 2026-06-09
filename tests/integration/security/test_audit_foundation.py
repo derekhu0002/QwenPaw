@@ -81,14 +81,16 @@ def test_end_to_end_non_repudiation_evidence_chain(app_server) -> None:
 @pytest.mark.integration
 @pytest.mark.p0
 def test_audit_integrity_self_healing_lockdown(app_server) -> None:
-    """Control point: execute a sensitive flow, tamper with local audit evidence by
-    operating-system means, then attempt resumed sensitive work.
+    """Control point: execute three sensitive flows, tamper with the second
+    committed audit record by operating-system means, then attempt resumed
+    sensitive work.
 
     Observation point: the resulting runtime evidence must surface one business
-    continuity anomaly, enter local lock mode, block resumed sensitive tooling,
-    make both the Security Center backend API and operator web show the
-    recovery requirement, and render a hash-break curve chart with an explicit
-    fork point where local and cloud shadow hashes diverge.
+    continuity anomaly for historical-record tamper, enter local lock mode,
+    block resumed sensitive tooling, make both the Security Center backend API
+    and operator web show the recovery requirement instead of CLEAR, and render
+    a hash-break curve chart with an explicit fork point where local and cloud
+    shadow hashes diverge.
     """
 
     harness = SecurityAuditHarness.for_app_server(app_server)
@@ -101,8 +103,14 @@ def test_audit_integrity_self_healing_lockdown(app_server) -> None:
     )
     tamper_recovery_attempt = AuditIntegrityTamperRequest(
         authenticated_employee=authenticated_operator,
+        baseline_high_risk_action_labels=(
+            "payroll export quarter close",
+            "finance archive purge",
+            "privileged vendor payout",
+        ),
+        tampered_record_position_from_start=2,
         sensitive_tool_name="payroll_export_tool",
-        tampered_artifact_label="tampered_local_audit_chain_segment",
+        tampered_artifact_label="second_committed_audit_record_history_edit",
         reconnect_action_label="payroll close reconciliation",
         security_center_backend_api_name="security_center_backend_api",
         security_center_operator_web_name="security_center_operator_web",
@@ -119,6 +127,18 @@ def test_audit_integrity_self_healing_lockdown(app_server) -> None:
         tamper_recovery_attempt=tamper_recovery_attempt,
         lockdown_observation=lockdown_observation,
     )
+    assert lockdown_observation.historical_multi_record_baseline_ready, harness.render_audit_integrity_lockdown_failure_report(
+        tamper_recovery_attempt=tamper_recovery_attempt,
+        lockdown_observation=lockdown_observation,
+    )
+    assert lockdown_observation.tampered_record_is_second_non_tail, harness.render_audit_integrity_lockdown_failure_report(
+        tamper_recovery_attempt=tamper_recovery_attempt,
+        lockdown_observation=lockdown_observation,
+    )
+    assert lockdown_observation.historical_record_tamper_detected, harness.render_audit_integrity_lockdown_failure_report(
+        tamper_recovery_attempt=tamper_recovery_attempt,
+        lockdown_observation=lockdown_observation,
+    )
     assert lockdown_observation.external_anchor_divergence_ready, harness.render_audit_integrity_lockdown_failure_report(
         tamper_recovery_attempt=tamper_recovery_attempt,
         lockdown_observation=lockdown_observation,
@@ -132,6 +152,10 @@ def test_audit_integrity_self_healing_lockdown(app_server) -> None:
         lockdown_observation=lockdown_observation,
     )
     assert lockdown_observation.operator_web_projection_ready, harness.render_audit_integrity_lockdown_failure_report(
+        tamper_recovery_attempt=tamper_recovery_attempt,
+        lockdown_observation=lockdown_observation,
+    )
+    assert lockdown_observation.security_center_clear_blocked, harness.render_audit_integrity_lockdown_failure_report(
         tamper_recovery_attempt=tamper_recovery_attempt,
         lockdown_observation=lockdown_observation,
     )

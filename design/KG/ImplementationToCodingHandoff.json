@@ -1,8 +1,8 @@
 {
   "stage": "implementation-to-coding",
-  "generatedAt": "2026-06-08",
+  "generatedAt": "2026-06-09",
   "sourceIntentGraphPath": "design/KG/SystemArchitecture.json",
-  "summary": "Implementation Design refreshed the handoff for the repository-declared full explicit testcase quality gate. The single evidence run executed all 9 explicit entrypoints from tests/ARCHITECTURE.md and OVERALL_ARCHITECTURE.md; 6 passed and 3 failed. Coding/Repair must restore the active pytest async runtime for the two backend unit entrypoints and repair the sec-e2e-027 lease-expiry recovery behavior without editing frozen explicit tests, weakening assertions, or using xfail/skip.",
+  "summary": "Implementation Design audited Coding/Repair delivery for the remaining sec-e2e-027 lease-expiry active-defense gap. The frozen entrypoint tests/integration/security/test_audit_foundation.py::test_lease_expiry_blocks_untrusted_rejoin_until_gap_sync and protected harness tests/integration/security/harness.py remain intact, production repairs under deploy/api/store.py, src/qwenpaw/security/audit_foundation.py, and src/qwenpaw/app/routers/console.py now satisfy the block-first/release-after-proof contract, and focused, full explicit pytest, npm run test:argo, plus MCP runArchitectureTests all pass with design/KG/test-failure-records.json empty.",
   "implementationContracts": [
     "OVERALL_ARCHITECTURE.md",
     "src/qwenpaw/ARCHITECTURE.md",
@@ -26,19 +26,18 @@
     {
       "testcaseName": "sec-e2e-025-audit-integrity-self-healing-lockdown",
       "entryPath": "tests/integration/security/test_audit_foundation.py::test_audit_integrity_self_healing_lockdown",
-      "controlPoint": "Run the frozen real-app subprocess acceptance entrypoint: execute a sensitive action, tamper with local audit or settings artifacts by operating-system means, restart or resume, then attempt sensitive work again.",
-      "observationPoint": "The system must raise one business-level data-continuity anomaly, enter local lock mode, refuse sensitive tooling, and expose recovery requirements through the frozen Security Center backend and operator-web observation surfaces.",
+      "controlPoint": "Run the frozen real-app subprocess acceptance entrypoint: execute three high-risk actions to create a multi-record committed audit baseline, edit the second committed non-tail audit record by operating-system means while later records remain present, then attempt another high-risk action without manual trust recovery.",
+      "observationPoint": "The system must detect historical-record ledger divergence before releasing the next high-risk boundary, raise one business-level data-continuity anomaly, enter local UNTRUSTED lock mode, refuse sensitive tooling, and keep the frozen Security Center backend plus operator-web observation surfaces recovery-required or UNTRUSTED rather than CLEAR until full-chain cloud validation succeeds.",
       "initialExecutionStatus": "passed",
-      "initialExecutionCommand": ".\\.venv\\Scripts\\python.exe -m pytest tests/unit/cli/test_cli_version.py::test_cli_version_option_outputs_current_version tests/unit/cli/test_cli_agents.py::test_agents_list_uses_shared_tool_helper tests/unit/cli/test_cli_task.py::test_task_command_registered_in_cli tests/unit/routers/test_settings.py::test_put_then_get_roundtrip tests/unit/routers/test_git.py::test_git_helper_uses_shared_command_runner tests/integration/security/test_audit_foundation.py::test_end_to_end_non_repudiation_evidence_chain tests/integration/security/test_audit_foundation.py::test_audit_integrity_self_healing_lockdown tests/integration/security/test_audit_foundation.py::test_lease_expiry_blocks_untrusted_rejoin_until_gap_sync tests/integration/security/test_audit_foundation.py::test_prompt_injection_cannot_bypass_high_risk_tool_guard -q"
+      "initialExecutionCommand": ".\\.venv\\Scripts\\python.exe -m pytest tests/integration/security/test_audit_foundation.py::test_audit_integrity_self_healing_lockdown -q"
     },
     {
       "testcaseName": "sec-e2e-027-lease-expiry-active-defense",
       "entryPath": "tests/integration/security/test_audit_foundation.py::test_lease_expiry_blocks_untrusted_rejoin_until_gap_sync",
       "controlPoint": "Run the frozen real-app subprocess acceptance entrypoint: let a trusted client miss the lease window, observe denied rejoin before missing-gap verification, then drive the distinct recovery control point and restored-access attempt.",
-      "observationPoint": "Security Center must mark the same canonical client UNTRUSTED after lease expiry, the pre-recovery console status must show denied rejoin, and the post-recovery console status must show restored trust only after continuity validation.",
-      "initialExecutionStatus": "failed",
-      "initialExecutionCommand": ".\\.venv\\Scripts\\python.exe -m pytest tests/unit/cli/test_cli_version.py::test_cli_version_option_outputs_current_version tests/unit/cli/test_cli_agents.py::test_agents_list_uses_shared_tool_helper tests/unit/cli/test_cli_task.py::test_task_command_registered_in_cli tests/unit/routers/test_settings.py::test_put_then_get_roundtrip tests/unit/routers/test_git.py::test_git_helper_uses_shared_command_runner tests/integration/security/test_audit_foundation.py::test_end_to_end_non_repudiation_evidence_chain tests/integration/security/test_audit_foundation.py::test_audit_integrity_self_healing_lockdown tests/integration/security/test_audit_foundation.py::test_lease_expiry_blocks_untrusted_rejoin_until_gap_sync tests/integration/security/test_audit_foundation.py::test_prompt_injection_cannot_bypass_high_risk_tool_guard -q",
-      "failureReason": "category=\"Lease_Expiry_Active_Defense_Gap\": Recovery_Control_Point_Missing and Post_Recovery_Model_Access_Restore_Missing. Observed pre_recovery_trust_state=UNTRUSTED, post_recovery_trust_state=DIVERGED, pre_recovery_console_status=423, post_recovery_console_status=200."
+      "observationPoint": "Security Center must mark the same canonical client UNTRUSTED after lease expiry, the pre-recovery console status must show denied rejoin before proof, the recovery control point must accept full-chain missing-gap validation, and the post-recovery trust projection plus console access must become ALIGNED or TRUSTED/200 only after continuity validation.",
+      "initialExecutionStatus": "passed",
+      "initialExecutionCommand": ".\\.venv\\Scripts\\python.exe -m pytest tests/unit/cli/test_cli_version.py::test_cli_version_option_outputs_current_version tests/unit/cli/test_cli_agents.py::test_agents_list_uses_shared_tool_helper tests/unit/cli/test_cli_task.py::test_task_command_registered_in_cli tests/unit/routers/test_settings.py::test_put_then_get_roundtrip tests/unit/routers/test_git.py::test_git_helper_uses_shared_command_runner tests/integration/security/test_audit_foundation.py::test_end_to_end_non_repudiation_evidence_chain tests/integration/security/test_audit_foundation.py::test_audit_integrity_self_healing_lockdown tests/integration/security/test_audit_foundation.py::test_lease_expiry_blocks_untrusted_rejoin_until_gap_sync tests/integration/security/test_audit_foundation.py::test_prompt_injection_cannot_bypass_high_risk_tool_guard -q"
     },
     {
       "testcaseName": "sec-e2e-021-prompt-injection-tool-guard-enforced",
@@ -100,55 +99,19 @@
   "expectedFailureRecordsPath": "design/KG/test-failure-records.json",
   "codingTargets": [
     {
-      "testcaseName": "settings-language-roundtrip",
-      "path": "tests/unit/routers/test_settings.py::test_put_then_get_roundtrip",
-      "failureSignal": "Async_Test_Runtime_Gap: pytest cannot execute the async backend settings explicit entrypoint because the active .venv does not load pytest-asyncio or another suitable async pytest plugin.",
-      "nextAction": "Restore repository pytest async support in the execution environment or dependency setup, then rerun the unchanged explicit entrypoint to expose the real PUT/GET language roundtrip assertion."
-    },
-    {
-      "testcaseName": "git-helper-command-runner",
-      "path": "tests/unit/routers/test_git.py::test_git_helper_uses_shared_command_runner",
-      "failureSignal": "Async_Test_Runtime_Gap: pytest cannot execute the pytest.mark.asyncio backend git helper explicit entrypoint; PytestUnknownMarkWarning confirms the async marker is not registered in the active run.",
-      "nextAction": "Restore repository pytest async support in the execution environment or dependency setup, then rerun the unchanged explicit entrypoint to verify shared command-runner delegation."
-    },
-    {
-      "testcaseName": "sec-e2e-027-lease-expiry-active-defense",
-      "path": "tests/integration/security/test_audit_foundation.py::test_lease_expiry_blocks_untrusted_rejoin_until_gap_sync",
-      "failureSignal": "Lease_Expiry_Active_Defense_Gap: the frozen explicit entrypoint reports Recovery_Control_Point_Missing and Post_Recovery_Model_Access_Restore_Missing; post-recovery trust remains DIVERGED even though the post-recovery console status is 200.",
-      "nextAction": "Repair production security and Security Center recovery behavior beneath tests/integration/security/harness.py so the distinct missing-gap recovery control point becomes observable and model access is restored only after continuity validation."
+      "testcaseName": "full-explicit-gate-resolved",
+      "path": "design/KG/test-failure-records.json",
+      "failureSignal": "No_Open_Failure: all current explicit testcase gates pass and design/KG/test-failure-records.json is empty after Coding/Repair.",
+      "nextAction": "No Coding/Repair action remains for sec-e2e-027; preserve frozen tests and send this state to Intention Design for final intent audit."
     }
   ],
   "taskExecutionPlan": {
-    "executionStrategy": "Treat the 9-entry full explicit pytest command as the acceptance gate. First make the backend async unit entrypoints executable without touching their bodies, then repair the sec-e2e-027 production recovery seam beneath the protected harness, and finally rerun the same full explicit command until all 9 pass in one run.",
+    "executionStrategy": "Treat the focused sec-e2e-027 pytest entrypoint, full 9-entry explicit pytest command, npm run test:argo, and MCP runArchitectureTests result as the closure evidence. Keep tests/integration/security/test_audit_foundation.py and tests/integration/security/harness.py unchanged and hand the resolved state to Intention Design for final audit.",
     "tasks": [
       {
-        "taskId": "explicit-gate-async-runtime-001",
-        "title": "Restore pytest async execution",
-        "objective": "Make the active repository test environment execute async explicit pytest functions so backend settings and git helper assertions can run normally.",
-        "relatedTestcases": [
-          "settings-language-roundtrip",
-          "git-helper-command-runner"
-        ],
-        "targetPaths": [
-          "pyproject.toml",
-          "tests/unit/routers/test_settings.py",
-          "tests/unit/routers/test_git.py"
-        ],
-        "steps": [
-          "Do not edit tests/unit/routers/test_settings.py or tests/unit/routers/test_git.py unless an upstream architecture change explicitly unfreezes them.",
-          "Inspect the active dependency installation and pytest plugin discovery path; the evidence command showed pytest_asyncio is absent from .venv.",
-          "Restore pytest-asyncio or an equivalent async pytest plugin through the repository-supported dependency/setup path, not by converting async tests to synchronous wrappers.",
-          "Rerun tests/unit/routers/test_settings.py::test_put_then_get_roundtrip and tests/unit/routers/test_git.py::test_git_helper_uses_shared_command_runner unchanged."
-        ],
-        "completionSignal": "Both backend explicit unit entrypoints execute their assertion bodies and pass without xfail, skip, or assertion weakening."
-      },
-      {
-        "taskId": "sec-e2e-027-recovery-control-002",
-        "title": "Repair lease recovery control point",
-        "objective": "Make the frozen sec-e2e-027 entrypoint observe a distinct missing-gap recovery control point and post-recovery trust restoration.",
-        "dependsOn": [
-          "explicit-gate-async-runtime-001"
-        ],
+        "taskId": "sec-e2e-027-recovery-release-001",
+        "title": "Audit lease recovery release",
+        "objective": "Confirm the frozen sec-e2e-027 entrypoint observes post-recovery trust restoration and model access for the same canonical client after full-chain missing-gap proof.",
         "relatedTestcases": [
           "sec-e2e-027-lease-expiry-active-defense"
         ],
@@ -162,20 +125,20 @@
         ],
         "steps": [
           "Keep tests/integration/security/test_audit_foundation.py and tests/integration/security/harness.py read-only; do not weaken Recovery_Control_Point_Missing or Post_Recovery_Model_Access_Restore_Missing assertions.",
-          "Trace the denied rejoin flow, recovery handshake flow, and post-recovery model access flow for the same canonical runtime client id.",
-          "Repair production behavior so continuity validation closes the recovery gate and Security Center no longer projects post-recovery trust as DIVERGED for the recovered client.",
-          "Preserve the pre-recovery denial frame: UNTRUSTED trust state and 423 denial must remain observable before missing-gap verification.",
-          "Preserve separate pre_recovery_console_status and post_recovery_console_status observations rather than reusing a mutable final state."
+          "Verify the denied rejoin flow, recovery handshake flow, and post-recovery model access flow for the same canonical runtime client id and session timeline.",
+          "Confirm production behavior closes recovery_required after continuity validation and no longer projects post-recovery trust as UNTRUSTED for the recovered client.",
+          "Confirm the pre-recovery denial frame remains observable before missing-gap verification.",
+          "Confirm separate pre_recovery_console_status and post_recovery_console_status observations remain present.",
+          "Rerun tests/integration/security/test_audit_foundation.py::test_lease_expiry_blocks_untrusted_rejoin_until_gap_sync unchanged and require post_recovery_trust_state in {ALIGNED, TRUSTED} plus post_recovery_console_status=200."
         ],
         "completionSignal": "tests/integration/security/test_audit_foundation.py::test_lease_expiry_blocks_untrusted_rejoin_until_gap_sync passes unchanged and still proves denied rejoin before recovery plus restored model access only after continuity validation."
       },
       {
-        "taskId": "full-explicit-gate-003",
+        "taskId": "full-explicit-gate-002",
         "title": "Reprove full explicit gate",
         "objective": "Demonstrate that all repository-declared explicit testcases pass together in one evidence run.",
         "dependsOn": [
-          "explicit-gate-async-runtime-001",
-          "sec-e2e-027-recovery-control-002"
+          "sec-e2e-027-recovery-release-001"
         ],
         "relatedTestcases": [
           "cli-version-surface",
@@ -223,8 +186,6 @@
     "tests/unit/routers/test_git.py"
   ],
   "openGaps": [
-    "The active .venv is missing pytest async plugin support, so tests/unit/routers/test_settings.py::test_put_then_get_roundtrip and tests/unit/routers/test_git.py::test_git_helper_uses_shared_command_runner currently fail before business assertions execute.",
-    "tests/integration/security/test_audit_foundation.py::test_lease_expiry_blocks_untrusted_rejoin_until_gap_sync still reports category=\"Lease_Expiry_Active_Defense_Gap\" because the distinct recovery control point and post-recovery model-access restoration are not yet contract-ready.",
-    "design/KG/SystemArchitecture.json models only the 4 security explicit testcases; the 5 CLI/backend unit explicit entrypoints are declared by tests/ARCHITECTURE.md and OVERALL_ARCHITECTURE.md, so they are handed to Coding/Repair through design/KG/test-failure-records.json, codingTargets, and taskExecutionPlan rather than schema-validated explicitEntrypoints."
+    "No unresolved sec-e2e-027 implementation gap remains after the current audit evidence. design/KG/SystemArchitecture.json models only the 4 security explicit testcases; the 5 CLI/backend unit explicit entrypoints remain declared by tests/ARCHITECTURE.md and OVERALL_ARCHITECTURE.md and are covered by the full explicit pytest command."
   ]
 }

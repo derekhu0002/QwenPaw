@@ -222,12 +222,7 @@ def _requires_passive_reconnect_gap_proof(recovery_state: dict[str, Any]) -> boo
         return False
     if str(recovery_state.get("recovery_gate_status") or "") != "OPEN":
         return False
-    return str(recovery_state.get("divergence_reason") or "") in {
-        "lease_ttl_expired",
-        "missing_gap_proof",
-        "continuity_evidence_missing",
-        "local_hash_mismatch",
-    }
+    return str(recovery_state.get("divergence_reason") or "") == "lease_ttl_expired"
 
 
 async def emit_runtime_lease_heartbeat(
@@ -259,7 +254,10 @@ async def emit_runtime_lease_heartbeat(
                 base_dir,
                 session_id=recovery_session_id,
             )
-            if str(recovery_trace_payload.get("event_type") or "") != "RECOVERY_RECONNECT_PROOF":
+            recovery_event_type = str(recovery_trace_payload.get("event_type") or "")
+            if recovery_event_type == "AUDIT_INTEGRITY_LOCKDOWN":
+                recovery_state = {}
+            elif recovery_event_type != "RECOVERY_RECONNECT_PROOF":
                 await write_reconnect_gap_proof_record(
                     session_id=recovery_session_id,
                     user_id=recovery_user_id,
@@ -268,20 +266,21 @@ async def emit_runtime_lease_heartbeat(
                     prompt_text="Passive reconnect continuity recovery heartbeat.",
                     base_dir=base_dir,
                 )
-            recovery_state = await preflight_sensitive_action_recovery(
-                session_id=recovery_session_id,
-                user_id=recovery_user_id,
-                tool_name="runtime_lease_heartbeat",
-                prompt_text="Passive reconnect continuity recovery heartbeat.",
-                base_dir=base_dir,
-            )
-            heartbeat_trace_session_id = recovery_session_id
-            heartbeat_gap_proof = _build_gap_proof(
-                base_dir,
-                session_id=recovery_session_id,
-            )
-            if not _requires_passive_reconnect_gap_proof(recovery_state):
-                recovery_state = {}
+            if recovery_event_type != "AUDIT_INTEGRITY_LOCKDOWN":
+                recovery_state = await preflight_sensitive_action_recovery(
+                    session_id=recovery_session_id,
+                    user_id=recovery_user_id,
+                    tool_name="runtime_lease_heartbeat",
+                    prompt_text="Passive reconnect continuity recovery heartbeat.",
+                    base_dir=base_dir,
+                )
+                heartbeat_trace_session_id = recovery_session_id
+                heartbeat_gap_proof = _build_gap_proof(
+                    base_dir,
+                    session_id=recovery_session_id,
+                )
+                if not _requires_passive_reconnect_gap_proof(recovery_state):
+                    recovery_state = {}
     anchor_state = _current_anchor_state(
         base_dir,
         trace_session_id=heartbeat_trace_session_id,
@@ -526,7 +525,9 @@ def evaluate_high_risk_tool_boundary(
 
 def lock_mode_required(base_dir: Path | None = None) -> bool:
     trace_dir = _trace_dir(base_dir)
-    return trace_dir.exists() and any(trace_dir.glob("*.json")) and not _checkpoint_path(base_dir).exists()
+    if trace_dir.exists() and any(trace_dir.glob("*.json")) and not _checkpoint_path(base_dir).exists():
+        return True
+    return _verify_committed_ledger_integrity(base_dir).get("tamper_detected") is True
 
 
 async def preflight_sensitive_action_recovery(
@@ -545,6 +546,11 @@ async def preflight_sensitive_action_recovery(
     checkpoint_path = _checkpoint_path(base_dir)
     checkpoint = _read_json(checkpoint_path) or {}
     latest_payload = _latest_trace_payload(base_dir, session_id=session_id)
+    ledger_integrity = _verify_committed_ledger_integrity(
+        base_dir,
+        session_id=session_id,
+        client_id=client_id,
+    )
     head_hash = _normalize_text(latest_payload.get("current_edge_reported_hash")) or _normalize_text(
         latest_payload.get("current_hash"),
     ) or _normalize_text(checkpoint.get("current_hash"))
@@ -568,6 +574,19 @@ async def preflight_sensitive_action_recovery(
             "reported_edge_head_hash": head_hash,
             "reported_edge_sequence": head_sequence,
             "reported_edge_anchor_event_id": head_anchor_id,
+        }
+
+    if ledger_integrity.get("tamper_detected") is True:
+        return {
+            "recovery_required": True,
+            "trust_state": "UNTRUSTED",
+            "gap_status": "HISTORICAL_RECORD_TAMPER",
+            "recovery_gate_status": "OPEN",
+            "divergence_reason": ledger_integrity.get("reason", "ledger_integrity_tamper"),
+            "reported_edge_head_hash": ledger_integrity.get("head_hash") or head_hash,
+            "reported_edge_sequence": ledger_integrity.get("head_sequence") or head_sequence,
+            "reported_edge_anchor_event_id": ledger_integrity.get("head_anchor_event_id") or head_anchor_id,
+            "ledger_integrity": ledger_integrity,
         }
 
     if not head_hash:
@@ -720,6 +739,16 @@ async def write_restored_model_access_record(
         f"/security-center/v1/operator/timelines/{client_id}",
     )
     web_url = await _probe_security_center_web()
+    trusted_hash = _normalize_text(timeline.get("last_trusted_anchor_hash"))
+    trusted_sequence = _safe_int(timeline.get("last_trusted_sequence"), 0)
+    trusted_anchor_event_id = _normalize_text(timeline.get("last_trusted_anchor_event_id"))
+    recovery_released = (
+        bool(timeline)
+        and bool(trusted_hash)
+        and bool(trusted_anchor_event_id)
+        and timeline.get("recovery_required") is False
+        and (_normalize_text(timeline.get("trust_state")) or "ALIGNED") in {"ALIGNED", "TRUSTED"}
+    )
     payload = {
         "run_id": run_id,
         "event_type": "MODEL_ACCESS_RESTORED",
@@ -734,6 +763,12 @@ async def write_restored_model_access_record(
         "trust_state": _normalize_text(timeline.get("trust_state")) or "ALIGNED",
         "recovery_required": bool(timeline.get("recovery_required")),
         "gap_status": _normalize_text(timeline.get("gap_status")) or "VALIDATED",
+        "current_hash": trusted_hash,
+        "current_edge_reported_hash": trusted_hash,
+        "event_sequence": trusted_sequence,
+        "current_edge_reported_sequence": trusted_sequence,
+        "anchored_event_id": trusted_anchor_event_id,
+        "current_edge_reported_anchor_event_id": trusted_anchor_event_id,
         "security_center_backend_api": f"/security-center/v1/operator/timelines/{client_id}",
     }
     if web_url:
@@ -743,6 +778,15 @@ async def write_restored_model_access_record(
                 "security_center_operator_web": web_url,
                 "operator_dashboard_status": "reachable",
             },
+        )
+    if recovery_released:
+        _write_checkpoint(
+            base_dir=base_dir,
+            run_id=run_id,
+            current_hash=trusted_hash,
+            confirmed_sequence=trusted_sequence,
+            anchored_event_id=trusted_anchor_event_id,
+            confirmed_at=created_at,
         )
     _atomic_write(_trace_path(run_id, base_dir), payload)
     return payload
@@ -934,6 +978,14 @@ async def write_lockdown_record(
     checkpoint_exists = checkpoint_path.exists()
     checkpoint = _read_json(checkpoint_path) or {}
     latest_payload = _latest_trace_payload(base_dir, session_id=session_id)
+    ledger_integrity = _verify_committed_ledger_integrity(
+        base_dir,
+        session_id=session_id,
+        client_id=client_id,
+    )
+    if ledger_integrity.get("tamper_detected") is True and checkpoint_exists:
+        checkpoint_path.unlink(missing_ok=True)
+        checkpoint_exists = False
     anchor_state = _current_anchor_state(
         base_dir,
         trace_session_id=session_id,
@@ -969,13 +1021,14 @@ async def write_lockdown_record(
         },
     )
     fork_point_event_id = (
-        _normalize_text(latest_payload.get("run_id"))
+        _normalize_text(ledger_integrity.get("fork_point_event_id"))
+        or _normalize_text(latest_payload.get("run_id"))
         or _latest_trace_run_id(base_dir, session_id=session_id)
         or run_id
     )
-    local_hash = anchor_state["head_hash"] or _normalize_text(latest_payload.get("current_hash")) or "tampered-current-hash"
-    local_sequence = anchor_state["head_sequence"]
-    local_anchor_event_id = anchor_state["head_anchor_event_id"]
+    local_hash = _normalize_text(ledger_integrity.get("head_hash")) or anchor_state["head_hash"] or _normalize_text(latest_payload.get("current_hash")) or "tampered-current-hash"
+    local_sequence = _safe_int(ledger_integrity.get("head_sequence"), anchor_state["head_sequence"])
+    local_anchor_event_id = _normalize_text(ledger_integrity.get("head_anchor_event_id")) or anchor_state["head_anchor_event_id"]
     cloud_anchor_hash = _normalize_text(checkpoint.get("current_hash")) or prior_hash
     payload = {
         "run_id": run_id,
@@ -1006,9 +1059,31 @@ async def write_lockdown_record(
         "checkpoint_missing": not checkpoint_exists,
         "checkpoint_loss_detected": not checkpoint_exists,
         "tamper_detected": True,
-        "integrity_alert": "checkpoint_loss" if not checkpoint_exists else "recovery_gate_active",
+        "integrity_alert": "historical_record_tamper"
+        if ledger_integrity.get("tamper_detected") is True
+        else ("checkpoint_loss" if not checkpoint_exists else "recovery_gate_active"),
         "cloud_anchor_hash": cloud_anchor_hash,
     }
+    if ledger_integrity.get("tamper_detected") is True:
+        payload.update(
+            {
+                "ledger_record_tamper_detected": True,
+                "historical_record_tamper_detected": bool(
+                    ledger_integrity.get("historical_record_tamper_detected"),
+                ),
+                "hash_chain_break_detected": True,
+                "non_tail_record_tamper_detected": bool(
+                    ledger_integrity.get("non_tail_record_tamper_detected"),
+                ),
+                "tampered_record_position": ledger_integrity.get("tampered_record_position", 0),
+                "tampered_event_sequence": ledger_integrity.get("tampered_event_sequence", 0),
+                "fork_point": ledger_integrity.get("fork_point_event_id", ""),
+                "fork_event_id": ledger_integrity.get("fork_event_id", ""),
+                "ledger_integrity_failure_reason": ledger_integrity.get("reason", ""),
+                "expected_ledger_hash": ledger_integrity.get("expected_hash", ""),
+                "observed_ledger_hash": ledger_integrity.get("observed_hash", ""),
+            },
+        )
 
     handshake = await _post_security_center(
         "/security-center/v1/recovery/handshake",
@@ -1310,6 +1385,188 @@ def _gap_anchor_chain_material(payload: dict[str, Any]) -> dict[str, Any] | None
             "created_at": f"{float(payload.get('created_at') or 0):.9f}",
         }
     return None
+
+
+def _event_chain_label(event_type: str) -> str:
+    return {
+        "USER_CONFIRMATION": "user-confirmation-chain-v2",
+        "SECURITY_REJECTION": "security-rejection-chain-v1",
+        "AUDIT_INTEGRITY_LOCKDOWN": "audit-lockdown-chain-v1",
+        "RECOVERY_RECONNECT_PROOF": "recovery-reconnect-proof-chain-v1",
+    }.get(event_type, "")
+
+
+def _expected_current_hash_from_payload(payload: dict[str, Any]) -> str:
+    event_type = _normalize_text(payload.get("event_type"))
+    chain_label = _event_chain_label(event_type)
+    chain_material = _gap_anchor_chain_material(payload)
+    if not chain_label or chain_material is None:
+        return ""
+    return _canonical_hash(chain_label, chain_material)
+
+
+def _ledger_trace_entries(
+    base_dir: Path | None = None,
+    *,
+    session_id: str = "",
+) -> list[dict[str, Any]]:
+    trace_dir = _trace_dir(base_dir)
+    if not trace_dir.exists():
+        return []
+
+    entries: list[dict[str, Any]] = []
+    for path in sorted(trace_dir.glob("*.json"), key=lambda item: item.stat().st_mtime):
+        try:
+            payload = _read_json(path) or {}
+        except (OSError, json.JSONDecodeError):
+            entries.append(
+                {
+                    "path": str(path),
+                    "payload": {},
+                    "sequence": 0,
+                    "mtime": path.stat().st_mtime if path.exists() else 0,
+                    "read_error": True,
+                },
+            )
+            continue
+        if session_id and _normalize_text(payload.get("session_id")) != session_id:
+            continue
+        if _gap_anchor_chain_material(payload) is None:
+            continue
+        entries.append(
+            {
+                "path": str(path),
+                "payload": payload,
+                "sequence": _safe_int(payload.get("event_sequence"), 0),
+                "mtime": path.stat().st_mtime,
+                "read_error": False,
+            },
+        )
+    entries.sort(key=lambda entry: (_safe_int(entry.get("sequence"), 0), float(entry.get("mtime") or 0)))
+    return entries
+
+
+def _ledger_integrity_failure(
+    *,
+    reason: str,
+    entry: dict[str, Any] | None,
+    entries: list[dict[str, Any]],
+    expected_hash: str = "",
+    observed_hash: str = "",
+    checkpoint: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    payload = entry.get("payload", {}) if isinstance(entry, dict) else {}
+    sequence = _safe_int(payload.get("event_sequence") if isinstance(payload, dict) else None, 0)
+    max_sequence = max((_safe_int(item.get("sequence"), 0) for item in entries), default=0)
+    head = entries[-1]["payload"] if entries and isinstance(entries[-1].get("payload"), dict) else {}
+    checkpoint = checkpoint or {}
+    return {
+        "tamper_detected": True,
+        "reason": reason,
+        "tampered_event_sequence": sequence,
+        "tampered_record_position": sequence if sequence > 0 else 0,
+        "non_tail_record_tamper_detected": 0 < sequence < max_sequence,
+        "historical_record_tamper_detected": 0 < sequence < max_sequence,
+        "ledger_record_tamper_detected": True,
+        "hash_chain_break_detected": True,
+        "expected_hash": expected_hash,
+        "observed_hash": observed_hash,
+        "fork_point_event_id": _normalize_text(payload.get("run_id")) if isinstance(payload, dict) else "",
+        "fork_event_id": _normalize_text(payload.get("run_id")) if isinstance(payload, dict) else "",
+        "head_hash": _normalize_text(head.get("current_hash")) or _normalize_text(checkpoint.get("current_hash")),
+        "head_sequence": _safe_int(head.get("event_sequence"), _safe_int(checkpoint.get("confirmed_sequence") or checkpoint.get("event_sequence"), max_sequence)),
+        "head_anchor_event_id": _normalize_text(head.get("anchored_event_id")) or _normalize_text(checkpoint.get("last_anchored_event_id") or checkpoint.get("anchored_event_id")),
+    }
+
+
+def _verify_committed_ledger_integrity(
+    base_dir: Path | None = None,
+    *,
+    session_id: str = "",
+    client_id: str = "",
+) -> dict[str, Any]:
+    entries = _ledger_trace_entries(base_dir, session_id=session_id)
+    checkpoint = _read_json(_checkpoint_path(base_dir)) or {}
+    if not entries:
+        return {"tamper_detected": False}
+
+    previous_hash = ""
+    previous_sequence = 0
+    seen_sequences: set[int] = set()
+    for entry in entries:
+        if entry.get("read_error"):
+            return _ledger_integrity_failure(
+                reason="ledger_record_unreadable",
+                entry=entry,
+                entries=entries,
+                checkpoint=checkpoint,
+            )
+        payload = entry["payload"]
+        sequence = _safe_int(payload.get("event_sequence"), 0)
+        if sequence <= 0:
+            return _ledger_integrity_failure(
+                reason="ledger_sequence_missing",
+                entry=entry,
+                entries=entries,
+                checkpoint=checkpoint,
+            )
+        if sequence in seen_sequences:
+            return _ledger_integrity_failure(
+                reason="ledger_sequence_duplicated",
+                entry=entry,
+                entries=entries,
+                checkpoint=checkpoint,
+            )
+        seen_sequences.add(sequence)
+        if previous_sequence and sequence != previous_sequence + 1:
+            return _ledger_integrity_failure(
+                reason="ledger_sequence_gap_or_reorder",
+                entry=entry,
+                entries=entries,
+                checkpoint=checkpoint,
+            )
+        expected_current_hash = _expected_current_hash_from_payload(payload)
+        observed_current_hash = _normalize_text(payload.get("current_hash"))
+        if expected_current_hash and observed_current_hash != expected_current_hash:
+            return _ledger_integrity_failure(
+                reason="ledger_current_hash_mismatch",
+                entry=entry,
+                entries=entries,
+                expected_hash=expected_current_hash,
+                observed_hash=observed_current_hash,
+                checkpoint=checkpoint,
+            )
+        observed_prior_hash = _normalize_text(payload.get("prior_hash"))
+        if previous_hash and observed_prior_hash != previous_hash:
+            return _ledger_integrity_failure(
+                reason="ledger_prior_hash_mismatch",
+                entry=entry,
+                entries=entries,
+                expected_hash=previous_hash,
+                observed_hash=observed_prior_hash,
+                checkpoint=checkpoint,
+            )
+        previous_hash = observed_current_hash
+        previous_sequence = sequence
+
+    checkpoint_hash = _normalize_text(checkpoint.get("current_hash"))
+    checkpoint_sequence = _safe_int(checkpoint.get("confirmed_sequence") or checkpoint.get("event_sequence"), 0)
+    if checkpoint_hash and previous_hash and checkpoint_sequence > previous_sequence:
+        return _ledger_integrity_failure(
+            reason="ledger_truncated_before_checkpoint",
+            entry=entries[-1],
+            entries=entries,
+            expected_hash=checkpoint_hash,
+            observed_hash=previous_hash,
+            checkpoint=checkpoint,
+        )
+    return {
+        "tamper_detected": False,
+        "head_hash": previous_hash,
+        "head_sequence": previous_sequence,
+        "head_anchor_event_id": _normalize_text(entries[-1]["payload"].get("anchored_event_id")),
+        "client_id": client_id,
+    }
 
 
 def _gap_anchor_canonical_payload(payload: dict[str, Any]) -> dict[str, Any]:

@@ -162,6 +162,8 @@ class PreExecutionEvidenceObservation:
 @dataclass(frozen=True)
 class AuditIntegrityTamperRequest:
     authenticated_employee: EmployeeIdentity
+    baseline_high_risk_action_labels: tuple[str, ...]
+    tampered_record_position_from_start: int
     sensitive_tool_name: str
     tampered_artifact_label: str
     reconnect_action_label: str
@@ -174,6 +176,9 @@ class AuditIntegrityTamperRequest:
 class AuditIntegrityLockdownObservation:
     tampered_artifact_path: str
     baseline_cloud_anchor_ready: bool
+    historical_multi_record_baseline_ready: bool
+    tampered_record_is_second_non_tail: bool
+    historical_record_tamper_detected: bool
     continuity_anomaly_ready: bool
     checkpoint_loss_treated_as_tamper: bool
     local_lock_mode_ready: bool
@@ -186,14 +191,17 @@ class AuditIntegrityLockdownObservation:
     hash_break_fork_point_ready: bool
     cloud_recovery_projection_ready: bool
     recovery_handshake_ready: bool
+    security_center_clear_blocked: bool
     failure_reasons: tuple[str, ...]
 
     def enforces_lockdown(self) -> bool:
         return all(
             (
                 self.baseline_cloud_anchor_ready,
+                self.historical_multi_record_baseline_ready,
+                self.tampered_record_is_second_non_tail,
+                self.historical_record_tamper_detected,
                 self.continuity_anomaly_ready,
-                self.checkpoint_loss_treated_as_tamper,
                 self.local_lock_mode_ready,
                 self.sensitive_tool_blocked,
                 self.external_anchor_divergence_ready,
@@ -204,6 +212,7 @@ class AuditIntegrityLockdownObservation:
                 self.hash_break_fork_point_ready,
                 self.cloud_recovery_projection_ready,
                 self.recovery_handshake_ready,
+                self.security_center_clear_blocked,
                 not self.failure_reasons,
             ),
         )
@@ -643,6 +652,9 @@ class SecurityAuditHarness:
             return AuditIntegrityLockdownObservation(
                 tampered_artifact_path=str(self._app_server.working_dir),
                 baseline_cloud_anchor_ready=False,
+                historical_multi_record_baseline_ready=False,
+                tampered_record_is_second_non_tail=False,
+                historical_record_tamper_detected=False,
                 continuity_anomaly_ready=False,
                 checkpoint_loss_treated_as_tamper=False,
                 local_lock_mode_ready=False,
@@ -655,6 +667,7 @@ class SecurityAuditHarness:
                 hash_break_fork_point_ready=False,
                 cloud_recovery_projection_ready=False,
                 recovery_handshake_ready=False,
+                security_center_clear_blocked=False,
                 failure_reasons=(
                     "Real_Runtime_Bootstrap_Blocking_Dependency: the real app "
                     "subprocess could not finish startup, so sec-e2e-025 could "
@@ -662,18 +675,31 @@ class SecurityAuditHarness:
                 ),
             )
 
-        baseline_request = HighRiskDelegationRequest(
-            authenticated_employee=request.authenticated_employee,
-            delegated_agent_name="security_audit_agent",
-            third_party_plugin_name=request.security_center_backend_api_name,
-            high_risk_tool_name=request.sensitive_tool_name,
-            user_confirmation_phrase="Approve audit integrity baseline capture",
-        )
-        before_trace_names = {path.name for path in self._trace_files()}
-        self._trigger_live_console_attempt(baseline_request)
-        self._collect_runtime_artifacts(
-            session_id=request.authenticated_employee.authenticated_session_id,
-            before_trace_names=before_trace_names,
+        for action_index, high_risk_action_label in enumerate(
+            request.baseline_high_risk_action_labels,
+            start=1,
+        ):
+            baseline_request = HighRiskDelegationRequest(
+                authenticated_employee=request.authenticated_employee,
+                delegated_agent_name="security_audit_agent",
+                third_party_plugin_name=request.security_center_backend_api_name,
+                high_risk_tool_name=request.sensitive_tool_name,
+                user_confirmation_phrase=(
+                    "Approve audit integrity baseline capture "
+                    f"{action_index}: {high_risk_action_label}"
+                ),
+            )
+            before_trace_names = {path.name for path in self._trace_files()}
+            self._trigger_live_console_attempt(baseline_request)
+            self._collect_runtime_artifacts(
+                session_id=request.authenticated_employee.authenticated_session_id,
+                before_trace_names=before_trace_names,
+            )
+
+        baseline_trace_paths = self._trace_files()
+        historical_multi_record_baseline_ready = (
+            len(baseline_trace_paths) >= len(request.baseline_high_risk_action_labels)
+            and len(baseline_trace_paths) >= 3
         )
         baseline_overview = self._read_security_center_api_json(
             "/security-center/v1/operator/overview",
@@ -700,10 +726,12 @@ class SecurityAuditHarness:
             ),
         )
 
-        tampered_artifact_path = self._tamper_latest_audit_artifact(
+        tampered_artifact_path = self._tamper_committed_historical_audit_record(
             artifact_label=request.tampered_artifact_label,
+            baseline_trace_paths=baseline_trace_paths,
+            record_position_from_start=request.tampered_record_position_from_start,
         )
-        tampered_trace_payload = self._load_latest_trace_payload()
+        tampered_trace_payload = self._load_json_file(Path(tampered_artifact_path))
         tampered_local_hash = self._find_first_scalar(
             tampered_trace_payload,
             keys=("current_hash", "continuity_anchor"),
@@ -758,6 +786,11 @@ class SecurityAuditHarness:
         security_center_web_app = self._read_security_center_web_text("/app.js")
         checkpoint_path = self._app_server.working_dir / "audit_chain_checkpoint.json"
         checkpoint_missing_detected = not checkpoint_path.exists()
+        tampered_record_is_second_non_tail = (
+            request.tampered_record_position_from_start == 2
+            and len(baseline_trace_paths) > request.tampered_record_position_from_start
+            and Path(tampered_artifact_path) == baseline_trace_paths[1]
+        )
         trust_state = self._find_first_scalar(
             latest_trace_payload,
             keys=("lock_mode", "security_lock_mode", "trust_state"),
@@ -771,6 +804,26 @@ class SecurityAuditHarness:
                 "tamper_detected",
                 "checkpoint_missing",
             ),
+        )
+        historical_record_tamper_detected = self._contains_any_key(
+            latest_trace_payload,
+            candidate_keys=(
+                "historical_record_tamper_detected",
+                "ledger_record_tamper_detected",
+                "hash_chain_break_detected",
+                "non_tail_record_tamper_detected",
+            ),
+        ) or (
+            continuity_anomaly_ready
+            and self._contains_any_key(
+                latest_trace_payload,
+                candidate_keys=(
+                    "tampered_record_position",
+                    "tampered_event_sequence",
+                    "fork_point",
+                    "fork_event_id",
+                ),
+            )
         )
         checkpoint_loss_treated_as_tamper = checkpoint_missing_detected and (
             continuity_anomaly_ready or self._contains_any_key(
@@ -831,6 +884,16 @@ class SecurityAuditHarness:
                 overview_client.get("trust_state") == "UNTRUSTED",
             ),
         )
+        security_center_clear_blocked = all(
+            (
+                backend_api_projection_ready,
+                isinstance(overview_client, dict),
+                overview_client.get("recovery_required") is True,
+                overview_client.get("trust_state") == "UNTRUSTED",
+                overview_client.get("gap_status") != "CLEAR",
+                overview_client.get("recovery_gate_status") != "CLEAR",
+            ),
+        )
         recovery_handshake_ready = self._contains_any_key(
             latest_trace_payload,
             candidate_keys=(
@@ -848,6 +911,24 @@ class SecurityAuditHarness:
                 "Center did not hold a non-bootstrap trusted anchor for the "
                 "live high-risk session, so rebuilt local history could still "
                 "hide behind an empty external baseline."
+            )
+        if not historical_multi_record_baseline_ready:
+            failure_reasons.append(
+                "Historical_Multi_Record_Baseline_Missing: before tamper, the "
+                "live runtime did not materialize at least three committed "
+                "high-risk audit records for the same security session."
+            )
+        if not tampered_record_is_second_non_tail:
+            failure_reasons.append(
+                "Second_Historical_Record_Tamper_Missing: the OS-level tamper "
+                "control point did not edit the second committed non-tail audit "
+                "record while leaving a later record in place."
+            )
+        if not historical_record_tamper_detected:
+            failure_reasons.append(
+                "Historical_Record_Tamper_Not_Detected: editing the second "
+                "committed audit record did not surface a hash-chain or ledger "
+                "continuity anomaly before the next high-risk boundary."
             )
         if not continuity_anomaly_ready:
             failure_reasons.append(
@@ -910,6 +991,13 @@ class SecurityAuditHarness:
                 "Cloud_Recovery_Projection_Missing: the edge runtime did not "
                 "emit any cloud-facing anomaly or recovery projection artifact."
             )
+        if not security_center_clear_blocked:
+            failure_reasons.append(
+                "Security_Center_Clear_State_Not_Blocked: after historical "
+                "audit-record tamper, the Security Center backend or operator "
+                "projection did not remain recovery-required/UNTRUSTED and "
+                "therefore could still appear CLEAR before cloud validation."
+            )
         if not recovery_handshake_ready:
             failure_reasons.append(
                 "Recovery_Handshake_Missing: the live runtime does not yet "
@@ -919,6 +1007,9 @@ class SecurityAuditHarness:
         return AuditIntegrityLockdownObservation(
             tampered_artifact_path=tampered_artifact_path,
             baseline_cloud_anchor_ready=baseline_cloud_anchor_ready,
+            historical_multi_record_baseline_ready=historical_multi_record_baseline_ready,
+            tampered_record_is_second_non_tail=tampered_record_is_second_non_tail,
+            historical_record_tamper_detected=historical_record_tamper_detected,
             continuity_anomaly_ready=continuity_anomaly_ready,
             checkpoint_loss_treated_as_tamper=checkpoint_loss_treated_as_tamper,
             local_lock_mode_ready=local_lock_mode_ready,
@@ -931,6 +1022,7 @@ class SecurityAuditHarness:
             hash_break_fork_point_ready=hash_break_fork_point_ready,
             cloud_recovery_projection_ready=cloud_recovery_projection_ready,
             recovery_handshake_ready=recovery_handshake_ready,
+            security_center_clear_blocked=security_center_clear_blocked,
             failure_reasons=tuple(failure_reasons),
         )
 
@@ -945,6 +1037,14 @@ class SecurityAuditHarness:
             lines.append(f"- {failure}")
         lines.append("employee_id=" + tamper_recovery_attempt.authenticated_employee.employee_id)
         lines.append("sensitive_tool_name=" + tamper_recovery_attempt.sensitive_tool_name)
+        lines.append(
+            "baseline_high_risk_action_count="
+            + str(len(tamper_recovery_attempt.baseline_high_risk_action_labels)),
+        )
+        lines.append(
+            "tampered_record_position_from_start="
+            + str(tamper_recovery_attempt.tampered_record_position_from_start),
+        )
         lines.append("security_center_backend_api_name=" + tamper_recovery_attempt.security_center_backend_api_name)
         lines.append("security_center_operator_web_name=" + tamper_recovery_attempt.security_center_operator_web_name)
         lines.append("hash_break_curve_chart_name=" + tamper_recovery_attempt.hash_break_curve_chart_name)
@@ -1739,6 +1839,51 @@ class SecurityAuditHarness:
             self._latest_console_response_headers = {}
             self._latest_console_response_body = ""
 
+    def _tamper_committed_historical_audit_record(
+        self,
+        *,
+        artifact_label: str,
+        baseline_trace_paths: tuple[Path, ...],
+        record_position_from_start: int,
+    ) -> str:
+        record_index = record_position_from_start - 1
+        if 0 <= record_index < len(baseline_trace_paths):
+            historical_trace_path = baseline_trace_paths[record_index]
+        else:
+            historical_trace_path = self._trace_dir / (
+                f"missing-historical-record-{record_position_from_start}.json"
+            )
+
+        if historical_trace_path.exists():
+            payload = self._load_json_file(historical_trace_path)
+            payload["tampered_artifact_label"] = artifact_label
+            payload["tampered_record_position"] = record_position_from_start
+            payload["os_level_history_edit"] = True
+            payload["business_tamper_boundary"] = "second_committed_non_tail_record"
+            payload["current_hash"] = "tampered-historical-record-hash"
+            historical_trace_path.write_text(
+                json.dumps(payload, ensure_ascii=False, indent=2) + "\n",
+                encoding="utf-8",
+            )
+            return str(historical_trace_path)
+
+        historical_trace_path.parent.mkdir(parents=True, exist_ok=True)
+        historical_trace_path.write_text(
+            json.dumps(
+                {
+                    "tampered_artifact_label": artifact_label,
+                    "tampered_record_position": record_position_from_start,
+                    "os_level_history_edit": True,
+                    "business_tamper_boundary": "missing_second_committed_record",
+                    "current_hash": "tampered-historical-record-hash",
+                },
+                ensure_ascii=False,
+                indent=2,
+            ) + "\n",
+            encoding="utf-8",
+        )
+        return str(historical_trace_path)
+
     def _tamper_latest_audit_artifact(self, *, artifact_label: str) -> str:
         checkpoint_path = self._app_server.working_dir / "audit_chain_checkpoint.json"
         checkpoint_path.unlink(missing_ok=True)
@@ -1836,7 +1981,15 @@ class SecurityAuditHarness:
         latest_trace_path = self._latest_trace_path()
         if latest_trace_path is None or not latest_trace_path.exists():
             return {}
-        return json.loads(latest_trace_path.read_text(encoding="utf-8"))
+        return self._load_json_file(latest_trace_path)
+
+    def _load_json_file(self, path: Path) -> dict[str, Any]:
+        if not path.exists():
+            return {}
+        payload = json.loads(path.read_text(encoding="utf-8"))
+        if isinstance(payload, dict):
+            return payload
+        return {}
 
     def _latest_trace_path(self) -> Path | None:
         trace_paths = self._latest_trace_paths or self._trace_files()

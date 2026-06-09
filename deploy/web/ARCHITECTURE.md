@@ -40,4 +40,5 @@ element_path: deploy/web
 
 ### Notes
 - Coding/Repair may choose concrete frontend stack and asset pipeline, but must keep the operator web separate from the edge runtime, route all state reads and actions through deploy/api, and forbid operator polling or manual refresh as the primary path for Security_Rejection_Nonce alert visibility.
+- For sec-e2e-025, the operator web must keep a client with second committed non-tail audit-record tamper in `UNTRUSTED` or recovery-required display state until deploy/api reports full-chain cloud validation. Rendering `CLEAR` for that client before validation is a security failure, even if the local tail record or checkpoint appears self-consistent.
 - For sec-e2e-027, the operator web must render one live runtime as one terminal narrative. Display aliases may help operators correlate browser or session context, but the UI must not present one online runtime as multiple terminals or show a false `DIVERGED`/`OPEN` recovery gate when no fork point exists.
