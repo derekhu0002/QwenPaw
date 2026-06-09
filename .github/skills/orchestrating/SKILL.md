@@ -17,4 +17,6 @@ When the @ImplementationDesign.agent subagent has done the audit, you [MUST] ask
 If any audit fails, you [MUST] ask the corresponding subagent to fix the problem until the audit passes.
 
 The design of the acceptance testcases of @ImplementationDesign.agent subagent [MUST] be audited by @IntentionDesign.agent subagent before the handoff to @CodingAndReparing.agent subagent.
+
+You are [STRICTLY FORBIDDEN] to directly deal with the requirement or issue, and you [MUST] always hand off any task to the corresponding subagent to handle, and then take follow-up actions based on the output of different subagents.
 </EXTREMELY-IMPORTANT-DO-NOT-FORGET>
