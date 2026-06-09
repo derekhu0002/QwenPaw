@@ -2,7 +2,7 @@
 
 ## Scope
 - Freeze the stable implementation boundaries that currently realize QwenPaw in this repository.
-- Materialize the `sec-e2e-024`, `sec-e2e-025`, `sec-e2e-027`, `sec-e2e-028`, and `sec-e2e-021` explicit acceptance entrypoints as repository-owned, read-only testcase bodies plus their harness abstractions.
+- Materialize the `sec-e2e-024`, `sec-e2e-025`, `sec-e2e-027`, `sec-e2e-028`, `sec-e2e-021`, and `sec-e2e-029` explicit acceptance entrypoints as repository-owned, read-only testcase bodies plus their harness abstractions.
 - Constrain the explicit security slice to a real-environment acceptance baseline that uses the live app subprocess, real HTTP surfaces, isolated working directories, and a separately contracted cloud-side Security Center boundary.
 - Record where intent is already directly implemented, where current code only provides transitional evidence, and which gaps are intentionally handed to Coding/Repair.
 
@@ -141,12 +141,17 @@
   entrypoint: tests/integration/security/test_audit_foundation.py::test_prompt_injection_cannot_bypass_high_risk_tool_guard
   runtime_mode: real-app-subprocess
 
+- testcase: sec-e2e-029-builtin-rule-line-ending-invariant
+  intent_element: intent-builtin-tool-rule-integrity
+  entrypoint: tests/unit/security/tool_guard/test_rules_integrity.py::test_builtin_rule_line_ending_invariant
+  runtime_mode: unit-harness-with-temporary-rules-directory
+
 ## Critical Non-Explicit Guardrails
 - tests/architecture/root-architecture-contracts.test.js guards the presence and cross-reference integrity of the root contracts, including the new security contracts.
 - tests/architecture/root-architecture-deliverables.test.js guards that the expected architecture deliverables exist at stable repository paths.
 - tests/architecture/validator-bootstrap-traceability.test.js guards the wiring between `package.json` validation commands and bundled validator assets.
 - tests/architecture/security-audit-contract-boundaries.test.js guards the frozen boundary between `src/qwenpaw/security`, the explicit security entrypoint zone, the separate Security Center deployment boundary, and the root/runtime/test contracts that reference them.
-- tests/architecture/security-explicit-entrypoint-traceability.test.js guards that `sec-e2e-024`, `sec-e2e-025`, `sec-e2e-027`, `sec-e2e-028`, and `sec-e2e-021` stay mounted to the read-only explicit entrypoints and that the implementation handoff keeps the same paths plus frozen execution-state traceability for open security gaps.
+- tests/architecture/security-explicit-entrypoint-traceability.test.js guards that `sec-e2e-024`, `sec-e2e-025`, `sec-e2e-027`, `sec-e2e-028`, `sec-e2e-021`, and `sec-e2e-029` stay mounted to the read-only explicit entrypoints and that the implementation handoff keeps the same paths plus frozen execution-state traceability for open security gaps.
 
 ## Frozen Files For Downstream Coding
 - design/KG/SystemArchitecture.json

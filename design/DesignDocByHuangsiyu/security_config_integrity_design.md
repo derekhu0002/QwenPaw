@@ -210,7 +210,7 @@ scripts/update_tool_rule_manifest.py
 3. 使用代码内置公钥验证 rules_manifest.sig
 4. 确认 rules_manifest.json 未被篡改
 5. 从 manifest 读取 dangerous_shell_commands.yaml 的 expected sha256
-6. 计算当前 YAML 文件 actual sha256
+6. 读取当前 YAML 文件 bytes，先做 LF 归一化（`\r\n` 和 lone `\r` → `\n`），再计算 actual sha256
 7. 对比 expected 和 actual
 8. 如果不一致，写日志并更新内存状态
 9. 继续加载 YAML
@@ -269,7 +269,7 @@ dangerous_shell_commands.yaml
 rules_manifest.json
 ```
 
-记录官方发布时该 YAML 的 SHA-256。
+记录官方发布时该 YAML 的 SHA-256（LF 归一化后的语义内容 digest，不是 raw 磁盘 bytes）。
 
 ```text
 rules_manifest.sig
@@ -281,7 +281,7 @@ rules_manifest.sig
 rules_integrity.py
 ```
 
-负责运行时验证 manifest 签名和 YAML hash。
+负责运行时验证 manifest 签名和 LF 归一化后的 YAML hash。
 
 ```text
 update_tool_rule_manifest.py
@@ -353,6 +353,14 @@ python scripts/update_tool_rule_manifest.py
 ```text
 src/qwenpaw/security/tool_guard/rules_integrity.py
 ```
+
+行尾归一化语义：
+
+```text
+read bytes -> replace CRLF and lone CR with LF -> SHA-256 hex
+```
+
+共享 helper `_sha256_normalized_content(bytes) -> hex` 必须被 runtime verify、repair download validation、`scripts/update_tool_rule_manifest.py` 复用。只做行尾归一化，不做 YAML 重序列化，不裁剪 trailing spaces。
 
 建议对外暴露：
 
@@ -651,8 +659,11 @@ Built-in tool guard rule integrity check failed: dangerous_shell_commands.yaml
 reason=sha256_mismatch
 expected=<manifest hash>
 actual=<actual hash>
+hash_basis=lf_normalized_content
 action=warn_only_loaded_anyway
 ```
+
+仅 CRLF/LF 差异、语义内容未变时，不得产生上述 `sha256_mismatch` 日志。
 
 manifest 签名失败：
 
@@ -697,7 +708,7 @@ scripts/update_tool_rule_manifest.py
 职责：
 
 1. 定位 `src/qwenpaw/security/tool_guard/rules/dangerous_shell_commands.yaml`。
-2. 计算 SHA-256。
+2. 通过 `_sha256_normalized_content()` 计算 LF 归一化 SHA-256。
 3. 生成 canonical `rules_manifest.json`。
 4. 读取 Ed25519 私钥。
 5. 对 manifest bytes 签名。
@@ -856,7 +867,7 @@ POST /api/config/security/tool-guard/rules-integrity/repair
 1. 验证本地 rules_manifest.sig 有效
 2. 优先从 GitHub raw 固定 URL 下载 dangerous_shell_commands.yaml
 3. 如果 raw 由于 TLS 握手超时、连接断开等网络问题失败，则从 GitHub Contents API 固定 URL 兜底下载
-4. 用本地 manifest 校验下载内容的 sha256
+4. 用本地 manifest 校验下载内容的 LF 归一化 sha256
 5. 校验通过后备份当前本地 dangerous_shell_commands.yaml
 6. 原子替换本地 dangerous_shell_commands.yaml
 7. 重新运行 verify_default_builtin_rule_files()
@@ -991,6 +1002,8 @@ tests/unit/security/tool_guard/test_rules_integrity.py
 7. hash 算法不支持，返回异常状态。
 8. 校验失败时不抛异常。
 9. `get_last_rule_integrity_status()` 返回最近一次结果。
+10. 冻结 explicit entrypoint `sec-e2e-029`：LF-canonical 与 CRLF-only 分支均 `ok=true`；语义篡改仍 `tampered`。
+11. helper contract：`test_sha256_normalized_content_shared_helper_contract` 证明 runtime 与 manifest script 共享 `_sha256_normalized_content`。
 
 ### 21.2 规则加载测试
 
@@ -1170,8 +1183,8 @@ verify_default_builtin_rule_files()：ok
 
 ```text
 Ed25519 签名 manifest
-+ dangerous_shell_commands.yaml SHA-256
-+ 后端低侵入校验模块
++ dangerous_shell_commands.yaml LF 归一化 SHA-256
++ 后端低侵入校验模块（LF/CRLF 等价语义内容通过）
 + 后端 5 秒周期检测
 + 后端状态 API
 + 前端设置/安全页 5 秒轮询
