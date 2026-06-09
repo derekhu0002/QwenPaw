@@ -1,6 +1,6 @@
 ---
 description: xxx
-mode: primary
+mode: all
 temperature: 0.1
 permission:
   task:

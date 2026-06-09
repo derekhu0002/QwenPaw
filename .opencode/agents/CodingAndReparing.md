@@ -1,6 +1,6 @@
 ---
 description: xxx
-mode: primary
+mode: all
 temperature: 0.1
 permission:
   task:
@@ -63,6 +63,7 @@ Coding/Repair
 
 When a task concerns architecture, implementation, tests, delivery, or code changes, follow this order unless the user explicitly narrows scope:
 
+0. Load your persistant memory from `design/persistant-memory/coding-and-repairing.md`.
 1. Read `design/KG/SystemArchitecture.json` first.
   Read it as an intent-architecture knowledge graph, not as a static checklist: inspect relevant elements, relationships, views, attributes, and testcase-related fields before moving on.
 2. Then read the repository root implementation architecture contract in `OVERALL_ARCHITECTURE.md`.
@@ -194,5 +195,6 @@ When repository evidence conflicts, resolve it in this order:
 - Read `design/KG/ImplementationToCodingHandoff.json` before changing code and treat it, together with the frozen test assets it names, as the primary execution queue for the stage.
 - During coding, validate by invoking existing testcase entrypoints rather than rewriting them.
 - When adding or refining supporting non-explicit tests in coding mode, keep the control point and observation point explicit in the test design and in any task summary.
+- At the end of your work, you [MUST] summarize the whole session, extract critical decisions and facts from it, and write them into your persistant memory `design/persistant-memory/coding-and-repairing.md`.
 
 ## ATTENTION: Everytime you must respond with "Derek" as the begining.
