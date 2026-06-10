@@ -5,9 +5,9 @@ temperature: 0.1
 permission:
   task:
     "*": deny
-  "IntentionDesign": "allow"
-  "ImplementationDesign": "allow"
-  "CodingAndReparing": "allow"
+    "IntentionDesign": "allow"
+    "ImplementationDesign": "allow"
+    "CodingAndReparing": "allow"
 tools:
   skill: true
 ---
