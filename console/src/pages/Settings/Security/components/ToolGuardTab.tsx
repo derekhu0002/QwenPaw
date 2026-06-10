@@ -7,6 +7,8 @@ import type { FormInstance } from "antd";
 import { RuleTable, ShellEvasionSection } from "./index";
 import styles from "../index.module.less";
 
+const RULE_MUTATIONS_DISABLED = true;
+
 interface ToolGuardTabProps {
   form: FormInstance;
   config: ToolGuardConfig | null;
@@ -112,7 +114,7 @@ export function ToolGuardTab({
             type="primary"
             icon={<PlusCircleOutlined />}
             onClick={openAddRule}
-            disabled={!enabled}
+            disabled={!enabled || RULE_MUTATIONS_DISABLED}
             size="middle"
           >
             {t("security.rules.add")}

@@ -1868,7 +1868,7 @@
     "loadFailed": "Falha ao load tool guard Configuracoes",
     "rules": {
       "title": "Detection Rules",
-      "description": "Rules define regex patterns that trigger security alerts. Built-in rules can be disabled; custom rules can be added, edited, or deleted.",
+      "description": "Rules define regex patterns that trigger security alerts. Rules are currently view-only and cannot be added, edited, deleted, or disabled by users.",
       "id": "Rule ID",
       "severity": "Severity",
       "descriptionCol": "Descricao",
