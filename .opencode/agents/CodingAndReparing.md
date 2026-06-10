@@ -1,7 +1,7 @@
 ---
 description: xxx
 mode: all
-temperature: 0.1
+temperature: 0.3
 permission:
   task:
     "*": deny
