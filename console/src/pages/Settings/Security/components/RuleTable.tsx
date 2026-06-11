@@ -22,6 +22,8 @@ const SEVERITY_COLORS: Record<string, string> = {
   INFO: "default",
 };
 
+const RULE_MUTATIONS_DISABLED = true;
+
 interface RuleTableProps {
   rules: MergedRule[];
   enabled: boolean;
@@ -147,7 +149,7 @@ export function RuleTable({
             size="small"
             checked={record.autoDeny}
             onChange={() => onToggleAutoDeny(record.id, record.autoDeny)}
-            disabled={!enabled || record.disabled}
+            disabled={!enabled || record.disabled || RULE_MUTATIONS_DISABLED}
           />
         </Tooltip>
       ),
@@ -169,7 +171,7 @@ export function RuleTable({
               size="small"
               checked={!record.disabled}
               onChange={() => onToggleRule(record.id, record.disabled)}
-              disabled={!enabled}
+              disabled={!enabled || RULE_MUTATIONS_DISABLED}
             />
           </Tooltip>
           {record.source === "builtin" && (
@@ -196,7 +198,7 @@ export function RuleTable({
                   size="small"
                   icon={<Pencil size={14} />}
                   onClick={() => onEditRule(record)}
-                  disabled={!enabled}
+                  disabled={!enabled || RULE_MUTATIONS_DISABLED}
                   style={darkBtnStyle}
                 />
               </Tooltip>
@@ -207,7 +209,7 @@ export function RuleTable({
                   danger
                   icon={<Trash2 size={14} />}
                   onClick={() => onDeleteRule(record.id)}
-                  disabled={!enabled}
+                  disabled={!enabled || RULE_MUTATIONS_DISABLED}
                 />
               </Tooltip>
             </>

@@ -1,7 +1,12 @@
 import { request } from "../request";
 import type {
+  CredentialBindableService,
   CredentialCreateRequest,
+  CredentialGovernanceAuditEvent,
+  CredentialGovernancePolicy,
+  CredentialGovernancePolicyPayload,
   CredentialItem,
+  CredentialMcpAutoBindResult,
   CredentialScope,
   CredentialUpdateRequest,
 } from "../types";
@@ -80,5 +85,67 @@ export const credentialsApi = {
       { method: "POST" },
     );
   },
+
+  listCredentialBindableServices: (agentId: string) => {
+    const params = new URLSearchParams({ agent_id: agentId });
+    return request<CredentialBindableService[]>(
+      `/credential-bindings/services?${params.toString()}`,
+    );
+  },
+
+  listCredentialGovernanceAudit: (params: {
+    agentId?: string;
+    serviceId?: string;
+    credentialId?: string;
+    decision?: string;
+    limit?: number;
+  }) => {
+    const search = new URLSearchParams();
+    if (params.agentId) search.set("agent_id", params.agentId);
+    if (params.serviceId) search.set("service_id", params.serviceId);
+    if (params.credentialId) search.set("credential_id", params.credentialId);
+    if (params.decision) search.set("decision", params.decision);
+    if (params.limit) search.set("limit", String(params.limit));
+    return request<CredentialGovernanceAuditEvent[]>(
+      `/credential-bindings/audit?${search.toString()}`,
+    );
+  },
+
+  autoBindMcpCredentials: (agentId: string) => {
+    const params = new URLSearchParams({ agent_id: agentId });
+    return request<CredentialMcpAutoBindResult>(
+      `/credential-bindings/mcp/auto-bind?${params.toString()}`,
+      { method: "POST" },
+    );
+  },
+
+  listCredentialGovernancePolicies: () =>
+    request<CredentialGovernancePolicy[]>("/credential-bindings/policies"),
+
+  createCredentialGovernancePolicy: (
+    payload: CredentialGovernancePolicyPayload,
+  ) =>
+    request<CredentialGovernancePolicy>("/credential-bindings/policies", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    }),
+
+  updateCredentialGovernancePolicy: (
+    policyId: string,
+    payload: Partial<CredentialGovernancePolicyPayload>,
+  ) =>
+    request<CredentialGovernancePolicy>(
+      `/credential-bindings/policies/${encodeURIComponent(policyId)}`,
+      {
+        method: "PUT",
+        body: JSON.stringify(payload),
+      },
+    ),
+
+  deleteCredentialGovernancePolicy: (policyId: string) =>
+    request<{ id: string; deleted: boolean }>(
+      `/credential-bindings/policies/${encodeURIComponent(policyId)}`,
+      { method: "DELETE" },
+    ),
 };
 
