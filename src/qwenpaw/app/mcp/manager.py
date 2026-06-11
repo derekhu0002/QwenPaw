@@ -13,7 +13,7 @@ import os
 from typing import Any, Dict, List, TYPE_CHECKING
 
 from .stateful_client import HttpStatefulClient, StdIOStatefulClient
-from ...security.credential_resolver import get_credential_resolver
+from ...security.credential_governance import get_credential_injection_gateway
 
 if TYPE_CHECKING:
     from ...config.config import MCPClientConfig, MCPConfig
@@ -37,7 +37,7 @@ class MCPClientManager:
         self._clients: Dict[str, Any] = {}
         self._lock = asyncio.Lock()
         self._agent_id = agent_id
-        self._credential_resolver = get_credential_resolver()
+        self._credential_gateway = get_credential_injection_gateway()
 
     async def init_from_config(self, config: "MCPConfig") -> None:
         """Initialize clients from configuration.
@@ -109,7 +109,7 @@ class MCPClientManager:
         """
         # 1. Create and connect new client outside lock (may be slow)
         logger.debug(f"Connecting new MCP client: {key}")
-        new_client = self._build_client(client_config)
+        new_client = self._build_client(key, client_config)
 
         try:
             # Add timeout to prevent indefinite blocking
@@ -183,7 +183,7 @@ class MCPClientManager:
             client_config: Client configuration
             timeout: Connection timeout in seconds (default 60s)
         """
-        client = self._build_client(client_config)
+        client = self._build_client(key, client_config)
 
         try:
             await asyncio.wait_for(client.connect(), timeout=timeout)
@@ -245,7 +245,7 @@ class MCPClientManager:
         result["Authorization"] = f"Bearer {oauth.access_token}"
         return result
 
-    def _build_client(self, client_config: "MCPClientConfig") -> Any:
+    def _build_client(self, key: str, client_config: "MCPClientConfig") -> Any:
         """Build MCP client instance by configured transport."""
         rebuild_info = {
             "name": client_config.name,
@@ -261,12 +261,14 @@ class MCPClientManager:
         if client_config.transport == "stdio":
             env = dict(client_config.env)
             if client_config.credential_ref is not None:
-                _, env = self._credential_resolver.inject_mcp_runtime(
+                result = self._credential_gateway.inject_mcp_runtime(
                     headers={},
                     env=env,
                     credential_ref=client_config.credential_ref,
                     agent_id=self._agent_id,
+                    service_id=f"mcp:{key}",
                 )
+                env = result.env
             client = StdIOStatefulClient(
                 name=client_config.name,
                 command=client_config.command,
@@ -280,12 +282,16 @@ class MCPClientManager:
         headers: dict = dict(client_config.headers or {})
         env: dict = dict(client_config.env or {})
         if client_config.credential_ref is not None:
-            headers, env = self._credential_resolver.inject_mcp_runtime(
+            result = self._credential_gateway.inject_mcp_runtime(
                 headers=headers,
                 env=env,
                 credential_ref=client_config.credential_ref,
                 agent_id=self._agent_id,
+                service_id=f"mcp:{key}",
+                target_url=client_config.url,
             )
+            headers = result.headers
+            env = result.env
         headers = {k: os.path.expandvars(v) for k, v in headers.items()}
 
         # Inject OAuth access token (overrides any manually set Authorization)

@@ -82,6 +82,7 @@ def create_agent_scoped_router() -> APIRouter:
     from .plugins import router as plugins_router
     from .plan import router as plan_router
     from .credentials import router as credentials_router
+    from .credential_bindings import router as credential_bindings_router
 
     router = APIRouter(prefix="/agents/{agentId}", tags=["agent-scoped"])
 
@@ -107,5 +108,6 @@ def create_agent_scoped_router() -> APIRouter:
     router.include_router(plugins_router)
     router.include_router(plan_router)
     router.include_router(credentials_router)
+    router.include_router(credential_bindings_router)
 
     return router

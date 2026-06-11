@@ -62,6 +62,7 @@
     "environments": "Environments",
     "security": "Security",
     "credentials": "Credentials",
+    "credentialPolicies": "Credential Policies",
     "tokenUsage": "Token Usage",
     "agentStats": "Agent Statistics",
     "voiceTranscription": "Voice Transcription",

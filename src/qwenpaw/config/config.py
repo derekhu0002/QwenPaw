@@ -81,6 +81,9 @@ class CredentialEntry(BaseModel):
     agent_id: str = Field(default="")
     description: str = Field(default="")
     data: Dict[str, str] = Field(default_factory=dict)
+    service_id: str = Field(default="")
+    allowed_hosts: List[str] = Field(default_factory=list)
+    field_map: Dict[str, str] = Field(default_factory=dict)
     created_at: float = Field(default=0.0)
     updated_at: float = Field(default=0.0)
 

@@ -6,7 +6,9 @@ import { Plus } from "lucide-react";
 import api, { agentsApi } from "../../../api";
 import type {
   AgentSummary,
+  CredentialBindableService,
   CredentialCreateRequest,
+  CredentialGovernanceAuditEvent,
   CredentialItem,
   CredentialScope,
   CredentialType,
@@ -28,12 +30,46 @@ function formatDate(ts: number): string {
   return new Date(ts * 1000).toLocaleString();
 }
 
+function parseJsonObject(text: string, label: string): Record<string, string> | null {
+  try {
+    const value = JSON.parse(text);
+    if (!value || typeof value !== "object" || Array.isArray(value)) {
+      throw new Error(`${label} must be a JSON object`);
+    }
+    return Object.entries(value).reduce<Record<string, string>>(
+      (acc, [key, val]) => {
+        acc[key] = String(val ?? "");
+        return acc;
+      },
+      {},
+    );
+  } catch (error) {
+    throw new Error(error instanceof Error ? error.message : `Invalid ${label}`);
+  }
+}
+
+function parseStringArray(text: string, label: string): string[] | null {
+  try {
+    const value = JSON.parse(text);
+    if (!Array.isArray(value)) {
+      throw new Error(`${label} must be a JSON array`);
+    }
+    return value.map((item) => String(item)).filter(Boolean);
+  } catch (error) {
+    throw new Error(error instanceof Error ? error.message : `Invalid ${label}`);
+  }
+}
+
 export default function CredentialsPage() {
   const { message } = useAppMessage();
   const { selectedAgent } = useAgentStore();
   const [loading, setLoading] = useState(false);
   const [items, setItems] = useState<CredentialItem[]>([]);
   const [agents, setAgents] = useState<AgentSummary[]>([]);
+  const [services, setServices] = useState<CredentialBindableService[]>([]);
+  const [auditItems, setAuditItems] = useState<CredentialGovernanceAuditEvent[]>([]);
+  const [auditOpen, setAuditOpen] = useState(false);
+  const [auditLoading, setAuditLoading] = useState(false);
   const [scope, setScope] = useState<CredentialScope>("visible");
   const [agentId, setAgentId] = useState(selectedAgent || "");
 
@@ -47,6 +83,9 @@ export default function CredentialsPage() {
   const [entryScope, setEntryScope] = useState<"agent" | "global">("agent");
   const [description, setDescription] = useState("");
   const [jsonData, setJsonData] = useState('{\n  "api_key": ""\n}');
+  const [serviceId, setServiceId] = useState("");
+  const [allowedHostsJson, setAllowedHostsJson] = useState("[]");
+  const [fieldMapJson, setFieldMapJson] = useState("{}");
   const resolvedAgentId = agentId.trim();
 
   useEffect(() => {
@@ -66,6 +105,22 @@ export default function CredentialsPage() {
     };
     void loadAgents();
   }, []);
+
+  useEffect(() => {
+    const loadServices = async () => {
+      if (!resolvedAgentId) {
+        setServices([]);
+        return;
+      }
+      try {
+        const data = await api.listCredentialBindableServices(resolvedAgentId);
+        setServices(data);
+      } catch {
+        setServices([]);
+      }
+    };
+    void loadServices();
+  }, [resolvedAgentId]);
 
   const reload = useCallback(async () => {
     setLoading(true);
@@ -122,6 +177,9 @@ export default function CredentialsPage() {
     setEntryScope("agent");
     setDescription("");
     setJsonData('{\n  "api_key": ""\n}');
+    setServiceId("");
+    setAllowedHostsJson("[]");
+    setFieldMapJson("{}");
   }, []);
 
   const openCreate = () => {
@@ -161,6 +219,9 @@ export default function CredentialsPage() {
       setEntryScope(detail.scope);
       setDescription(detail.description);
       setJsonData(JSON.stringify(detail.data, null, 2));
+      setServiceId(detail.service_id || "");
+      setAllowedHostsJson(JSON.stringify(detail.allowed_hosts || [], null, 2));
+      setFieldMapJson(JSON.stringify(detail.field_map || {}, null, 2));
       setOpen(true);
     } catch (error) {
       message.error(error instanceof Error ? error.message : "Failed to load credential detail");
@@ -181,20 +242,19 @@ export default function CredentialsPage() {
   const submit = async () => {
     let parsed: Record<string, string>;
     try {
-      const value = JSON.parse(jsonData);
-      if (!value || typeof value !== "object" || Array.isArray(value)) {
-        message.error("Data must be a JSON object");
-        return;
-      }
-      parsed = Object.entries(value).reduce<Record<string, string>>(
-        (acc, [k, v]) => {
-          acc[k] = String(v ?? "");
-          return acc;
-        },
-        {},
-      );
-    } catch {
-      message.error("Invalid JSON data");
+      parsed = parseJsonObject(jsonData, "Data") || {};
+    } catch (error) {
+      message.error(error instanceof Error ? error.message : "Invalid JSON data");
+      return;
+    }
+
+    let allowedHosts: string[];
+    let fieldMap: Record<string, string>;
+    try {
+      allowedHosts = parseStringArray(allowedHostsJson, "Allowed hosts") || [];
+      fieldMap = parseJsonObject(fieldMapJson, "Field map") || {};
+    } catch (error) {
+      message.error(error instanceof Error ? error.message : "Invalid governance metadata");
       return;
     }
 
@@ -206,7 +266,15 @@ export default function CredentialsPage() {
       if (editing) {
         await api.updateCredential(
           editing.id,
-          { name, type, description, data: parsed },
+          {
+            name,
+            type,
+            description,
+            data: parsed,
+            service_id: serviceId,
+            allowed_hosts: allowedHosts,
+            field_map: fieldMap,
+          },
           editing.scope,
           editing.scope === "agent"
             ? editing.agent_id || resolvedAgentId || undefined
@@ -220,6 +288,9 @@ export default function CredentialsPage() {
           agent_id: entryScope === "agent" ? resolvedAgentId || undefined : undefined,
           description,
           data: parsed,
+          service_id: serviceId,
+          allowed_hosts: allowedHosts,
+          field_map: fieldMap,
         };
         await api.createCredential(payload);
       }
@@ -246,6 +317,42 @@ export default function CredentialsPage() {
     }
   };
 
+  const loadAudit = useCallback(async () => {
+    setAuditLoading(true);
+    try {
+      const data = await api.listCredentialGovernanceAudit({
+        agentId: resolvedAgentId || undefined,
+        limit: 100,
+      });
+      setAuditItems(data);
+      setAuditOpen(true);
+    } catch (error) {
+      message.error(error instanceof Error ? error.message : "Failed to load audit");
+    } finally {
+      setAuditLoading(false);
+    }
+  }, [message, resolvedAgentId]);
+
+  const autoBindMcp = async () => {
+    if (!resolvedAgentId) {
+      message.warning("请先选择 Agent ID");
+      return;
+    }
+    try {
+      const result = await api.autoBindMcpCredentials(resolvedAgentId);
+      const [, nextServices] = await Promise.all([
+        reload(),
+        api.listCredentialBindableServices(resolvedAgentId),
+      ]);
+      setServices(nextServices);
+      message.success(
+        `MCP auto-bind completed: ${result.count} updated, ${result.skipped.length} skipped`,
+      );
+    } catch (error) {
+      message.error(error instanceof Error ? error.message : "MCP auto-bind failed");
+    }
+  };
+
   const columns: ColumnsType<CredentialItem> = useMemo(
     () => [
       { title: "Name", dataIndex: "name", key: "name" },
@@ -268,6 +375,13 @@ export default function CredentialsPage() {
         render: (value: string) => (
           <Tag color={value === "agent" ? "green" : "geekblue"}>{value}</Tag>
         ),
+      },
+      {
+        title: "Bound Service",
+        dataIndex: "service_id",
+        key: "service_id",
+        render: (value?: string) =>
+          value ? <Tag color="blue">{value}</Tag> : <Tag>compatibility</Tag>,
       },
       { title: "Updated", dataIndex: "updated_at", render: formatDate },
       {
@@ -296,6 +410,32 @@ export default function CredentialsPage() {
     [openEdit, openView],
   );
 
+  const auditColumns: ColumnsType<CredentialGovernanceAuditEvent> = useMemo(
+    () => [
+      { title: "Time", dataIndex: "timestamp", render: formatDate },
+      { title: "Agent", dataIndex: "agent_id" },
+      { title: "Service", dataIndex: "service_id" },
+      { title: "Credential", dataIndex: "credential_id" },
+      { title: "Host", dataIndex: "target_host" },
+      {
+        title: "Decision",
+        dataIndex: "decision",
+        render: (value: string) => {
+          const color =
+            value === "allow" ? "green" : value === "deny" ? "red" : "orange";
+          return <Tag color={color}>{value}</Tag>;
+        },
+      },
+      { title: "Reason", dataIndex: "reason_code" },
+      {
+        title: "Mapped Keys",
+        dataIndex: "mapped_keys",
+        render: (value: string[]) => (value || []).join(", ") || "-",
+      },
+    ],
+    [],
+  );
+
   const agentOptions = useMemo(() => {
     const base = agents.map((agent) => ({
       label: `${agent.name || agent.id} (${agent.id})`,
@@ -309,6 +449,55 @@ export default function CredentialsPage() {
     }
     return base;
   }, [agents, resolvedAgentId]);
+
+  const serviceOptions = useMemo(
+    () =>
+      services.map((service) => ({
+        label: service.enabled
+          ? service.display_name
+          : `${service.display_name} (disabled)`,
+        value: service.service_id,
+      })),
+    [services],
+  );
+
+  const applySelectedService = (value?: string) => {
+    const nextServiceId = value || "";
+    setServiceId(nextServiceId);
+    const selected = services.find((service) => service.service_id === nextServiceId);
+    if (selected) {
+      setAllowedHostsJson(JSON.stringify(selected.allowed_hosts || [], null, 2));
+      try {
+        const currentFieldMap = parseJsonObject(fieldMapJson, "Field map") || {};
+        if (Object.keys(currentFieldMap).length === 0) {
+          const envName =
+            selected.name === "tavily_search"
+              ? "TAVILY_API_KEY"
+              : selected.name === "opensandbox"
+                ? "OPEN_SANDBOX_API_KEY"
+              : `${selected.name.toUpperCase().replace(/[^A-Z0-9]/g, "_")}_API_KEY`;
+          setFieldMapJson(JSON.stringify({ api_key: `env.${envName}` }, null, 2));
+        }
+      } catch {
+        setFieldMapJson(
+          JSON.stringify({ api_key: "env.TAVILY_API_KEY" }, null, 2),
+        );
+      }
+    }
+  };
+
+  const serviceDirectoryHint = useMemo(() => {
+    if (entryScope === "global") {
+      return "Global credentials are not part of governed runtime injection yet.";
+    }
+    if (!resolvedAgentId) {
+      return "Select an Agent first to load its service directory.";
+    }
+    if (!services.length) {
+      return "No MCP services found for this Agent.";
+    }
+    return `${services.length} service(s) loaded from this Agent's MCP config.`;
+  }, [entryScope, resolvedAgentId, services.length]);
 
   return (
     <div>
@@ -339,6 +528,15 @@ export default function CredentialsPage() {
               }
               onChange={(value) => setAgentId((value as string) || "")}
             />
+            <Button
+              disabled={!resolvedAgentId}
+              onClick={() => void autoBindMcp()}
+            >
+              Auto-bind MCP
+            </Button>
+            <Button loading={auditLoading} onClick={() => void loadAudit()}>
+              Audit
+            </Button>
             <Button onClick={() => void reload()}>Refresh</Button>
             <Button type="primary" icon={<Plus size={14} />} onClick={openCreate}>
               Create
@@ -355,6 +553,7 @@ export default function CredentialsPage() {
               ? `Current Agent: ${resolvedAgentId}`
               : "Current Agent: not selected"}
         </Tag>
+        <Tag color="blue">Credential governance: optional service binding</Tag>
       </div>
 
       <Table
@@ -406,6 +605,45 @@ export default function CredentialsPage() {
             value={description}
             onChange={(e) => setDescription(e.target.value)}
           />
+          <div>
+            <div style={{ fontWeight: 600, marginBottom: 4 }}>
+              Service Directory (optional governed injection)
+            </div>
+            <div style={{ color: "#888", fontSize: 12, marginBottom: 8 }}>
+              {serviceDirectoryHint}
+            </div>
+          </div>
+          <Select
+            allowClear
+            value={serviceId || undefined}
+            placeholder="Select from service directory, e.g. MCP: tavily_search"
+            options={serviceOptions}
+            disabled={entryScope === "global" || !resolvedAgentId}
+            onChange={(value) => applySelectedService(value as string | undefined)}
+          />
+          <Input.TextArea
+            rows={3}
+            value={allowedHostsJson}
+            placeholder={'Allowed hosts JSON, e.g. ["api.github.com"]'}
+            onChange={(e) => setAllowedHostsJson(e.target.value)}
+          />
+          <div style={{ color: "#888", fontSize: 12, marginTop: -8 }}>
+            Allowed hosts limits where this credential can be injected. Use [] for
+            stdio/local MCP services or when there is no HTTP target host.
+          </div>
+          <Input.TextArea
+            rows={4}
+            value={fieldMapJson}
+            placeholder={'Field map JSON, e.g. {"token":"header.Authorization"}'}
+            onChange={(e) => setFieldMapJson(e.target.value)}
+          />
+          <div style={{ color: "#888", fontSize: 12, marginTop: -8 }}>
+            Field map maps credential data keys to injection targets. Examples:
+            {" "}
+            {"{\"api_key\":\"env.TAVILY_API_KEY\"}"} for stdio MCP, or
+            {" "}
+            {"{\"token\":\"header.Authorization\"}"} for HTTP MCP.
+          </div>
           <Input.TextArea
             rows={8}
             value={jsonData}
@@ -434,6 +672,24 @@ export default function CredentialsPage() {
           )}
           <Input.TextArea rows={12} value={viewJsonData} readOnly />
         </Space>
+      </Modal>
+
+      <Modal
+        title="Credential Governance Audit"
+        open={auditOpen}
+        onCancel={() => setAuditOpen(false)}
+        footer={null}
+        width={1100}
+      >
+        <Table
+          rowKey={(record) =>
+            `${record.timestamp}:${record.agent_id}:${record.service_id}:${record.credential_id}:${record.reason_code}`
+          }
+          columns={auditColumns}
+          dataSource={auditItems}
+          loading={auditLoading}
+          pagination={{ pageSize: 10 }}
+        />
       </Modal>
     </div>
   );
