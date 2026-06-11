@@ -13,7 +13,7 @@ from ...config.config import (
     CredentialScope,
     CredentialType,
 )
-from ...config.config import save_agent_config
+from ...config.config import load_agent_config, save_agent_config
 from ...providers.provider_manager import ProviderManager
 from ...security.credential_store import get_credential_store
 
@@ -39,6 +39,9 @@ class CredentialCreateRequest(BaseModel):
     agent_id: str | None = None
     description: str = ""
     data: dict[str, str] = Field(default_factory=dict)
+    service_id: str = ""
+    allowed_hosts: list[str] = Field(default_factory=list)
+    field_map: dict[str, str] = Field(default_factory=dict)
 
 
 class CredentialUpdateRequest(BaseModel):
@@ -46,6 +49,40 @@ class CredentialUpdateRequest(BaseModel):
     type: CredentialType | None = None
     description: str | None = None
     data: dict[str, str] | None = None
+    service_id: str | None = None
+    allowed_hosts: list[str] | None = None
+    field_map: dict[str, str] | None = None
+
+
+def _link_agent_mcp_credential(
+    *,
+    agent_id: str | None,
+    service_id: str,
+    credential_id: str,
+    field_map: dict[str, str],
+) -> None:
+    """Link a governed credential to the matching MCP client config.
+
+    Runtime MCP injection is triggered by ``client.credential_ref``. The
+    credential's ``service_id`` is governance metadata, so we keep this as a
+    narrow adapter instead of making the credential store know about MCP.
+    """
+
+    if not agent_id or not service_id.startswith("mcp:"):
+        return
+    client_key = service_id.removeprefix("mcp:")
+    try:
+        agent_config = load_agent_config(agent_id)
+    except Exception:
+        return
+    if agent_config.mcp is None or client_key not in agent_config.mcp.clients:
+        return
+    client = agent_config.mcp.clients[client_key]
+    client.credential_ref = CredentialRef(
+        credential_id=credential_id,
+        field_map=field_map,
+    )
+    save_agent_config(agent_id, agent_config)
 
 
 @router.get("")
@@ -88,7 +125,17 @@ async def create_credential(
         data=body.data,
         agent_id=resolved_agent_id,
         description=body.description,
+        service_id=body.service_id,
+        allowed_hosts=body.allowed_hosts,
+        field_map=body.field_map,
     )
+    if body.scope == CredentialScope.AGENT:
+        _link_agent_mcp_credential(
+            agent_id=resolved_agent_id,
+            service_id=entry.service_id,
+            credential_id=entry.id,
+            field_map=entry.field_map,
+        )
     return {
         "id": entry.id,
         "scope": entry.scope,
@@ -119,9 +166,20 @@ async def update_credential(
             description=body.description,
             data=body.data,
             credential_type=body.type,
+            service_id=body.service_id,
+            allowed_hosts=body.allowed_hosts,
+            field_map=body.field_map,
         )
     except ValueError as exc:
         raise HTTPException(404, detail=str(exc)) from exc
+
+    if resolved_scope == CredentialScope.AGENT:
+        _link_agent_mcp_credential(
+            agent_id=resolved_agent_id,
+            service_id=entry.service_id,
+            credential_id=entry.id,
+            field_map=entry.field_map,
+        )
 
     return {"id": entry.id, "updated_at": entry.updated_at}
 

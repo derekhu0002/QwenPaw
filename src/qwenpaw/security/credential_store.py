@@ -186,6 +186,9 @@ class CredentialStore:
         data: dict[str, str],
         agent_id: str | None = None,
         description: str = "",
+        service_id: str = "",
+        allowed_hosts: list[str] | None = None,
+        field_map: dict[str, str] | None = None,
     ) -> CredentialEntry:
         with self._lock:
             entries = self._load_scope_entries(scope, agent_id)
@@ -199,6 +202,9 @@ class CredentialStore:
                 agent_id=agent_id or "",
                 description=description,
                 data={str(k): str(v) for k, v in data.items()},
+                service_id=service_id.strip(),
+                allowed_hosts=[str(host) for host in (allowed_hosts or []) if str(host)],
+                field_map={str(k): str(v) for k, v in (field_map or {}).items()},
                 created_at=now,
                 updated_at=now,
             )
@@ -216,6 +222,9 @@ class CredentialStore:
         description: str | None = None,
         data: dict[str, str] | None = None,
         credential_type: CredentialType | None = None,
+        service_id: str | None = None,
+        allowed_hosts: list[str] | None = None,
+        field_map: dict[str, str] | None = None,
     ) -> CredentialEntry:
         with self._lock:
             entries = self._load_scope_entries(scope, agent_id)
@@ -231,6 +240,14 @@ class CredentialStore:
             if data is not None:
                 entry.data = {str(k): str(v) for k, v in data.items()}
             entry.updated_at = time.time()
+            if service_id is not None:
+                entry.service_id = service_id.strip()
+            if allowed_hosts is not None:
+                entry.allowed_hosts = [
+                    str(host) for host in allowed_hosts if str(host)
+                ]
+            if field_map is not None:
+                entry.field_map = {str(k): str(v) for k, v in field_map.items()}
             entries[credential_id] = entry
             self._save_scope_entries(scope, agent_id, entries)
             return entry

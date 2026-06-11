@@ -503,6 +503,13 @@ export default function Sidebar({ selectedKey }: SidebarProps) {
           icon: <SparkCardLine size={16} />,
         },
         {
+          key: "credential-policies",
+          label: collapsed
+            ? null
+            : t("nav.credentialPolicies", "Credential Policies"),
+          icon: <SparkBrowseLine size={16} />,
+        },
+        {
           key: "token-usage",
           label: collapsed ? null : t("nav.tokenUsage"),
           icon: <SparkDataLine size={16} />,
