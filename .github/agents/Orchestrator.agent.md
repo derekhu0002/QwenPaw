@@ -1,5 +1,5 @@
 ---
-name: Orchestrator.agent
+name: Orchestrator
 description: Orchestrator
 argument-hint: scope
 ---
