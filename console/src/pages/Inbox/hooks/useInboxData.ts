@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
+import type { TFunction } from "i18next";
 import api from "../../../api";
 import type { InboxEvent } from "../../../api/modules/console";
 import { useAgentStore } from "../../../stores/agentStore";
@@ -7,9 +8,25 @@ import {
   DEFAULT_AGENT_ID,
   getAgentDisplayName,
 } from "../../../utils/agentDisplayName";
+import {
+  getPersonaDriftBody,
+  getPersonaDriftTitle,
+  getPersonaProtectionChannelName,
+} from "@extension/persona_baseline/lib/driftDisplay";
 import type { HarvestInstance, InboxSummary, PushMessage } from "../types";
+import {
+  INBOX_CHANGED_EVENT,
+  readInboxChangedDetail,
+} from "@extension/shared/inbox/inboxEvents";
 
 const PUSH_POLLING_INTERVAL_MS = 6000;
+
+/** Inbox events shown under Messages tab (must stay aligned with Sidebar unread API). */
+export const INBOX_MESSAGE_SOURCE_TYPES = [
+  "cron",
+  "heartbeat",
+  "persona_protection",
+] as const;
 
 const MOCK_HARVESTS: HarvestInstance[] = [];
 
@@ -40,52 +57,71 @@ const getHeartbeatSummary = (status?: string): string => {
 const mapEventToPushMessage = (
   event: InboxEvent,
   resolveAgentName: (agentId: string) => string,
-): PushMessage => ({
-  id: event.id,
-  channelType:
-    event.source_type === "heartbeat"
-      ? "heartbeat"
-      : event.source_type === "cron"
-      ? "wechat"
-      : "email",
-  channelName:
-    event.source_type === "heartbeat"
-      ? "Heartbeat"
-      : event.source_type === "cron"
-      ? "Cron"
-      : "System",
-  title: event.title,
-  content:
-    event.source_type === "heartbeat"
-      ? getHeartbeatSummary(event.status)
-      : stripExecutionTimeText(event.body),
-  sender: {
-    userId: event.agent_id || "default",
-    username: resolveAgentName(event.agent_id || DEFAULT_AGENT_ID),
-  },
-  createdAt: new Date((event.created_at || Date.now() / 1000) * 1000),
-  read: Boolean(event.read),
-  metadata: {
-    priority:
-      event.severity === "error" || event.status === "error"
-        ? "high"
-        : mapPriority(event.body),
-    sourceType: event.source_type,
-    sourceId: event.source_id,
-    eventType: event.event_type,
-    status: event.status,
-    severity: event.severity,
-    trigger:
-      typeof event.payload?.trigger === "string"
-        ? (event.payload.trigger as string)
-        : undefined,
-    agentId: event.agent_id,
-    payload:
-      event.payload && typeof event.payload === "object"
-        ? event.payload
-        : undefined,
-  },
-});
+  t: TFunction,
+): PushMessage => {
+  const personaPath =
+    typeof event.payload?.path === "string" ? event.payload.path : "";
+  const personaProvenance =
+    typeof event.payload?.provenance === "string"
+      ? event.payload.provenance
+      : undefined;
+
+  return {
+    id: event.id,
+    channelType:
+      event.source_type === "heartbeat"
+        ? "heartbeat"
+        : event.source_type === "cron"
+          ? "wechat"
+          : "email",
+    channelName:
+      event.source_type === "heartbeat"
+        ? "Heartbeat"
+        : event.source_type === "cron"
+          ? "Cron"
+          : event.source_type === "persona_protection"
+            ? getPersonaProtectionChannelName(t)
+            : "System",
+    title:
+      event.source_type === "persona_protection"
+        ? getPersonaDriftTitle(t, personaProvenance)
+        : event.title,
+    content:
+      event.source_type === "heartbeat"
+        ? getHeartbeatSummary(event.status)
+        : event.source_type === "persona_protection"
+          ? getPersonaDriftBody(t, personaPath || event.title)
+          : stripExecutionTimeText(event.body),
+    sender: {
+      userId: event.agent_id || "default",
+      username: resolveAgentName(event.agent_id || DEFAULT_AGENT_ID),
+    },
+    createdAt: new Date((event.created_at || Date.now() / 1000) * 1000),
+    read: Boolean(event.read),
+    metadata: {
+      priority:
+        event.severity === "error" ||
+        event.status === "error" ||
+        event.severity === "high"
+          ? "high"
+          : mapPriority(event.body),
+      sourceType: event.source_type,
+      sourceId: event.source_id,
+      eventType: event.event_type,
+      status: event.status,
+      severity: event.severity,
+      trigger:
+        typeof event.payload?.trigger === "string"
+          ? (event.payload.trigger as string)
+          : undefined,
+      agentId: event.agent_id,
+      payload:
+        event.payload && typeof event.payload === "object"
+          ? event.payload
+          : undefined,
+    },
+  };
+};
 
 export const useInboxData = () => {
   const { t } = useTranslation();
@@ -127,11 +163,13 @@ export const useInboxData = () => {
     try {
       const res = await api.getInboxEvents({ limit: 200 });
       const events = [...(res?.events || [])].filter((event) =>
-        ["cron", "heartbeat"].includes(event.source_type),
+        (INBOX_MESSAGE_SOURCE_TYPES as readonly string[]).includes(
+          event.source_type,
+        ),
       );
       events.sort((a, b) => (b.created_at || 0) - (a.created_at || 0));
       const nextItems: PushMessage[] = events.map((event) =>
-        mapEventToPushMessage(event, resolveAgentNameRef.current),
+        mapEventToPushMessage(event, resolveAgentNameRef.current, t),
       );
       setPushMessages(nextItems);
       setSummary((prev) => ({
@@ -144,7 +182,7 @@ export const useInboxData = () => {
     } catch (error) {
       console.error("Failed to fetch push inbox data", error);
     }
-  }, []);
+  }, [t]);
 
   useEffect(() => {
     void loadPushMessages();
@@ -179,9 +217,32 @@ export const useInboxData = () => {
     }
 
     document.addEventListener("visibilitychange", handleVisibilityChange);
+    const onInboxChanged = (event: Event) => {
+      const detail = readInboxChangedDetail(event);
+      const clearedIds = detail?.eventIds ?? [];
+      if (clearedIds.length > 0) {
+        const clearedSet = new Set(clearedIds);
+        setPushMessages((prev) => {
+          const next = prev.map((message) =>
+            clearedSet.has(message.id) ? { ...message, read: true } : message,
+          );
+          setSummary((summaryPrev) => ({
+            ...summaryPrev,
+            pushMessages: {
+              total: next.length,
+              unread: next.filter((message) => !message.read).length,
+            },
+          }));
+          return next;
+        });
+      }
+      void loadPushMessages();
+    };
+    window.addEventListener(INBOX_CHANGED_EVENT, onInboxChanged);
     return () => {
       stopPolling();
       document.removeEventListener("visibilitychange", handleVisibilityChange);
+      window.removeEventListener(INBOX_CHANGED_EVENT, onInboxChanged);
     };
   }, [loadPushMessages]);
 

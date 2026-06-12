@@ -56,6 +56,7 @@ export default function ConsolePollService() {
           const now = Date.now();
           for (const m of res.messages) {
             if (seen.has(m.id)) continue;
+            if (m.text.startsWith("Persona file changed")) continue;
             seen.add(m.id);
             newItems.push({ ...m, dismissAt: now + AUTO_DISMISS_MS });
           }

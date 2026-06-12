@@ -2,9 +2,11 @@
 
 import asyncio
 from datetime import datetime, timezone
+from pathlib import Path as FilePath
 from typing import Any, List, Optional
 
 from fastapi import APIRouter, Body, Depends, HTTPException, Path, Request
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 
 from ..utils import schedule_agent_reload
@@ -45,12 +47,20 @@ from .schemas_config import (
     ChannelRestartResponse,
     HeartbeatBody,
 )
+from .schemas_integrity_delivery import (
+    ToolGuardRuleIntegrityFindingResponse,
+    ToolGuardRuleIntegrityResponse,
+)
+from .integrity_protection_routes import router as integrity_protection_delivery_router
+from .persona_protection_routes import router as persona_protection_delivery_router
 from ..channels.qrcode_auth_handler import (
     QRCODE_AUTH_HANDLERS,
     generate_qrcode_image,
 )
 
 router = APIRouter(prefix="/config", tags=["config"])
+router.include_router(integrity_protection_delivery_router)
+router.include_router(persona_protection_delivery_router)
 
 
 _CHANNEL_CONFIG_CLASS_MAP = {
@@ -718,24 +728,6 @@ async def get_builtin_rules() -> List[ToolGuardRuleConfig]:
         )
         for r in rules
     ]
-
-
-class ToolGuardRuleIntegrityFindingResponse(BaseModel):
-    file: str
-    reason: str
-    expected_sha256: Optional[str] = None
-    actual_sha256: Optional[str] = None
-    detail: str = ""
-
-
-class ToolGuardRuleIntegrityResponse(BaseModel):
-    ok: bool
-    status: str
-    message: str
-    checked_at: Optional[str] = None
-    findings: List[ToolGuardRuleIntegrityFindingResponse] = Field(
-        default_factory=list,
-    )
 
 
 class ToolGuardRuleIntegrityRepairResponse(BaseModel):

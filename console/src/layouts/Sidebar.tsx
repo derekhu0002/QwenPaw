@@ -47,6 +47,10 @@ import { Package } from "lucide-react";
 import { clearAuthToken } from "../api/config";
 import { authApi } from "../api/modules/auth";
 import api from "../api";
+import {
+  INBOX_CHANGED_EVENT,
+  readInboxChangedDetail,
+} from "@extension/shared/inbox/inboxEvents";
 import { usePlugins } from "../plugins/PluginContext";
 import { useCodingMode } from "../stores/codingModeStore";
 import styles from "./index.module.less";
@@ -143,11 +147,36 @@ export default function Sidebar({ selectedKey }: SidebarProps) {
         // Keep previous state when polling fails.
       }
     };
-    void loadUnreadState();
+
+    const refreshUnreadState = (event?: Event) => {
+      const detail = event ? readInboxChangedDetail(event) : undefined;
+      if (detail?.eventIds?.length) {
+        setHasInboxUnread((prev) => {
+          if (!prev) {
+            return prev;
+          }
+          // Optimistically hide badge; refetch confirms remaining unread items.
+          return false;
+        });
+      }
+      void loadUnreadState();
+      window.setTimeout(() => {
+        void loadUnreadState();
+      }, 300);
+    };
+
+    refreshUnreadState();
     const timer = window.setInterval(() => {
       void loadUnreadState();
     }, INBOX_BADGE_POLLING_MS);
-    return () => window.clearInterval(timer);
+    const onInboxChanged = (event: Event) => {
+      refreshUnreadState(event);
+    };
+    window.addEventListener(INBOX_CHANGED_EVENT, onInboxChanged);
+    return () => {
+      window.clearInterval(timer);
+      window.removeEventListener(INBOX_CHANGED_EVENT, onInboxChanged);
+    };
   }, []);
 
   const inboxLabel = collapsed ? null : (

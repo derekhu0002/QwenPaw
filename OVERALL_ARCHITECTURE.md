@@ -20,7 +20,7 @@
     - intent-local-security-audit-foundation
     - intent-high-risk-tool-guard
   contract: src/qwenpaw/security/ARCHITECTURE.md
-  role: Stable backend-owned boundary for trusted security context provenance, high-risk confirmation evidence, local audit-chain semantics, heartbeat/uplink evidence emission, lease-aware reconnect gating, normal-offline reconnect admission, and the local projection/query seam consumed by `sec-e2e-024`, `sec-e2e-025`, `sec-e2e-027`, and `sec-e2e-028`.
+  role: Stable backend-owned boundary for trusted security context provenance, high-risk confirmation evidence, local audit-chain semantics, heartbeat/uplink evidence emission, lease-aware reconnect gating, normal-offline reconnect admission, Integrity Protection backend semantics, and the local projection/query seam consumed by `sec-e2e-024`, `sec-e2e-025`, `sec-e2e-027`, `sec-e2e-028`, and `ip-e2e-007`.
 
 - path: src/qwenpaw/cli
   kind: OperatorCli
@@ -232,3 +232,79 @@
 - tests/architecture/security-explicit-entrypoint-traceability.test.js
 - tests/architecture/security-event-ingestion-contract-boundaries.test.js
 - .github/validator/ARCHITECTURE.md
+
+## Integrity Protection Delivery Addendum
+- path: extension
+  kind: ExtensionAdapterZone
+  implements:
+    - intent-integrity-protection-delivery
+  contract: extension/ARCHITECTURE.md
+  role: PRD-scoped adapter and design zone for low-intrusion Integrity Protection Delivery integration.
+
+- path: extension/Intergrity  Protection Design.md
+  kind: ImplementationDesignContract
+  role: Stable design handoff for persona baseline protection, source trust verification, health-check orchestration, and rule-integrity console exposure.
+
+### Integrity Protection Dependency Direction
+- `extension` may hold adapters and design documentation, but product behavior must integrate through stable `src/qwenpaw/security`, `src/qwenpaw/app`, `src/qwenpaw/cli`, and `console` contracts.
+- `src/qwenpaw/security` owns backend integrity-protection semantics and must not depend on console component internals.
+- `console` owns Settings/Security rendering and consumes backend APIs through `console/src/api/modules/security.ts`.
+- `tests/integration/security/test_integrity_protection.py` owns the business-readable acceptance bodies and must call `tests/integration/security/integrity_harness.py` rather than raw HTTP, raw environment, raw filesystem, SQL, Cypher, or GraphQL plumbing.
+
+### Integrity Protection Intent Realization Mapping
+- direct implementation: `src/qwenpaw/security` realizes the backend portions of `intent-integrity-protection-delivery`, `intent-persona-baseline-guardian`, `intent-source-trust-verifier`, and `intent-health-check-orchestrator`.
+- direct implementation: `console` realizes `intent-integrity-security-console` by adding Settings/Security Integrity Check and Health Check submenus alongside Tool Guard and File Guard.
+- indirect implementation chain: `extension` carries the PRD-scoped adapter design and low-intrusion glue for `intent-integrity-protection-delivery` under the backend and console contracts.
+- indirect implementation chain: `thirdparty/clawsec-main/clawsec-main/skills/soul-guardian` carries persona baseline initialization, drift detection, restore, and approve mechanics for `intent-persona-baseline-guardian`.
+- indirect implementation chain: `thirdparty/clawsec-main/clawsec-main/skills/clawsec-suite/scripts/guarded_skill_install.mjs` carries source trust verification mechanics for `intent-source-trust-verifier`.
+- indirect implementation chain: `src/qwenpaw/cli/doctor_cmd.py` and `src/qwenpaw/cli/doctor_fix_runner.py` carry scan-only health check and user-confirmed fix mechanics for `intent-health-check-orchestrator`.
+- direct implementation chain: `src/qwenpaw/security/integrity_protection.py` must expose the structured Health Check doctor coverage projection for `intent-health-check-orchestrator`, reusing `src/qwenpaw/cli/doctor_checks.py`, `src/qwenpaw/cli/doctor_connectivity.py`, and doctor fix ids without parsing CLI stdout.
+- indirect implementation chain: `src/qwenpaw/security/tool_guard/rules_integrity.py` carries the existing dangerous-shell-rule integrity backend exposed by `ip-e2e-005-rule-integrity-entry-visible`.
+- direct testcase materialization: `tests/integration/security/test_integrity_protection.py::test_security_i18n_and_healthcheck_progress_carousel` is the read-only explicit entrypoint for `ip-e2e-006-security-i18n-progress-carousel`, and it freezes English/Simplified Chinese Settings/Security copy, English fallback for unsupported languages, readable Health Check current-check carousel rotation, terminal-state carousel shutdown, and the existing scan-only/no-fix-before-confirmation safety boundary.
+- direct testcase materialization: `tests/integration/security/test_integrity_protection.py::test_healthcheck_full_doctor_coverage_projection` is the read-only explicit entrypoint for `ip-e2e-007-healthcheck-full-doctor-coverage`, and it freezes default scan-only full doctor coverage projection, grouped structured result fields, carousel candidates sourced from doctor items, English/Simplified Chinese labels, and explicit opt-in deep connectivity.
+
+### Integrity Protection Explicit Testcase Materialization
+- testcase: ip-e2e-001-integrity-security-menu-default-off
+  intent_element: intent-integrity-protection-delivery
+  entrypoint: tests/integration/security/test_integrity_protection.py::test_integrity_security_menu_default_off
+  runtime_mode: business-readable integration harness, currently passing after Coding/Repair implementation
+
+- testcase: ip-e2e-002-persona-drift-alert-restore-accept
+  intent_element: intent-persona-baseline-guardian
+  entrypoint: tests/integration/security/test_integrity_protection.py::test_persona_drift_alert_restore_accept
+  runtime_mode: business-readable integration harness, currently passing after Coding/Repair implementation
+
+- testcase: ip-e2e-003-source-trust-verification-package
+  intent_element: intent-source-trust-verifier
+  entrypoint: deferred (demo implementation reverted 2026-06-11; see extension/Intergrity  Protection PRD.txt section 二)
+  runtime_mode: intent-only until ClawSec guarded_skill_install integration ships
+
+- testcase: ip-e2e-004-health-check-scan-and-confirmed-fix
+  intent_element: intent-health-check-orchestrator
+  entrypoint: tests/integration/security/test_integrity_protection.py::test_health_check_scan_and_confirmed_fix
+  runtime_mode: business-readable integration harness, currently passing after Coding/Repair implementation
+
+- testcase: ip-e2e-005-rule-integrity-entry-visible
+  intent_element: intent-builtin-tool-rule-integrity
+  entrypoint: tests/integration/security/test_integrity_protection.py::test_rule_integrity_entry_visible
+  runtime_mode: business-readable integration harness, currently passing after Coding/Repair implementation
+
+- testcase: ip-e2e-006-security-i18n-progress-carousel
+  intent_element: intent-integrity-security-console
+  entrypoint: tests/integration/security/test_integrity_protection.py::test_security_i18n_and_healthcheck_progress_carousel
+  runtime_mode: business-readable integration harness, currently passing after Coding/Repair implementation
+
+- testcase: ip-e2e-007-healthcheck-full-doctor-coverage
+  intent_element: intent-health-check-orchestrator
+  entrypoint: tests/integration/security/test_integrity_protection.py::test_healthcheck_full_doctor_coverage_projection
+  runtime_mode: business-readable integration harness, expected to fail until Coding/Repair replaces the fixed two-item Health Check adapter with a structured full doctor coverage projection
+
+### Integrity Protection Critical Non-Explicit Guardrails
+- tests/architecture/integrity-protection-entrypoint-traceability.test.js guards explicit entrypoint correctness, GIVEN/WHEN/THEN body markers, harness abstraction names, business failure categories, implementation handoff traceability, and failure-record alignment for active graph-mounted Integrity Protection testcases (ip-e2e-003 deferred).
+
+### Integrity Protection Frozen Files For Downstream Coding
+- extension/ARCHITECTURE.md
+- extension/Intergrity  Protection Design.md
+- tests/integration/security/integrity_harness.py
+- tests/integration/security/test_integrity_protection.py
+- tests/architecture/integrity-protection-entrypoint-traceability.test.js

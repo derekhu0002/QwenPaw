@@ -11,6 +11,8 @@ node_modules/
 sessions_mount_dir/
 
 # testing
+# Persona watch ad-hoc debug workspaces in repo root (use tempfile/pytest tmp_path instead)
+.tmp_persona_watch_test*/
 /coverage
 .coverage
 coverage.xml

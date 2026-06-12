@@ -381,6 +381,10 @@ async def lifespan(  # pylint: disable=too-many-statements,too-many-branches
             )
             await asyncio.sleep(background_delay)
 
+            from ..security.extension_host import run_startup_scan_if_enabled
+
+            await run_startup_scan_if_enabled()
+
             # Start all configured agents (truly parallel now)
             await multi_agent_manager.start_all_configured_agents()
 

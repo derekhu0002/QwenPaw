@@ -1,4 +1,20 @@
 import { request } from "../request";
+import { healthCheckApi } from "@extension/health_check/api/client";
+import { personaApi } from "@extension/persona_baseline/api/client";
+
+export type {
+  HealthCheckFixResponse,
+  HealthCheckItem,
+  HealthCheckRepairSuggestion,
+  HealthCheckScanResponse,
+} from "@extension/health_check/api/client";
+export type {
+  PersonaProtectionActionResponse,
+  PersonaProtectionAlert,
+  PersonaProtectionAlertsResponse,
+  PersonaProtectionSettings,
+  PersonaProtectionSettingsUpdateBody,
+} from "@extension/persona_baseline/api/client";
 
 export interface ToolGuardRule {
   id: string;
@@ -44,6 +60,16 @@ export interface ToolGuardRulesIntegrityRepair {
   source_url: string;
   backup_path?: string | null;
   integrity: ToolGuardRulesIntegrity;
+}
+
+// ── Integrity Protection types ─────────────────────────────────────
+
+export interface IntegrityProtectionSettings {
+  persona_protection_enabled: boolean;
+  health_check_enabled: boolean;
+  rule_integrity_check_passive: boolean;
+  protected_paths: string[];
+  menus: string[];
 }
 
 // ── File Guard types ──────────────────────────────────────────────
@@ -134,6 +160,35 @@ export const securityApi = {
       "/config/security/tool-guard/rules-integrity/repair",
       { method: "POST" },
     ),
+
+  // ── Integrity Protection ────────────────────────────────────────
+
+  getIntegrityProtectionSettings: () =>
+    request<IntegrityProtectionSettings>(
+      "/config/security/integrity-protection/settings",
+    ),
+
+  runIntegrityHealthCheckScan: healthCheckApi.runIntegrityHealthCheckScan,
+
+  runIntegrityHealthCheckFix: healthCheckApi.runIntegrityHealthCheckFix,
+
+  checkIntegrityRuleEntry: () =>
+    request<ToolGuardRulesIntegrity>(
+      "/config/security/integrity-protection/rules-integrity/check",
+      { method: "POST" },
+    ),
+
+  getPersonaProtectionSettings: personaApi.getPersonaProtectionSettings,
+
+  updatePersonaProtectionSettings: personaApi.updatePersonaProtectionSettings,
+
+  getPersonaProtectionAlerts: personaApi.getPersonaProtectionAlerts,
+
+  restorePersonaProtectionAlert: personaApi.restorePersonaProtectionAlert,
+
+  acceptPersonaProtectionAlert: personaApi.acceptPersonaProtectionAlert,
+
+  getPersonaProtectionWatchUrl: personaApi.getPersonaProtectionWatchUrl,
 
   // ── File Guard ─────────────────────────────────────────────────
 

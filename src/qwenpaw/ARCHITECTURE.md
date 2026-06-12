@@ -111,3 +111,24 @@ element_path: src/qwenpaw
 ### Notes
 - The CLI and backend runtime are kept in one stable element because both surfaces ship from the Python package and share config, orchestration, and runtime support modules.
 - Current evidence for `sec-e2e-024`, `sec-e2e-025`, `sec-e2e-027`, and `sec-e2e-021` is intentionally split across `app/agent_context.py`, `app/approvals/service.py`, `app/inbox_trace_store.py`, `agents/tools/delegate_external_agent.py`, `security/tool_guard/`, and deployment bootstrap assets under `deploy/`; Coding/Repair must converge those seams behind `src/qwenpaw/security/ARCHITECTURE.md` and `deploy/ARCHITECTURE.md` without moving the explicit entrypoints.
+
+## Integrity Protection Delivery Addendum
+
+### Responsibility
+- Keep `security/` as the owning child element for Integrity Protection backend semantics.
+- Keep `app/` responsible for HTTP/SSE routing and lifecycle integration only; it must not redefine persona baseline, source trust, health check, or rule-integrity business rules.
+- Keep `cli/` as the owner of existing `qwenpaw doctor` and `qwenpaw doctor fix` behavior consumed by the health-check orchestrator.
+- Keep `security/integrity_protection.py` as the owner of the Settings/Security Health Check structured doctor coverage projection; it may reuse `cli/doctor_checks.py` and `cli/doctor_connectivity.py`, but must not parse CLI stdout or duplicate console rendering logic.
+
+### Dependency Direction
+- `app/routers` may expose Integrity Protection APIs backed by `security/` services.
+- `security/` may call or wrap stable CLI/doctor service functions where needed, but scan and fix phases must remain separate.
+- Runtime code must not import from `console` or from `tests/integration/security`.
+
+### Explicit Testcase Entrypoints
+- tests/integration/security/test_integrity_protection.py::test_integrity_security_menu_default_off
+- tests/integration/security/test_integrity_protection.py::test_persona_drift_alert_restore_accept
+- tests/integration/security/test_integrity_protection.py::test_health_check_scan_and_confirmed_fix
+- tests/integration/security/test_integrity_protection.py::test_rule_integrity_entry_visible
+- tests/integration/security/test_integrity_protection.py::test_security_i18n_and_healthcheck_progress_carousel
+- tests/integration/security/test_integrity_protection.py::test_healthcheck_full_doctor_coverage_projection
