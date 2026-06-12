@@ -17,6 +17,12 @@ from typing import Any
 from opensandbox.config import ConnectionConfig
 import opensandbox_mcp.server as opensandbox_mcp_server
 
+from security_center_audit import (
+    AuditConfig,
+    SecurityCenterAuditReporter,
+    install_audit_hook,
+)
+
 _ALLOWED_SANDBOX_IMAGE = "opensandbox/code-interpreter:v1.0.2"
 _UNSUPPORTED_IMAGE_MESSAGE = (
     'not support image, pls use "opensandbox/code-interpreter:v1.0.2" '
@@ -69,6 +75,39 @@ def _build_parser() -> argparse.ArgumentParser:
         type=float,
         default=30,
         help="HTTP request timeout in seconds.",
+    )
+    audit_group = parser.add_mutually_exclusive_group()
+    audit_group.add_argument(
+        "--audit-enabled",
+        action="store_true",
+        default=False,
+        help=(
+            "Report OpenSandbox MCP tool-call audit events to Security "
+            "Center."
+        ),
+    )
+    audit_group.add_argument(
+        "--audit-disabled",
+        action="store_false",
+        dest="audit_enabled",
+        default=False,
+        help="Disable Security Center audit reporting.",
+    )
+    parser.add_argument(
+        "--security-center-url",
+        default="http://127.0.0.1:8091",
+        help="Security Center base URL or complete V1 event intake URL.",
+    )
+    parser.add_argument(
+        "--audit-agent-id",
+        default="unknown",
+        help="Agent identifier included in OpenSandbox audit events.",
+    )
+    parser.add_argument(
+        "--audit-timeout-seconds",
+        type=float,
+        default=2.0,
+        help="Security Center audit HTTP timeout in seconds.",
     )
     proxy_group = parser.add_mutually_exclusive_group()
     proxy_group.add_argument(
@@ -201,6 +240,17 @@ def main() -> None:
         connection_config=connection_config,
     )
     _annotate_image_allowlist(mcp)
+    if args.audit_enabled:
+        install_audit_hook(
+            mcp,
+            SecurityCenterAuditReporter(
+                AuditConfig(
+                    security_center_url=args.security_center_url,
+                    agent_id=args.audit_agent_id,
+                    timeout_seconds=args.audit_timeout_seconds,
+                ),
+            ),
+        )
 
     if args.transport == "streamable-http":
         mcp.run(transport="streamable-http")

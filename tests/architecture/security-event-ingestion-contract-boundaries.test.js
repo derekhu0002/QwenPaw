@@ -208,12 +208,24 @@ assert.ok(
     'Config must include enabled endpoint_edr source.',
 );
 assert.ok(
+    eventConfig.sourceSystems.some(source => source.sourceSystem === 'opensandbox' && source.enabled === true),
+    'Config must include enabled opensandbox source.',
+);
+assert.ok(
     eventConfig.sourceSystems.some(source => source.sourceSystem === 'retired_dlp' && source.enabled === false),
     'Config must include disabled retired_dlp source for rejection coverage.',
 );
 assert.ok(
     eventConfig.eventTypes.some(eventType => eventType.eventTypeId === 'malware_detected'),
     'Config must include malware_detected event type.',
+);
+assert.ok(
+    eventConfig.eventTypes.some(eventType => eventType.eventTypeId === 'opensandbox'),
+    'Config must include opensandbox event type.',
+);
+assert.ok(
+    eventConfig.severityValues.includes('DEBUG'),
+    'Config must include DEBUG severity for non-anomalous audit events.',
 );
 assert.ok(
     eventConfig.requestLimits.maxFailureRequestSummaryChars <= 4096,

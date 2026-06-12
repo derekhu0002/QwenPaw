@@ -75,14 +75,21 @@ args: [
   "127.0.0.1:8080",
   "--protocol",
   "http",
-  "--use-server-proxy"
+  "--use-server-proxy",
+  "--audit-enabled",
+  "--security-center-url",
+  "http://127.0.0.1:8091",
+  "--audit-agent-id",
+  "<agent-id>",
+  "--audit-timeout-seconds",
+  "2"
 ]
 cwd: 自动计算为插件安装目录
 env:
   OPEN_SANDBOX_API_KEY=
 ```
 
-`command`、`args[0]` 和 `cwd` 是本地启动字段。插件会根据当前 Python 解释器和插件安装目录刷新它们，同时保留用户修改过的 domain、protocol、API key 和 server proxy 配置。除 `OPEN_SANDBOX_API_KEY` 外，插件默认把连接配置放在 `args` 中，避免被 MCP 配置 API 匿名化显示。
+`command`、`args[0]`、`cwd` 和 `--audit-agent-id` 是插件维护的本地启动字段。插件会根据当前 Python 解释器、插件安装目录和 Agent 配置刷新它们，同时保留用户修改过的 domain、protocol、API key、server proxy、Security Center URL、审计开关和审计超时配置。除 `OPEN_SANDBOX_API_KEY` 外，插件默认把连接配置放在 `args` 中，避免被 MCP 配置 API 匿名化显示。
 
 用户不应把 `<auto: current QwenPaw Python>`、`<auto: plugin_dir>` 或 `<plugin_dir>` 当作字面量写入配置。手动排障恢复时必须填真实路径；正常情况下由插件自动生成。
 
@@ -94,7 +101,26 @@ env:
 - 支持 `OPEN_SANDBOX_USE_SERVER_PROXY`、`--use-server-proxy` 和 `--no-use-server-proxy`。
 - 在 `Sandbox.create` 前检查 `sandbox_create.image`。
 - 给 `sandbox_create.image` schema 标注唯一可用 enum：`opensandbox/code-interpreter:v1.0.2`。
+- 在 FastMCP `_tool_manager.call_tool` 边界记录全部官方 OpenSandbox 工具调用。
+- 对参数进行工具级脱敏和限长后，使用 `requests` 上报到 Security Center。
 - 调用 `opensandbox_mcp.server.create_server()` 并以 stdio 运行。
+
+### MCP 调用审计
+
+```text
+OpenSandbox MCP call
+  -> FastMCP tool manager audit wrapper
+  -> official OpenSandbox tool
+  -> sanitized Security Event
+  -> requests.post
+  -> http://127.0.0.1:8091/security-center/v1/events
+```
+
+OpenSandbox 审计使用独立的 `opensandbox/opensandbox/1.0` Security Event 契约。列表字段直接展示工具名、执行结果、Agent ID 和 sandbox ID，完整脱敏参数摘要可在 Security Event 详情中查看。
+
+没有异常的成功调用统一使用 `DEBUG`，表示普通审计历史而非安全风险。工具异常以及 `command_run` 非零退出使用 `HIGH`。事件参数摘要不包含完整文件内容、环境变量值、stdout、stderr 或完整工具返回值；敏感字段统一脱敏。
+
+审计上报通过 `asyncio.to_thread` 执行同步 `requests.post`。当前版本没有 outbox、重试和重复补报处理。HTTP 上报异常只记录到 stderr，不改变官方 OpenSandbox 工具的成功结果或原始异常。
 
 ### MCP Tools
 

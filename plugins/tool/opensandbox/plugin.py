@@ -22,6 +22,13 @@ _MCP_ENV_DOMAIN = "OPEN_SANDBOX_DOMAIN"
 _MCP_ENV_USE_SERVER_PROXY = "OPEN_SANDBOX_USE_SERVER_PROXY"
 _MCP_PROXY_TRUE_VALUES = {"1", "true", "yes", "y", "on"}
 _MCP_PROXY_FALSE_VALUES = {"0", "false", "no", "n", "off"}
+_AUDIT_ENABLED_ARG = "--audit-enabled"
+_AUDIT_DISABLED_ARG = "--audit-disabled"
+_SECURITY_CENTER_URL_ARG = "--security-center-url"
+_AUDIT_AGENT_ID_ARG = "--audit-agent-id"
+_AUDIT_TIMEOUT_ARG = "--audit-timeout-seconds"
+_DEFAULT_SECURITY_CENTER_URL = "http://127.0.0.1:8091"
+_DEFAULT_AUDIT_TIMEOUT_SECONDS = "2"
 _LEGACY_TOOL_NAMES = frozenset(
     {
         "execute_opensandbox_command",
@@ -96,7 +103,7 @@ def _default_mcp_env() -> dict[str, str]:
     }
 
 
-def _default_mcp_args() -> list[str]:
+def _default_mcp_args(agent_id: str = "unknown") -> list[str]:
     """Default OpenSandbox MCP launcher arguments."""
     return [
         str(_PLUGIN_DIR / _LAUNCHER_FILE),
@@ -105,6 +112,13 @@ def _default_mcp_args() -> list[str]:
         "--protocol",
         "http",
         "--use-server-proxy",
+        _AUDIT_ENABLED_ARG,
+        _SECURITY_CENTER_URL_ARG,
+        _DEFAULT_SECURITY_CENTER_URL,
+        _AUDIT_AGENT_ID_ARG,
+        agent_id,
+        _AUDIT_TIMEOUT_ARG,
+        _DEFAULT_AUDIT_TIMEOUT_SECONDS,
     ]
 
 
@@ -174,6 +188,39 @@ def _has_server_proxy_arg(args: list[str]) -> bool:
     )
 
 
+def _has_audit_toggle_arg(args: list[str]) -> bool:
+    """Return True when args explicitly enable or disable audit reporting."""
+    return _has_arg(args, _AUDIT_ENABLED_ARG) or _has_arg(
+        args,
+        _AUDIT_DISABLED_ARG,
+    )
+
+
+def _refresh_audit_args(args: list[str], agent_id: str) -> list[str]:
+    """Add audit defaults while preserving user-controlled audit settings."""
+    refreshed = list(args)
+    if not _has_audit_toggle_arg(refreshed):
+        refreshed.append(_AUDIT_ENABLED_ARG)
+    if not _has_arg(refreshed, _SECURITY_CENTER_URL_ARG):
+        refreshed = _set_arg_value(
+            refreshed,
+            _SECURITY_CENTER_URL_ARG,
+            _DEFAULT_SECURITY_CENTER_URL,
+        )
+    refreshed = _set_arg_value(
+        refreshed,
+        _AUDIT_AGENT_ID_ARG,
+        agent_id,
+    )
+    if not _has_arg(refreshed, _AUDIT_TIMEOUT_ARG):
+        refreshed = _set_arg_value(
+            refreshed,
+            _AUDIT_TIMEOUT_ARG,
+            _DEFAULT_AUDIT_TIMEOUT_SECONDS,
+        )
+    return refreshed
+
+
 def _migrate_env_connection_args(
     args: list[str],
     existing_env: object,
@@ -212,7 +259,11 @@ def _merge_mcp_env(
     return merged
 
 
-def _refresh_managed_mcp_client(existing: object, default_client: object):
+def _refresh_managed_mcp_client(
+    existing: object,
+    default_client: object,
+    agent_id: str,
+):
     """Refresh generated paths without overwriting user connection config."""
     refreshed = _copy_mcp_client_config(existing)
     refreshed.command = getattr(
@@ -222,12 +273,19 @@ def _refresh_managed_mcp_client(existing: object, default_client: object):
     )
     refreshed.cwd = getattr(default_client, "cwd", str(_PLUGIN_DIR))
     refreshed.transport = getattr(default_client, "transport", "stdio")
-    refreshed.args = _migrate_env_connection_args(
-        _refresh_launcher_args(
-            getattr(existing, "args", None),
-            getattr(default_client, "args", _default_mcp_args()),
+    refreshed.args = _refresh_audit_args(
+        _migrate_env_connection_args(
+            _refresh_launcher_args(
+                getattr(existing, "args", None),
+                getattr(
+                    default_client,
+                    "args",
+                    _default_mcp_args(agent_id),
+                ),
+            ),
+            getattr(existing, "env", None),
         ),
-        getattr(existing, "env", None),
+        agent_id,
     )
     refreshed.env = _merge_mcp_env(
         getattr(existing, "env", None),
@@ -269,26 +327,26 @@ def _sync_opensandbox_mcp_client_to_agents() -> None:
         if not profiles:
             return
 
-        client = MCPClientConfig(
-            name="OpenSandbox MCP",
-            description=(
-                "Official OpenSandbox MCP server for sandbox lifecycle, "
-                "command execution, files, metrics, and endpoints."
-            ),
-            enabled=False,
-            transport="stdio",
-            command=sys.executable or "python",
-            args=_default_mcp_args(),
-            env=_default_mcp_env(),
-            cwd=str(_PLUGIN_DIR),
-        )
-
         for agent_id, profile in profiles.items():
             workspace_dir = Path(
                 getattr(profile, "workspace_dir", ""),
             ).expanduser()
             if workspace_dir and not workspace_dir.exists():
                 continue
+            client = MCPClientConfig(
+                name="OpenSandbox MCP",
+                description=(
+                    "Official OpenSandbox MCP server for sandbox lifecycle, "
+                    "command execution, files, metrics, endpoints, and "
+                    "Security Center audit reporting."
+                ),
+                enabled=False,
+                transport="stdio",
+                command=sys.executable or "python",
+                args=_default_mcp_args(str(agent_id)),
+                env=_default_mcp_env(),
+                cwd=str(_PLUGIN_DIR),
+            )
             agent_config = load_agent_config(agent_id)
             if agent_config.mcp is None:
                 agent_config.mcp = MCPConfig(clients={})
@@ -309,6 +367,7 @@ def _sync_opensandbox_mcp_client_to_agents() -> None:
                     refreshed_client = _refresh_managed_mcp_client(
                         existing,
                         client,
+                        str(agent_id),
                     )
                     if not _mcp_client_changed(existing, refreshed_client):
                         continue
