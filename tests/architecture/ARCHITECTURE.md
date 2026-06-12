@@ -34,6 +34,9 @@ element_path: tests/architecture
 - path: security-runtime-lease-persistence-boundary.test.js
   kind: critical-non-explicit-test
   role: verifies sec-e2e-027 still freezes lease_ttl_seconds into the Security Center API request contract and durable store instead of allowing overview/timeline to hide zero lease fields through projection-only fallback
+- path: security-event-ingestion-contract-boundaries.test.js
+  kind: critical-non-explicit-test
+  role: verifies Security Event Ingestion V1 explicit entrypoints, config artifact, deploy/api contract, deploy/web contract, protected harness, and ImplementationToCoding expected-failure state remain aligned
 
 ### Test Guardrails
 #### critical_non_explicit_tests
@@ -136,4 +139,28 @@ element_path: tests/architecture
     - ../../deploy/api/ARCHITECTURE.md
     - ../../tests/contract/security/test_lease_recovery_semantics_contract.py
   rationale: keep the lease-persistence boundary frozen so Coding/Repair must carry lease_ttl_seconds through the HTTP contract into the durable Security Center store rather than masking zero lease fields with projection-only read-model fallback
+  frozen_by_stage: implementationdesign
+- test_id: security-event-ingestion-contract-boundaries
+  critical_kind: explicit-entrypoint-correctness
+  test_path: security-event-ingestion-contract-boundaries.test.js
+  execution_entry: security-event-ingestion-contract-boundaries.test.js
+  guards_elements:
+    - ../../design/KG/SystemArchitecture.json
+    - ../../design/KG/ImplementationToCodingHandoff.json
+    - ../../OVERALL_ARCHITECTURE.md
+    - ../../deploy/api/ARCHITECTURE.md
+    - ../../deploy/web/ARCHITECTURE.md
+    - ../../deploy/config/security-event-contracts.v1.json
+    - ../../tests/integration/security/test_security_event_ingestion.py
+    - ../../tests/integration/security/security_event_harness.py
+    - ../../tests/e2e/security_center/test_security_event_inbox.py
+  protected_baselines:
+    - ARCHITECTURE.md
+    - ../../deploy/api/ARCHITECTURE.md
+    - ../../deploy/web/ARCHITECTURE.md
+    - ../../deploy/config/security-event-contracts.v1.json
+    - ../../tests/integration/security/test_security_event_ingestion.py
+    - ../../tests/integration/security/security_event_harness.py
+    - ../../tests/e2e/security_center/test_security_event_inbox.py
+  rationale: keep the six Security Event Ingestion V1 acceptance baselines executable, business-readable, and expected-failing until Coding/Repair implements the production API/Web behavior
   frozen_by_stage: implementationdesign

@@ -13,6 +13,7 @@ element_path: tests
 - Own the physical repository entrypoints for explicit and non-explicit verification assets.
 - Keep architecture guardrails under `tests/architecture` and product behavior tests under `unit/`, `integration/`, `contract/`, and `e2e/`.
 - Keep explicit security acceptance bodies business-readable by routing low-level live-runtime inspection through harness helpers inside `tests/integration/security`.
+- Own the Security Event Ingestion V1 explicit acceptance entrypoints and guardrails while keeping business assertions behind `tests/integration/security/security_event_harness.py`.
 
 ### Out Of Scope
 - Defining acceptance scope independently from `design/KG/SystemArchitecture.json`.
@@ -33,7 +34,7 @@ element_path: tests
   role: integration-level regression coverage owned by implementation
 - path: e2e
   kind: supporting-verification-zone
-  role: end-to-end behavior coverage beyond the current explicit baseline
+  role: end-to-end behavior coverage, including the Security Center Web inbox explicit baseline under `e2e/security_center`
 
 ### Explicit Testcase Entrypoints
 - unit/cli/test_cli_version.py::test_cli_version_option_outputs_current_version
@@ -46,6 +47,12 @@ element_path: tests
 - integration/security/test_audit_foundation.py::test_lease_expiry_blocks_untrusted_rejoin_until_gap_sync
 - integration/security/test_audit_foundation.py::test_normal_offline_reconnect_clears_without_gap_recovery
 - integration/security/test_audit_foundation.py::test_prompt_injection_cannot_bypass_high_risk_tool_guard
+- integration/security/test_security_event_ingestion.py::test_accepts_legal_event_after_persistence
+- integration/security/test_security_event_ingestion.py::test_rejects_invalid_event_config_boundary
+- integration/security/test_security_event_ingestion.py::test_preserves_undefined_payload_fields_in_detail_only
+- integration/security/test_security_event_ingestion.py::test_enforces_source_event_id_idempotency
+- integration/security/test_security_event_ingestion.py::test_records_failed_receptions_without_business_event_pollution
+- e2e/security_center/test_security_event_inbox.py::test_web_lists_filters_and_opens_event_detail
 
 ### Critical Non-Explicit Tests
 - architecture/root-architecture-contracts.test.js
@@ -55,6 +62,7 @@ element_path: tests
 - architecture/security-explicit-entrypoint-traceability.test.js
 - architecture/security-runtime-client-identity-boundary.test.js
 - architecture/security-runtime-lease-persistence-boundary.test.js
+- architecture/security-event-ingestion-contract-boundaries.test.js
 
 ### Supporting Non-Explicit Tests
 - integration/test_security_config.py
@@ -62,6 +70,7 @@ element_path: tests
 
 ### Protected Fixtures
 - integration/security/harness.py
+- integration/security/security_event_harness.py
 
 ### Notes
 - The current explicit testcases are intentionally anchored to repository-owned pytest entrypoints so the architecture baseline stays executable in the current workspace state.
@@ -88,3 +97,6 @@ element_path: tests
 - `tests/architecture/security-runtime-lease-persistence-boundary.test.js` is a critical non-explicit architecture guard for the reopened sec-e2e-027 lease-persistence gap. Its control point is static code-boundary inspection of `deploy/api/app.py` and `deploy/api/store.py`; its observation point is that the RecoveryHandshakeRequest contract must carry `lease_ttl_seconds`, the Security Center store must durably write `last_heartbeat_at`, `lease_ttl_seconds`, and `lease_expires_at`, and the implementation must not rely on projection-only fallback from `updated_at_ns` to hide zero lease fields.
 - `tests/integration/conftest.py` now carries the shared real-app subprocess bootstrap baseline for integration entrypoints; when runtime startup fails, it must surface a readable `startup_error` to test bodies instead of terminating those entrypoints during fixture setup.
 - `tests/integration/security/test_audit_foundation.py::test_audit_integrity_self_healing_lockdown` now owns the clarified sec-e2e-025 historical-record tamper branch. Control point: drive three high-risk actions, edit the second committed non-tail audit record through `tests/integration/security/harness.py`, then attempt another high-risk action without manual recovery. Observation point: the runtime must detect whole-ledger divergence before release, block the high-risk action, and keep Security Center backend/web recovery-required or `UNTRUSTED` rather than `CLEAR` until cloud-validated recovery.
+- `tests/integration/security/test_security_event_ingestion.py` owns five Security Event Ingestion V1 explicit API/data entrypoints. Control point: drive legal, invalid, undefined-field, idempotency, real idempotency conflict, test-injected persistence-failure, and oversized-illegal-payload submissions through the real Security Center API subprocess. Observation point: accepted events, rejected submissions, failure records for every failed branch, idempotency semantics, persistence-failure event exclusion, and bounded summaries are visible through API list/detail/failure surfaces. Current repository state is expected to fail until `deploy/api` implements the event routes.
+- `tests/e2e/security_center/test_security_event_inbox.py` owns the Security Event Inbox Web explicit entrypoint. Control point: seed accepted events, open the Web inbox, apply source/type/severity/time filters, and navigate to stable detail. Observation point: receivedAt-descending list, core/configured fields, event type display name, filter correctness, stable detail URL, base facts, structured payload, undefined fields, and bounded raw payload are observable through Web/API. Current repository state is expected to fail until `deploy/web` implements the inbox.
+- `tests/architecture/security-event-ingestion-contract-boundaries.test.js` is a critical non-explicit explicit-entrypoint-correctness and implementation-traceability guard. Its control point is static inspection of `design/KG/SystemArchitecture.json`, `design/KG/ImplementationToCodingHandoff.json`, `OVERALL_ARCHITECTURE.md`, `deploy/api/ARCHITECTURE.md`, `deploy/web/ARCHITECTURE.md`, `deploy/config/security-event-contracts.v1.json`, `tests/integration/security/test_security_event_ingestion.py`, `tests/integration/security/security_event_harness.py`, and `tests/e2e/security_center/test_security_event_inbox.py`; its observation point is that all six V1 acceptance baselines, invalid-config branches, failed-reception branches, Web filter/detail assertions, protected failure-injection seam, business failure categories, and expected-failing handoff state remain frozen.

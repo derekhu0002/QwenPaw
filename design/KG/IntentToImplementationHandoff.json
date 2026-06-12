@@ -1,284 +1,152 @@
 {
   "stage": "intent-to-implementation",
-  "generatedAt": "2026-06-09",
+  "generatedAt": "2026-06-12",
   "sourceIntentGraphPath": "design/KG/SystemArchitecture.json",
-  "summary": "Intent clarification for built-in tool rule integrity line-ending invariance: sec-e2e-029 freezes LF/CRLF semantic-equivalent verification for dangerous_shell_commands.yaml. sec-e2e-025 remains the tamper/continuity-loss boundary, sec-e2e-027 remains the lease-expiry recovery-proof boundary, and sec-e2e-028 freezes the normal offline reconnect boundary.",
+  "summary": "Intent design for sec-event-ingestion-v1 from design/prd/security-event-ingestion-prd.md. Security Center must provide a V1 internal-system HTTP security-event intake, configuration-driven validation, durable-before-success persistence, traceable failed reception records, and operator Web list/detail inbox views; V1 explicitly excludes authentication, external third-party intake, alerting, ticketing, remediation, assignment, comments, export, statistics dashboards, Web configuration editing, historical schema display policy, and default retention promises.",
   "intentElementIds": [
     "intent-qwenpaw-platform",
-    "intent-backend-runtime",
-    "intent-local-operator-cli",
-    "intent-local-security-audit-foundation",
-    "intent-high-risk-tool-guard",
-    "intent-builtin-tool-rule-integrity",
-    "intent-audit-event",
-    "intent-audit-checkpoint-anchor",
-    "intent-audit-uplink-manager",
-    "intent-heartbeat-emitter",
     "intent-security-center",
-    "intent-audit-lease-monitor",
-    "intent-cloud-integrity-stub"
+    "intent-security-event-ingestion-v1",
+    "intent-security-event-contract-config",
+    "intent-security-event",
+    "intent-security-event-failure-record",
+    "intent-security-event-inbox-web"
   ],
   "relationshipIds": [
-    "rel-platform-backend",
-    "rel-platform-cli",
-    "rel-cli-backend",
-    "rel-backend-security-audit-foundation",
-    "rel-audit-foundation-high-risk-tool-guard",
-    "rel-high-risk-tool-guard-builtin-rule-integrity",
-    "rel-audit-foundation-audit-event",
-    "rel-audit-foundation-checkpoint-anchor",
-    "rel-uplink-manager-foundation",
-    "rel-uplink-manager-heartbeat-emitter",
-    "rel-heartbeat-emitter-security-center",
-    "rel-uplink-service-security-center",
-    "rel-security-center-lease-monitor",
-    "rel-lease-monitor-cloud-stub",
-    "rel-security-center-cloud-stub",
-    "rel-uplink-manager-cloud-stub"
+    "rel-platform-security-center",
+    "rel-security-center-event-ingestion-v1",
+    "rel-event-ingestion-contract-config",
+    "rel-event-ingestion-security-event",
+    "rel-event-ingestion-failure-record",
+    "rel-event-ingestion-inbox-web",
+    "rel-inbox-web-security-event"
   ],
   "explicitTestcases": [
     {
-      "name": "cli-version-surface",
-      "mountedElementId": "intent-local-operator-cli",
-      "mountedElementName": "Local Operator CLI",
-      "type": "Unit Test",
-      "controlPoint": "Run tests/unit/cli/test_cli_version.py::test_cli_version_option_outputs_current_version.",
-      "observationPoint": "The packaged local operator CLI exposes the current QwenPaw version without crashing or bypassing the CLI entrypoint.",
-      "acceptanceBoundary": "tests/unit/cli/test_cli_version.py::test_cli_version_option_outputs_current_version must pass as part of the full explicit-test gate.",
-      "requiredEntryKind": "explicit-testcase-entry",
-      "implementationNotes": "Treat failure as CLI/runtime implementation drift; do not loosen the expected version surface."
-    },
-    {
-      "name": "agents-list-surface",
-      "mountedElementId": "intent-local-operator-cli",
-      "mountedElementName": "Local Operator CLI",
-      "type": "Unit Test",
-      "controlPoint": "Run tests/unit/cli/test_cli_agents.py::test_agents_list_uses_shared_tool_helper.",
-      "observationPoint": "The agents list command routes through the shared tool helper expected by the CLI contract.",
-      "acceptanceBoundary": "tests/unit/cli/test_cli_agents.py::test_agents_list_uses_shared_tool_helper must pass as part of the full explicit-test gate.",
-      "requiredEntryKind": "explicit-testcase-entry",
-      "implementationNotes": "Treat failure as command/helper wiring drift; do not replace the shared-helper assertion with a weaker smoke check."
-    },
-    {
-      "name": "task-help-surface",
-      "mountedElementId": "intent-local-operator-cli",
-      "mountedElementName": "Local Operator CLI",
-      "type": "Unit Test",
-      "controlPoint": "Run tests/unit/cli/test_cli_task.py::test_task_command_registered_in_cli.",
-      "observationPoint": "The task command remains registered in the qwenpaw CLI surface.",
-      "acceptanceBoundary": "tests/unit/cli/test_cli_task.py::test_task_command_registered_in_cli must pass as part of the full explicit-test gate.",
-      "requiredEntryKind": "explicit-testcase-entry",
-      "implementationNotes": "Treat failure as command registration drift; do not remove this entrypoint from the explicit baseline without upstream architecture redesign."
-    },
-    {
-      "name": "settings-language-roundtrip",
-      "mountedElementId": "intent-backend-runtime",
-      "mountedElementName": "Backend Runtime",
-      "type": "Unit Test",
-      "controlPoint": "Run tests/unit/routers/test_settings.py::test_put_then_get_roundtrip.",
-      "observationPoint": "A settings update can be read back through the backend router with the expected roundtrip semantics.",
-      "acceptanceBoundary": "tests/unit/routers/test_settings.py::test_put_then_get_roundtrip must pass as part of the full explicit-test gate.",
-      "requiredEntryKind": "explicit-testcase-entry",
-      "implementationNotes": "Treat failure as backend settings contract drift; do not mask persistence or serialization defects by weakening the roundtrip assertion."
-    },
-    {
-      "name": "git-helper-command-runner",
-      "mountedElementId": "intent-backend-runtime",
-      "mountedElementName": "Backend Runtime",
-      "type": "Unit Test",
-      "controlPoint": "Run tests/unit/routers/test_git.py::test_git_helper_uses_shared_command_runner.",
-      "observationPoint": "The git helper uses the shared command runner instead of a divergent command execution path.",
-      "acceptanceBoundary": "tests/unit/routers/test_git.py::test_git_helper_uses_shared_command_runner must pass as part of the full explicit-test gate.",
-      "requiredEntryKind": "explicit-testcase-entry",
-      "implementationNotes": "Treat failure as backend helper boundary drift; do not bypass the shared command-runner contract to make the test pass."
-    },
-    {
-      "name": "sec-e2e-024-end-to-end-non-repudiation-evidence-chain",
-      "mountedElementId": "intent-local-security-audit-foundation",
-      "mountedElementName": "Local Security Audit Foundation",
+      "name": "sec-event-ingestion-v1-accept-legal-event",
+      "mountedElementId": "intent-security-event-ingestion-v1",
+      "mountedElementName": "Security Event Ingestion V1",
       "type": "Acceptance Test",
-      "controlPoint": "Run tests/integration/security/test_audit_foundation.py::test_end_to_end_non_repudiation_evidence_chain against the real app_server fixture: authenticate user A, delegate a high-risk action through agent/plugin/tool seams, and provide required user confirmation.",
-      "observationPoint": "Security Center and the audit query surface expose a continuous user -> agent -> plugin -> tool evidence chain with a durable confirmation artifact digest and no anonymous or fallback-system identity link.",
-      "acceptanceBoundary": "tests/integration/security/test_audit_foundation.py::test_end_to_end_non_repudiation_evidence_chain must pass as part of the full explicit-test gate.",
+      "controlPoint": "Submit a legal HTTP security event from an enabled configured internal sourceSystem with an allowed eventTypeId, valid schemaVersion, required summary, occurredAt, severity, and payload fields, then immediately query event list and event detail surfaces.",
+      "observationPoint": "The API returns success with eventId and duplicate=false only after persistence, the event appears in the operator list ordered by receivedAt, detail lookup by sourceSystem plus eventId succeeds, and backend-generated receivedAt overrides any caller-provided value.",
+      "acceptanceBoundary": "tests/integration/security/test_security_event_ingestion.py::test_accepts_legal_event_after_persistence must be materialized by Implementation Design as the explicit entrypoint for legal event intake.",
       "requiredEntryKind": "explicit-testcase-entry",
-      "implementationNotes": "The test body and protected harness vocabulary are frozen; fix production security/audit behavior beneath the harness."
+      "implementationNotes": "Implementation Design should decide whether this lives under tests/integration/security or a new deploy-focused integration zone, but the final frozen entrypoint must remain a concrete workspace path and drive the real Security Center API plus observable list/detail read model."
     },
     {
-      "name": "sec-e2e-025-audit-integrity-self-healing-lockdown",
-      "mountedElementId": "intent-local-security-audit-foundation",
-      "mountedElementName": "Local Security Audit Foundation",
+      "name": "sec-event-ingestion-v1-reject-invalid-config-boundary",
+      "mountedElementId": "intent-security-event-ingestion-v1",
+      "mountedElementName": "Security Event Ingestion V1",
       "type": "Acceptance Test",
-      "controlPoint": "Run tests/integration/security/test_audit_foundation.py::test_audit_integrity_self_healing_lockdown against the real app_server fixture: execute multiple high-risk actions to create a multi-record audit baseline and cloud anchor, edit a committed local audit record by operating-system means, including the second/non-tail record while leaving later records possible, then attempt another high-risk action without manual trust recovery.",
-      "observationPoint": "The system raises one business-level data-continuity anomaly, enters local UNTRUSTED lock mode before releasing the next high-risk tool, refuses sensitive tooling, and exposes recovery_required/UNTRUSTED through the frozen Security Center backend plus operator-web observation surfaces; Security Center must not show CLEAR until full-chain validation against the cloud mirror succeeds.",
-      "acceptanceBoundary": "tests/integration/security/test_audit_foundation.py::test_audit_integrity_self_healing_lockdown must pass as part of the full explicit-test gate.",
+      "controlPoint": "Submit events that violate sourceSystem allow-listing or enabled status, source-to-eventType authorization, eventTypeId existence, schemaVersion existence, required payload fields, field types, or enum values.",
+      "observationPoint": "Each request returns a clear failure reason, none of the rejected submissions appears in the business event list, and each creates a failure reception record with received time, submitted source field, submitted event type field, failure reason, and bounded request summary.",
+      "acceptanceBoundary": "tests/integration/security/test_security_event_ingestion.py::test_rejects_invalid_event_config_boundary must be materialized by Implementation Design as the explicit entrypoint for config and schema rejection.",
       "requiredEntryKind": "explicit-testcase-entry",
-      "implementationNotes": "Implementation Design must review whether the frozen acceptance body and harness already cover historical-record edit tamper. If they only cover checkpoint loss or tail truncation, update the implementation architecture and explicit acceptance design so this branch is observable before Coding/Repair. Do not treat a locally self-consistent rewritten chain or unchanged checkpoint as CLEAR without cloud-mirror validation."
+      "implementationNotes": "Do not replace this with unit-only validation. The acceptance must observe both API rejection and failure-record persistence."
     },
     {
-      "name": "sec-e2e-027-lease-expiry-active-defense",
-      "mountedElementId": "intent-local-security-audit-foundation",
-      "mountedElementName": "Local Security Audit Foundation",
+      "name": "sec-event-ingestion-v1-preserve-undefined-payload-fields",
+      "mountedElementId": "intent-security-event-ingestion-v1",
+      "mountedElementName": "Security Event Ingestion V1",
       "type": "Acceptance Test",
-      "controlPoint": "Run tests/integration/security/test_audit_foundation.py::test_lease_expiry_blocks_untrusted_rejoin_until_gap_sync against the real app_server fixture: allow a trusted client to miss the lease window, observe denied rejoin before missing-gap verification, then drive the distinct recovery control point and restored-access attempt.",
-      "observationPoint": "Security Center marks the same canonical client UNTRUSTED after lease expiry, pre_recovery_console_status shows denied rejoin before proof, the recovery control point accepts full missing-gap validation, post_recovery_console_status becomes 200 only after that validation, post-recovery trust projects ALIGNED or TRUSTED with recovery_required=false, and continued UNTRUSTED or 423 after valid proof is a failure.",
-      "acceptanceBoundary": "tests/integration/security/test_audit_foundation.py::test_lease_expiry_blocks_untrusted_rejoin_until_gap_sync must pass as part of the full explicit-test gate.",
+      "controlPoint": "Submit a legal event whose payload includes all required configured fields plus at least one field not declared by the schema configuration.",
+      "observationPoint": "The event is saved successfully, configured list columns exclude the undefined field, detail shows configured fields by label, and the undefined payload field appears only in the undefined-fields detail area and raw payload view.",
+      "acceptanceBoundary": "tests/integration/security/test_security_event_ingestion.py::test_preserves_undefined_payload_fields_in_detail_only must be materialized by Implementation Design as the explicit entrypoint for undefined payload handling.",
       "requiredEntryKind": "explicit-testcase-entry",
-      "implementationNotes": "Preserve the two control points and two console observation points; do not collapse denied and restored frames into one mutable final status. Repair production recovery release semantics for the same canonical client rather than editing tests/integration/security/test_audit_foundation.py or tests/integration/security/harness.py."
+      "implementationNotes": "V1 allows undefined payload fields for traceability; rejecting them or treating them as primary list columns violates intent."
     },
     {
-      "name": "sec-e2e-028-normal-offline-reconnect-clear-state",
-      "mountedElementId": "intent-local-security-audit-foundation",
-      "mountedElementName": "Local Security Audit Foundation",
+      "name": "sec-event-ingestion-v1-enforce-idempotency",
+      "mountedElementId": "intent-security-event-ingestion-v1",
+      "mountedElementName": "Security Event Ingestion V1",
       "type": "Acceptance Test",
-      "controlPoint": "Run tests/integration/security/test_audit_foundation.py::test_normal_offline_reconnect_clears_without_gap_recovery against the real app_server fixture: establish a trusted canonical client with Security Center showing normal continuity, stop or disconnect the runtime through a normal offline path without mutating local audit evidence, restart the same canonical client, and attempt ordinary model access.",
-      "observationPoint": "Security Center backend and operator web must show the same canonical client as ALIGNED or TRUSTED with gap_status CLEAR, recovery_gate_status CLEAR, and recovery_required=false; ordinary model access must return 200. The operator web must not keep the client in GAP_VALIDATION_REQUIRED, gap_status REQUIRED, recovery_gate_status OPEN, or a 'gap pending validation' display unless a real lease expiry, tamper, missing sequence, hash divergence, clone, or replay condition has been observed.",
-      "acceptanceBoundary": "tests/integration/security/test_audit_foundation.py::test_normal_offline_reconnect_clears_without_gap_recovery must be added or frozen by Implementation Design as the explicit acceptance entrypoint for normal offline reconnect.",
+      "controlPoint": "Submit the same normalized event twice, submit the same sourceSystem plus eventId with a different eventTypeId, schemaVersion, or payload field value, and submit the same eventId from a different sourceSystem.",
+      "observationPoint": "Identical repeat returns success with duplicate=true and no second business event; conflicting same-key submissions are rejected and recorded as idempotency conflicts; different sourceSystem plus same eventId is accepted as a distinct event.",
+      "acceptanceBoundary": "tests/integration/security/test_security_event_ingestion.py::test_enforces_source_event_id_idempotency must be materialized by Implementation Design as the explicit entrypoint for sourceSystem plus eventId idempotency.",
       "requiredEntryKind": "explicit-testcase-entry",
-      "implementationNotes": "Do not satisfy this by weakening sec-e2e-027. Implementation Design must keep the normal reconnect branch separate from lease-expiry active defense: before the lease-expiry boundary, no gap validation should be required; after lease expiry, a valid locally constructible full-chain proof may be required but must clear the Security Center Web state once accepted."
+      "implementationNotes": "The canonical comparison must use normalized event content; sourceSystem is part of the key, so global eventId uniqueness is not required."
     },
     {
-      "name": "sec-e2e-021-prompt-injection-tool-guard-enforced",
-      "mountedElementId": "intent-high-risk-tool-guard",
-      "mountedElementName": "High Risk Tool Guard",
+      "name": "sec-event-ingestion-v1-render-web-list-and-detail",
+      "mountedElementId": "intent-security-event-inbox-web",
+      "mountedElementName": "Security Event Inbox Web",
       "type": "Acceptance Test",
-      "controlPoint": "Run tests/integration/security/test_audit_foundation.py::test_prompt_injection_cannot_bypass_high_risk_tool_guard against the real app_server fixture: submit nested deceptive instructions claiming test or maintenance mode while targeting a High risk tool without trusted provenance or confirmation.",
-      "observationPoint": "The high-risk tool remains blocked at the tool-call boundary, rejection is recorded as durable security evidence with trace-bound nonce semantics, and Security Center/operator surfaces expose the rejected attempt rather than silently executing.",
-      "acceptanceBoundary": "tests/integration/security/test_audit_foundation.py::test_prompt_injection_cannot_bypass_high_risk_tool_guard must pass as part of the full explicit-test gate.",
+      "controlPoint": "Seed multiple accepted events with different receivedAt, occurredAt, sourceSystem, eventTypeId, severity, configured list payload fields, undefined fields, and raw payloads; open the Web list, apply time/source/type/severity filters, and navigate to a detail URL.",
+      "observationPoint": "The list defaults to receivedAt descending, shows receivedAt, occurredAt, sourceSystem, event type display name, severity, summary, eventId, and configured list payload fields; filters constrain visible rows; the detail URL reopens the same event and displays base facts, labeled structured payload, undefined fields, and read-only raw payload with large-payload protection.",
+      "acceptanceBoundary": "tests/e2e/security_center/test_security_event_inbox.py::test_web_lists_filters_and_opens_event_detail must be materialized by Implementation Design as the explicit entrypoint for operator Web consumption.",
       "requiredEntryKind": "explicit-testcase-entry",
-      "implementationNotes": "Fix enforcement at the tool invocation boundary; do not rely on prompt intent classification and do not weaken the rejection evidence requirement."
+      "implementationNotes": "If the repository does not yet have a browser e2e harness, Implementation Design must either establish one or document a narrower executable Web/API observation entrypoint without dropping list ordering, filters, stable detail URL, or large-payload protection."
     },
     {
-      "name": "sec-e2e-029-builtin-rule-line-ending-invariant",
-      "mountedElementId": "intent-builtin-tool-rule-integrity",
-      "mountedElementName": "Built-in Tool Rule Integrity",
+      "name": "sec-event-ingestion-v1-bound-failure-records",
+      "mountedElementId": "intent-security-event-ingestion-v1",
+      "mountedElementName": "Security Event Ingestion V1",
       "type": "Acceptance Test",
-      "controlPoint": "Run tests/unit/security/tool_guard/test_rules_integrity.py::test_builtin_rule_line_ending_invariant with the official signed manifest bundle staged into a temporary rules directory: verify LF-canonical bytes, CRLF-only transformed bytes, and semantic tamper without manifest update.",
-      "observationPoint": "LF-canonical and CRLF-only branches return ok=true with status ok via verify_builtin_rule_files and get_last_rule_integrity_status; semantic tamper returns ok=false with status tampered and sha256_mismatch.",
-      "acceptanceBoundary": "tests/unit/security/tool_guard/test_rules_integrity.py::test_builtin_rule_line_ending_invariant must pass as part of the full explicit-test gate.",
+      "controlPoint": "Submit illegal events for disallowed source, disallowed type, schema failure, payload validation failure, idempotency conflict, simulated persistence error, and an oversized illegal payload.",
+      "observationPoint": "Business event list remains clean for illegal submissions, failure records are queryable with received time, source field, event type field, failure reason, and bounded request summary; database write failure returns failure instead of success, and oversized illegal payload handling stores only a bounded summary or rejects safely without storage/page instability.",
+      "acceptanceBoundary": "tests/integration/security/test_security_event_ingestion.py::test_records_failed_receptions_without_business_event_pollution must be materialized by Implementation Design as the explicit entrypoint for failed reception records.",
       "requiredEntryKind": "explicit-testcase-entry",
-      "implementationNotes": "Runtime and manifest generation must share _sha256_normalized_content; do not weaken semantic tamper detection to make CRLF branches pass."
+      "implementationNotes": "Retention duration is a V1 non-goal. Implementation should not invent a default retention SLA, but it must avoid unbounded storage of oversized invalid payloads."
     }
   ],
   "frozenBaselines": [
+    "design/prd/security-event-ingestion-prd.md",
+    "design/prd/security-event-ingestion-decision-tree.md",
     "design/KG/SystemArchitecture.json",
-    "OVERALL_ARCHITECTURE.md",
-    "tests/ARCHITECTURE.md",
-    "tests/integration/security/ARCHITECTURE.md",
-    "tests/integration/security/harness.py",
-    "tests/integration/security/test_audit_foundation.py",
-    "tests/unit/cli/test_cli_version.py::test_cli_version_option_outputs_current_version",
-    "tests/unit/cli/test_cli_agents.py::test_agents_list_uses_shared_tool_helper",
-    "tests/unit/cli/test_cli_task.py::test_task_command_registered_in_cli",
-    "tests/unit/routers/test_settings.py::test_put_then_get_roundtrip",
-    "tests/unit/routers/test_git.py::test_git_helper_uses_shared_command_runner",
-    "tests/integration/security/test_audit_foundation.py::test_end_to_end_non_repudiation_evidence_chain",
-    "tests/integration/security/test_audit_foundation.py::test_audit_integrity_self_healing_lockdown",
-    "tests/integration/security/test_audit_foundation.py::test_lease_expiry_blocks_untrusted_rejoin_until_gap_sync",
-    "tests/integration/security/test_audit_foundation.py::test_normal_offline_reconnect_clears_without_gap_recovery",
-    "tests/integration/security/test_audit_foundation.py::test_prompt_injection_cannot_bypass_high_risk_tool_guard",
-    "tests/unit/security/tool_guard/test_rules_integrity.py::test_builtin_rule_line_ending_invariant"
+    "design/KG/IntentToImplementationHandoff.json",
+    "tests/integration/security/test_security_event_ingestion.py::test_accepts_legal_event_after_persistence",
+    "tests/integration/security/test_security_event_ingestion.py::test_rejects_invalid_event_config_boundary",
+    "tests/integration/security/test_security_event_ingestion.py::test_preserves_undefined_payload_fields_in_detail_only",
+    "tests/integration/security/test_security_event_ingestion.py::test_enforces_source_event_id_idempotency",
+    "tests/e2e/security_center/test_security_event_inbox.py::test_web_lists_filters_and_opens_event_detail",
+    "tests/integration/security/test_security_event_ingestion.py::test_records_failed_receptions_without_business_event_pollution"
   ],
   "requiredImplementationArtifacts": [
-    "design/KG/IntentToImplementationHandoff.json",
-    "design/KG/ImplementationToCodingHandoff.json",
-    "design/KG/test-failure-records.json",
     "OVERALL_ARCHITECTURE.md",
-    "src/qwenpaw/ARCHITECTURE.md",
-    "src/qwenpaw/security/ARCHITECTURE.md",
-    "src/qwenpaw/cli/ARCHITECTURE.md",
+    "deploy/ARCHITECTURE.md",
+    "deploy/api/ARCHITECTURE.md",
+    "deploy/web/ARCHITECTURE.md",
     "tests/ARCHITECTURE.md",
     "tests/integration/security/ARCHITECTURE.md",
-    "tests/integration/security/harness.py",
-    "tests/integration/security/test_audit_foundation.py",
-    "tests/contract/security/test_lease_recovery_semantics_contract.py",
-    "tests/unit/cli/test_cli_version.py",
-    "tests/unit/cli/test_cli_agents.py",
-    "tests/unit/cli/test_cli_task.py",
-    "tests/unit/routers/test_settings.py",
-    "tests/unit/routers/test_git.py",
-    "deploy",
+    "design/KG/ImplementationToCodingHandoff.json",
+    "design/KG/test-failure-records.json",
+    "tests/integration/security/test_security_event_ingestion.py",
+    "tests/e2e/security_center/test_security_event_inbox.py",
     "deploy/api",
-    "deploy/web",
-    "src/qwenpaw",
-    "src/qwenpaw/security",
-    "src/qwenpaw/cli"
+    "deploy/web"
   ],
   "openQuestions": [
     {
-      "question": "Is a normal offline/reconnect the same business state as lease-expiry active defense?",
-      "recommendedAnswer": "No. A normal offline or graceful reconnect with the same canonical client, intact audit head, no missing sequence, no clone/replay signal, no tamper evidence, and no lease-expiry recovery debt is normal continuity, not a security incident.",
-      "reason": "The intent graph already reserves recovery-required behavior for real continuity uncertainty. Treating every reconnect as a missing-gap incident creates a security availability failure and contradicts the normal-use showcase where active defense is quiet while the client remains explainably trusted."
+      "question": "Should V1 add request authentication or source credentials because sourceSystem is caller-provided?",
+      "recommendedAnswer": "No. Keep authentication and requester identity management out of V1, but make sourceSystem allow-listing, enabled flags, event-type authorization, and schema validation mandatory.",
+      "reason": "The PRD explicitly excludes request authentication and identity management. Adding auth would expand scope, while accepting arbitrary sourceSystem without config controls would let untrusted data pollute the event inbox."
     },
     {
-      "question": "When should Security Center Web show CLEAR after a normal offline reconnect?",
-      "recommendedAnswer": "It should show CLEAR once the reconnect/startup heartbeat or equivalent alignment preflight confirms the same canonical client is still aligned and no recovery trigger exists. If a lease did expire, CLEAR is allowed only after valid full-chain missing-gap proof is accepted.",
-      "reason": "This preserves the security distinction: no proof burden for a non-incident reconnect, mandatory proof for lease-expiry or continuity-loss recovery, and no stale 'gap pending validation' display after proof acceptance."
+      "question": "Should undefined payload fields cause rejection?",
+      "recommendedAnswer": "No. Save legal events with undefined payload fields, mark those fields as undefined, exclude them from list main columns, and show them only in detail and raw payload areas.",
+      "reason": "The PRD chooses traceability and integration tolerance over strict rejection for extra fields, but prevents operators from mistaking them for configured schema fields."
     },
     {
-      "question": "Does normal offline reconnect require gap validation?",
-      "recommendedAnswer": "Not when the lease has not expired and the local audit head still aligns with the cloud shadow. Gap validation is required only for lease expiry, missing sequence, hash divergence, audit tamper, clone/replay, or another verified continuity-loss signal.",
-      "reason": "Gap validation is the control for unknown missing history. Requiring it on a clean aligned reconnect turns an availability-safe path into a false positive and makes Security Center Web report a nonexistent gap."
+      "question": "Should Security Center return success before persistence and complete storage asynchronously?",
+      "recommendedAnswer": "No. Legal event persistence must complete before success; database write failure must return failure.",
+      "reason": "The PRD makes durable-before-success the core reliability boundary. Returning early would create accepted-but-missing events and break operator trust."
     },
     {
-      "question": "Does this issue require a new or adjusted explicit acceptance baseline?",
-      "recommendedAnswer": "Yes. Add a new explicit acceptance baseline, sec-e2e-028-normal-offline-reconnect-clear-state, rather than weakening sec-e2e-027.",
-      "reason": "sec-e2e-027 is intentionally the abnormal branch: lease expiry first blocks, then valid proof releases. The reported normal branch needs its own control and observation points so downstream work cannot pass by conflating normal reconnect with attack recovery."
+      "question": "Should implementation-design reuse existing Security Center audit-chain tests for this PRD?",
+      "recommendedAnswer": "No. Reuse deploy/api, deploy/web, and tests architecture boundaries where appropriate, but create separate explicit entrypoints for security event ingestion rather than mixing them with audit integrity, lease recovery, or high-risk tool guard scenarios.",
+      "reason": "The existing explicit security tests verify audit-chain trust semantics. This PRD is a different business capability: event intake, validation, persistence, Web inbox, and failure reception traceability."
     },
     {
-      "question": "Should Coding/Repair start immediately?",
-      "recommendedAnswer": "No. Dispatch Implementation Design first to materialize the new explicit entrypoint, update stable architecture contracts, and refresh design/KG/ImplementationToCodingHandoff.json plus design/KG/test-failure-records.json if the current code fails.",
-      "reason": "The intent stage may define the acceptance boundary, but implementation architecture owns physical entrypoint freezing, stable contract updates, and executable failure records before production code is repaired."
-    },
-    {
-      "question": "Does this issue require changing design/KG/SystemArchitecture.json?",
-      "recommendedAnswer": "Yes. The graph has been clarified to make historical audit-record edits, including a second/non-tail record after several high-risk actions, part of the sec-e2e-025 tamper boundary.",
-      "reason": "The prior graph already said modify or truncate the local audit store, but the lock-mode wording could be read as checkpoint/startup centered. The user-reported failure shows that downstream agents need an explicit invariant that ledger verification covers any committed record and that CLEAR before recovery validation is a security failure."
-    },
-    {
-      "question": "What should count as accepted delivery for sec-e2e-025 after this clarification?",
-      "recommendedAnswer": "The sec-e2e-025 acceptance entrypoint must prove both checkpoint/tail tamper and historical committed-record edit tamper, then the full explicit gate must still pass in one evidence run.",
-      "reason": "A test that passes only because it deletes the checkpoint does not cover the reported attack path where the operator edits the second log entry and leaves enough local state for the runtime to continue."
-    },
-    {
-      "question": "Should the next stage first be Implementation Design or Coding/Repair?",
-      "recommendedAnswer": "Dispatch Implementation Design first.",
-      "reason": "The existing ImplementationToCodingHandoff records sec-e2e-025 as passed, while the user-reported live validation fails a now-clarified acceptance branch. Implementation Design needs to decide whether to revise the frozen acceptance entrypoint/harness, update implementation contracts, refresh test-failure records, and only then hand precise coding targets to Coding/Repair."
-    },
-    {
-      "question": "May downstream agents edit explicit testcase bodies or protected harness helpers to make the gate pass?",
-      "recommendedAnswer": "No, not without an upstream architecture redesign explicitly changing the acceptance baseline.",
-      "reason": "tests/integration/security/ARCHITECTURE.md marks those bodies and harness vocabulary as frozen business contracts. Weakening assertions would hide the quality-gate failure rather than satisfying intent."
-    },
-    {
-      "question": "Does the latest sec-e2e-027 failure require changing the intent architecture?",
-      "recommendedAnswer": "Yes, narrowly. Add an explicit recovery release rule so downstream work treats post-validation continued lockout as a failed acceptance outcome rather than a conservative security fallback.",
-      "reason": "The prior graph already required proof before rejoin and said only then normal model access returns, but the current failure proves downstream agents need the positive release boundary stated as an invariant: valid full-chain missing-gap proof must close recovery_required and restore model access for the same canonical client."
-    },
-    {
-      "question": "Should sec-e2e-027 be made to pass by relaxing recovery assertions or accepting continued 423 after proof?",
-      "recommendedAnswer": "No. Pre-proof denial is required, but post-proof continued denial is a product failure because it prevents legitimate recovery after the cloud mirror has validated continuity.",
-      "reason": "The business/security intent is active defense with recoverability: protect the user while continuity is unknown, then restore normal work once continuity is proven. A permanent or stale UNTRUSTED state after valid proof fails the showcase and the explicit acceptance observation point."
+      "question": "Should V1 define retention periods or historical schema display behavior?",
+      "recommendedAnswer": "No. Preserve them as non-goals and avoid implementing hidden default promises.",
+      "reason": "The PRD explicitly excludes both. Silent defaults would create product commitments not accepted in intent design."
     }
   ],
   "notes": [
-    "User reproduction: /orchestrating shows a normally offline QwenPaw client stuck in 'gap pending validation' after reconnect: trust state 'gap pending validation', gap_status REQUIRED, recovery gate OPEN, latest trace cff08c45-2e1e-4310-80f6-a116be3a7834. Expected business outcome is restored trust CLEAR, not a persistent recovery-required display.",
-    "Boundary decision: normal offline/reconnect means the same canonical client returns with intact local audit evidence, no tamper, no missing sequence, no clone/replay signal, and no lease-expiry recovery debt. This is separate from sec-e2e-025 audit tamper and sec-e2e-027 lease-expiry active defense.",
-    "Control point for sec-e2e-028: establish a trusted canonical client, stop or disconnect the runtime through a normal offline path without mutating local audit evidence, restart the same canonical client, and attempt ordinary model access through the real app subprocess.",
-    "Observation point for sec-e2e-028: Security Center backend and operator web must show ALIGNED or TRUSTED, gap_status CLEAR, recovery_gate_status CLEAR, recovery_required=false, no missing_gap_proof/divergence display, and ordinary model access must return 200.",
-    "If the implementation scenario intentionally crosses the lease-expiry boundary, then sec-e2e-027 semantics apply: pre-proof denial is correct, but valid locally constructible full-chain proof must close the gate and the operator web must not remain in REQUIRED/OPEN after proof acceptance.",
-    "Implementation Design must add or freeze tests/integration/security/test_audit_foundation.py::test_normal_offline_reconnect_clears_without_gap_recovery and update OVERALL_ARCHITECTURE.md, src/qwenpaw/security/ARCHITECTURE.md, deploy/api/ARCHITECTURE.md, deploy/web/ARCHITECTURE.md, tests/ARCHITECTURE.md, tests/integration/security/ARCHITECTURE.md, design/KG/ImplementationToCodingHandoff.json, and design/KG/test-failure-records.json as needed.",
-    "Do not edit production code, weaken sec-e2e-025 or sec-e2e-027, mark tests xfail/skip, or treat browser/session ids as separate canonical clients to hide a stale recovery gate.",
-    "Problem statement: the reported sec-e2e-025 failure is security-significant. After three high-risk commands produce normal audit records, editing the second committed log entry must not allow a later high-risk command to execute and must not leave Security Center Web in CLEAR.",
-    "Acceptance criteria: sec-e2e-025 must cover committed historical record edit tamper as well as checkpoint loss or tail truncation. Control point: create a multi-record high-risk audit baseline, edit a committed non-tail audit record by operating-system means, then attempt another high-risk action without recovery. Observation point: high-risk execution is refused, local trust becomes UNTRUSTED, Security Center backend/operator web show recovery_required or equivalent UNTRUSTED state, and CLEAR is impossible until cloud-validated full-chain recovery succeeds.",
-    "Evidence command: .\\.venv\\Scripts\\python.exe -m pytest tests/unit/cli/test_cli_version.py::test_cli_version_option_outputs_current_version tests/unit/cli/test_cli_agents.py::test_agents_list_uses_shared_tool_helper tests/unit/cli/test_cli_task.py::test_task_command_registered_in_cli tests/unit/routers/test_settings.py::test_put_then_get_roundtrip tests/unit/routers/test_git.py::test_git_helper_uses_shared_command_runner tests/integration/security/test_audit_foundation.py::test_end_to_end_non_repudiation_evidence_chain tests/integration/security/test_audit_foundation.py::test_audit_integrity_self_healing_lockdown tests/integration/security/test_audit_foundation.py::test_lease_expiry_blocks_untrusted_rejoin_until_gap_sync tests/integration/security/test_audit_foundation.py::test_prompt_injection_cannot_bypass_high_risk_tool_guard -q",
-    "Architecture evidence commands: npm run validate:system-architecture and npm run validate:handoff:intent must stay green for this handoff; npm run test:argo should be run by Implementation Design if it updates contracts or failure records.",
-    "Failure log location: write or update design/KG/test-failure-records.json with the current sec-e2e-025 historical-record tamper result and the full explicit-test run result. If raw logs are too large, store only stable failure summaries there and keep raw terminal output or CI artifact references outside the intent graph.",
-    "Implementation Design boundary: first audit whether tests/integration/security/test_audit_foundation.py::test_audit_integrity_self_healing_lockdown and tests/integration/security/harness.py actually drive the reported second-record edit branch. If coverage is absent or only checkpoint-loss based, update implementation architecture, explicit testcase design, and design/KG/ImplementationToCodingHandoff.json before Coding/Repair; do not repair product behavior in that stage.",
-    "Current sec-e2e-027 failure from npm run test:argo: sec-e2e-024 and sec-e2e-025 pass, but tests/integration/security/test_audit_foundation.py::test_lease_expiry_blocks_untrusted_rejoin_until_gap_sync fails with Post_Recovery_Model_Access_Restore_Missing. Observed latest signal: recovery_control_point_ready is satisfied, post_recovery_backend_api_projection_ready and post_recovery_operator_web_projection_ready are satisfied, but post_recovery_trust_state remains UNTRUSTED and post_recovery_console_status remains 423 after missing-gap verification evidence completed.",
-    "sec-e2e-027 control points: control point one is lease expiry plus pre-proof rejoin attempt against the real app_server fixture; control point two is the distinct missing-gap verification step followed by a second restored-access attempt. Observation points: Security Center backend/operator web project UNTRUSTED and recovery_required before proof, the pre-recovery console frame denies model access, the post-recovery projection for the same canonical client closes recovery_required and becomes ALIGNED or TRUSTED after proof, and the post-recovery console frame returns normal model access.",
-    "Implementation Design input for sec-e2e-027: refresh design/KG/ImplementationToCodingHandoff.json and design/KG/test-failure-records.json so the failure signal names Post_Recovery_Model_Access_Restore_Missing with latest observed post_recovery_trust_state=UNTRUSTED and post_recovery_console_status=423, then hand Coding/Repair production targets under src/qwenpaw/security/audit_foundation.py, src/qwenpaw/app/routers/console.py, deploy/api/app.py, deploy/api/store.py, and deploy/web as needed while keeping tests/integration/security/test_audit_foundation.py and tests/integration/security/harness.py frozen.",
-    "Coding/Repair boundary: once failure records and ImplementationToCodingHandoff.json clearly identify failing explicit node ids and target implementation files, repair production code under the owning stable elements until the full explicit suite passes.",
-    "Do not edit frozen explicit testcase bodies, do not weaken assertions, do not convert real app subprocess acceptance paths into mocks, do not remove failing node ids from the explicit suite, and do not fake pass results by marking tests xfail or skip.",
-    "Recommended next dispatch: implementation-design with this handoff plus the user reproduction: STEP 1 normal use, STEP 2 perform three high-risk delete-test-file commands and confirm logs, STEP 3 edit the second audit log, STEP 4 attempt another high-risk command and require denial, STEP 5 verify Security Center Web remains UNTRUSTED or recovery-required rather than CLEAR until validated recovery. Implementation Design should produce or refresh design/KG/ImplementationToCodingHandoff.json and then request Coding/Repair."
+    "Task ID: sec-event-ingestion-v1, generated from design/prd/security-event-ingestion-prd.md.",
+    "Implementation Design should update root and local architecture contracts so deploy/api owns event intake, config validation, durable event and failure-record storage, query APIs, and persistence-error semantics; deploy/web owns operator event inbox list/detail rendering; tests owns explicit event-ingestion entrypoints and any supporting harness.",
+    "Implementation Design must decide the physical configuration artifact path and schema for source systems, event types, schema versions, payload fields, labels, enum values, maximum lengths, and list-display flags. The configuration file defines event contracts and display metadata only, not workflow rules.",
+    "Implementation Design must produce design/KG/ImplementationToCodingHandoff.json and design/KG/test-failure-records.json after materializing executable entrypoints. Expected initial failures are acceptable if production behavior is not yet implemented, but placeholder passing tests are not acceptable.",
+    "Do not edit production implementation in the intent stage. Do not add alerting, ticketing, notification, remediation, assignment, comments, exports, dashboards, Web self-service configuration editing, authentication, third-party external intake, retention promises, or historical schema display policy unless the intent graph is explicitly redesigned."
   ]
 }

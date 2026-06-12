@@ -13,6 +13,7 @@ element_path: tests/integration/security
 - Own the read-only explicit security acceptance entrypoints required by the intent graph for audit-foundation scenarios.
 - Keep testcase bodies business-readable and GIVEN/WHEN/THEN-shaped by routing live app-subprocess HTTP, logs, and working-directory inspection through local harness abstractions instead of raw plumbing in the testcase body.
 - Freeze runtime-inspection expectations for `sec-e2e-024`, `sec-e2e-025`, `sec-e2e-027`, `sec-e2e-028`, and `sec-e2e-021`: tool-boundary context spying, direct physical ledger inspection, local hash-chain verification, second committed non-tail audit-record tamper detection with readable `UNTRUSTED` state, lease-expiry-driven `UNTRUSTED` downgrade plus reconnect gating, normal-offline reconnect CLEAR projection, durable rejected-event evidence with trace-bound nonce semantics, and pre-execution evidence ordering.
+- Freeze Security Event Ingestion V1 explicit API/data entrypoints: legal event durable acceptance, invalid config/schema/payload rejection, undefined payload field preservation, sourceSystem plus eventId idempotency, and bounded failed reception records.
 - Constrain the explicit security slice to run against the real `app_server` fixture rather than repository source inspection or in-memory-only doubles.
 
 ### Out Of Scope
@@ -26,6 +27,12 @@ element_path: tests/integration/security
 - path: test_audit_foundation.py
   kind: explicit-testcase-entry
   role: single explicit security entrypoint file for audit-foundation scenario baselines
+- path: security_event_harness.py
+  kind: protected-explicit-test-fixture
+  role: business-readable harness abstraction that drives real Security Center API/Web subprocesses and reports Security Event Ingestion V1 gaps with business categories
+- path: test_security_event_ingestion.py
+  kind: explicit-testcase-entry
+  role: single explicit security event ingestion API/data entrypoint file for V1 acceptance baselines
 
 ### Explicit Testcase Entrypoints
 - testcase_name: sec-e2e-024-end-to-end-non-repudiation-evidence-chain
@@ -48,9 +55,30 @@ element_path: tests/integration/security
   entry_path: test_audit_foundation.py::test_prompt_injection_cannot_bypass_high_risk_tool_guard
   control_point: submit deceptive nested instructions that claim test mode or maintenance mode while targeting a configured High risk tool without trusted provenance or confirmation
   observation_point: the resulting observations prove or disprove tool-call-boundary interception, missing-trust rejection with a non-static Security_Rejection_Nonce bound to the current trace chain, durable rejected-event evidence, visible nonce Voucher presentation in the frozen Security Center operator web, and a red alert pushed from deploy/api over SSE or WebSocket to the operator web in under 500ms without manual refresh
+- testcase_name: sec-event-ingestion-v1-accept-legal-event
+  entry_path: test_security_event_ingestion.py::test_accepts_legal_event_after_persistence
+  control_point: submit a legal HTTP security event from enabled sourceSystem `endpoint_edr` with allowed eventTypeId, valid schemaVersion, required summary, occurredAt, severity, and payload fields, then query event list and detail
+  observation_point: the API returns success with eventId and duplicate=false only after persistence, the event is list/detail visible by sourceSystem plus eventId, and backend-generated receivedAt overrides caller input
+- testcase_name: sec-event-ingestion-v1-reject-invalid-config-boundary
+  entry_path: test_security_event_ingestion.py::test_rejects_invalid_event_config_boundary
+  control_point: submit source allow-list, disabled source, source-to-type authorization, unknown event type, unknown schemaVersion, base required summary, required payload field, payload type, and payload enum violations
+  observation_point: each request returns a clear business failure reason, rejected submissions stay out of the accepted event list, and failed reception records contain received time, submitted source/type, failure reason, and bounded summary
+- testcase_name: sec-event-ingestion-v1-preserve-undefined-payload-fields
+  entry_path: test_security_event_ingestion.py::test_preserves_undefined_payload_fields_in_detail_only
+  control_point: submit a legal event with all configured payload fields plus `collectorBuildFingerprint`, which is not declared by the V1 configuration
+  observation_point: the event is accepted, configured fields remain list/detail primary fields, the undefined field is absent from list columns, and the undefined field appears only in undefined-fields detail and raw payload
+- testcase_name: sec-event-ingestion-v1-enforce-idempotency
+  entry_path: test_security_event_ingestion.py::test_enforces_source_event_id_idempotency
+  control_point: submit the same normalized event twice, submit the same sourceSystem plus eventId with conflicting content, then submit the same eventId from a different sourceSystem
+  observation_point: identical repeat returns duplicate=true without a second business event, conflicting same-key content is rejected and recorded, and different sourceSystem plus same eventId is accepted distinctly
+- testcase_name: sec-event-ingestion-v1-bound-failure-records
+  entry_path: test_security_event_ingestion.py::test_records_failed_receptions_without_business_event_pollution
+  control_point: submit illegal source/type/schema/payload cases, create an accepted idempotency baseline, submit conflicting same-key content, use the test-only `X-QwenPaw-Test-Persistence-Failure` failure-injection seam, and submit an oversized illegal payload
+  observation_point: accepted event list stays clean except for the intentional idempotency baseline, illegal/idempotency-conflict/persistence-error/oversized-invalid branches each have queryable bounded failure records, persistence failure returns failure instead of success, and oversized invalid payload handling avoids unbounded storage/display
 
 ### Protected Fixtures
 - harness.py
+- security_event_harness.py
 
 ### Notes
 - The testcase body in `test_audit_foundation.py` is frozen as a business contract baseline. Coding/Repair may realize runtime behavior underneath the harness, but should not rewrite the business wording, GIVEN/WHEN/THEN structure, or explicit entrypoint paths without an upstream architecture change.
@@ -58,3 +86,6 @@ element_path: tests/integration/security
 - sec-e2e-027 is now frozen around two control points and two console observation points inside one explicit entrypoint, and the current repository evidence shows that baseline can execute without sharing one mutable final console status across both frames.
 - sec-e2e-028 is now frozen around a separate normal-offline branch. It must not be satisfied by weakening sec-e2e-027: before lease expiry and without tamper, missing sequence, clone, replay, or hash divergence, no gap validation is required and backend/web must remain CLEAR.
 - When the shared real-environment bootstrap itself is incomplete, the explicit entrypoint must still fail inside the testcase body with a readable runtime bootstrap blocker rather than disappearing behind fixture setup noise.
+- Security Event Ingestion V1 entrypoints are expected to fail in the current repository state with business categories such as `Security_Event_Ingestion_API_Missing`, because `deploy/api` has not yet implemented `POST /security-center/v1/events` or the event list/detail/failure-record routes.
+- `X-QwenPaw-Test-Persistence-Failure` is a protected test-environment failure-injection seam only. Coding/Repair may use it to prove persistence-failure behavior in the explicit entrypoint, but must not expose it as public production V1 API semantics.
+- Coding/Repair may implement production routes, stores, and Web rendering behind `security_event_harness.py`, but must not rewrite `test_security_event_ingestion.py` or the harness business vocabulary to make absent implementation pass.

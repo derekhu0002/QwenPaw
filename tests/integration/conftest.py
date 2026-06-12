@@ -414,6 +414,7 @@ def app_server(  # pylint: disable=too-many-statements,too-many-branches
     security_center_env["SECURITY_CENTER_API_HOST"] = host
     security_center_env["SECURITY_CENTER_API_PORT"] = str(security_center_api_port)
     security_center_env["QWENPAW_SECURITY_CENTER_DATA_DIR"] = str(security_center_data_dir)
+    security_center_env["QWENPAW_SECURITY_CENTER_ENABLE_TEST_FAILURE_INJECTION"] = "1"
 
     security_center_web_env = env.copy()
     security_center_web_env["SECURITY_CENTER_WEB_HOST"] = host

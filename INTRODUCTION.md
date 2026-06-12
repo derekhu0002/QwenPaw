@@ -19,10 +19,133 @@ QwenPaw now includes a deploy-owned Security Center slice that stays physically 
   - Divergence timeline: `GET /security-center/v1/operator/timelines/{client_id}`
     - Accepts either the canonical Security Center client id or a session alias and returns last trusted anchor, current edge-reported head, gap status, fork point, recovery gate state, and `canonical_client_id` for operator review.
   - Realtime alerts: `GET /security-center/v1/operator/stream`
+  - Security event intake: `POST /security-center/v1/events`
+    - Accepts V1 internal-system submissions, validates `sourceSystem`, `eventTypeId`, `schemaVersion`, `summary`, `occurredAt`, `severity`, and configured payload fields against `deploy/config/security-event-contracts.v1.json`.
+    - Persists legal events before returning success, returns `duplicate=false` for new events, and returns `duplicate=true` for identical `(sourceSystem, eventId)` repeats without creating a second business event.
+    - Rejects invalid source/type/schema/payload submissions, idempotency conflicts, and write failures without adding them to the accepted event list.
+  - Security event list: `GET /security-center/v1/operator/events`
+    - Returns accepted events in backend `receivedAt` descending order with filters for `sourceSystem`, `eventTypeId`, `severity`, `occurredFrom`, and `occurredTo`.
+  - Security event detail: `GET /security-center/v1/operator/events/{sourceSystem}/{eventId}`
+    - Returns stable detail by source plus event id, including base facts, labeled structured payload, separated undefined payload fields, and bounded read-only raw payload.
+  - Security event failure records: `GET /security-center/v1/operator/event-reception-failures`
+    - Returns bounded trace records for rejected or failed event receptions.
 
 - Operator web: `deploy/web/index.html`
   - Renders anomaly dashboard, trust-state and recovery view, rejected-event evidence, hash-break curve chart, gap-validation state, recovery gate state, and Security_Rejection_Nonce Voucher display.
   - Subscribes to deploy/api over Server-Sent Events instead of manual refresh.
+  - Renders the Security Event Inbox at `/security-events` and stable detail pages at `/security-events/{sourceSystem}/{eventId}` by consuming deploy/api only.
+
+## Security Event Ingestion V1 Calling Examples
+
+The Security Event Ingestion V1 API is intended for company-internal systems. Start the backend API first:
+
+```powershell
+python -m deploy.api.app
+```
+
+By default the API listens on `http://127.0.0.1:8091`.
+
+### Submit a legal event with curl
+
+```bash
+curl -sS -X POST "http://127.0.0.1:8091/security-center/v1/events" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "sourceSystem": "endpoint_edr",
+    "eventId": "edr-demo-20260612-0001",
+    "eventTypeId": "malware_detected",
+    "schemaVersion": "1.0",
+    "severity": "HIGH",
+    "summary": "Endpoint malware blocked on finance workstation",
+    "occurredAt": "2026-06-12T03:00:00Z",
+    "payload": {
+      "assetId": "finance-workstation-7",
+      "detectionName": "EICAR-Test-File",
+      "actionTaken": "blocked",
+      "collectorBuildFingerprint": "edr-agent-5.4.1+20260612"
+    }
+  }'
+```
+
+Expected success shape:
+
+```json
+{
+  "success": true,
+  "eventId": "edr-demo-20260612-0001",
+  "sourceSystem": "endpoint_edr",
+  "duplicate": false,
+  "receivedAt": "2026-06-12T03:00:01Z"
+}
+```
+
+Submitting the exact same normalized event again returns `success=true` with `duplicate=true` and does not create a second business event.
+
+### Submit from Python
+
+```python
+from __future__ import annotations
+
+import requests
+
+base_url = "http://127.0.0.1:8091"
+
+event = {
+    "sourceSystem": "cloud_siem",
+    "eventId": "siem-demo-20260612-0001",
+    "eventTypeId": "correlation_rule_match",
+    "schemaVersion": "1.0",
+    "severity": "MEDIUM",
+    "summary": "Correlation rule matched suspicious cloud activity",
+    "occurredAt": "2026-06-12T03:15:00Z",
+    "payload": {
+        "ruleId": "CLOUD-RULE-1842",
+        "assetId": "prod-cloud-account-12",
+        "actionTaken": "opened-investigation",
+    },
+}
+
+response = requests.post(
+    f"{base_url}/security-center/v1/events",
+    json=event,
+    timeout=10,
+)
+response.raise_for_status()
+print(response.json())
+```
+
+### Query events and details
+
+```bash
+curl -sS "http://127.0.0.1:8091/security-center/v1/operator/events?sourceSystem=endpoint_edr&eventTypeId=malware_detected&severity=HIGH"
+```
+
+The list response is sorted by backend-generated `receivedAt` descending and includes configured list payload fields only.
+
+```bash
+curl -sS "http://127.0.0.1:8091/security-center/v1/operator/events/endpoint_edr/edr-demo-20260612-0001"
+```
+
+The detail response includes base facts, labeled structured payload, `undefinedPayloadFields`, and bounded read-only `rawPayload`.
+
+### Query failed receptions
+
+```bash
+curl -sS "http://127.0.0.1:8091/security-center/v1/operator/event-reception-failures"
+```
+
+Invalid source/type/schema/payload submissions, idempotency conflicts, and persistence failures are recorded here with bounded request summaries. They do not appear in the accepted event list.
+
+### Integration Notes
+
+- V1 does not implement request authentication or source credential management. Only call this API from trusted internal integration paths until a future authenticated intake design exists.
+- `sourceSystem`, `eventTypeId`, `schemaVersion`, `severity`, and payload fields must match `deploy/config/security-event-contracts.v1.json`.
+- Supported V1 severities are `LOW`, `MEDIUM`, and `HIGH`; the backend normalizes submitted severity to uppercase.
+- `receivedAt` is generated by Security Center. If a caller sends `receivedAt`, it is ignored for accepted event timing.
+- `sourceSystem + eventId` is the idempotency key. Reuse the same `eventId` only for the same event fact; use a new `eventId` for a new fact.
+- Extra payload fields are preserved for traceability, but they are shown only in detail `undefinedPayloadFields` and `rawPayload`, not in list columns.
+- The API returns success only after durable persistence. A write failure returns a failure response instead of an accepted success.
+- Do not use or document `X-QwenPaw-Test-Persistence-Failure` for external integrations. It is a test-only failure-injection seam and is ignored unless the API process is explicitly started with `QWENPAW_SECURITY_CENTER_ENABLE_TEST_FAILURE_INJECTION=1`.
 
 ## Launch
 

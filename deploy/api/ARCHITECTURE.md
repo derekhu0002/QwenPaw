@@ -17,17 +17,21 @@ element_path: deploy/api
 - Expose a realtime operator push channel over Server-Sent Events (SSE) or WebSocket for Security_Rejection_Nonce receipt, hash-divergence updates, and trust-state escalation.
 - Own cloud-side shadow-state comparison, rejected-event intake, and recovery-handshake orchestration.
 - Own cloud-side lease registry, TTL-expiry downgrade decisions, shadow-state comparison, rejected-event intake, and recovery-handshake orchestration.
+- Own Security Event Ingestion V1 backend semantics: intake, contract-config validation, durable-before-success accepted-event persistence, failed reception records, idempotency, list/detail query APIs, persistence-failure response, and oversized invalid payload bounding.
 
 ### Out Of Scope
 - Owning edge runtime behavior or local audit files.
 - Rendering operator UI directly.
 - Exposing non-HTTP transports to the edge runtime for this slice.
+- Rendering the Security Event Inbox UI directly.
+- Defining authentication, external third-party intake, alerting, ticketing, remediation, assignment, comments, export, statistics dashboard, retention promises, Web configuration editing, or historical schema display policy for Security Event Ingestion V1.
 
 ### Dependency Direction
 - src/qwenpaw/security may call this boundary only through HTTP.
 - deploy/web may consume this boundary's APIs for visualization and operator workflows.
 - deploy/web may consume this boundary's SSE or WebSocket push stream for red-alert popups and shadow-hash divergence updates.
 - This boundary must not read edge-local files, share edge durable storage, or be imported into the edge runtime as a library.
+- For Security Event Ingestion V1, `deploy/api` reads `deploy/config/security-event-contracts.v1.json` as configuration input and owns its own durable store. `deploy/web` and tests may consume API responses only; they must not read or write the event store directly.
 
 ### Required API Roles
 - audit uplink intake API
@@ -38,9 +42,24 @@ element_path: deploy/api
 - shadow-hash divergence timeline API that returns local-hash and cloud-shadow-hash curve series plus the fork point marker
 - nonce voucher API surface that exposes Security_Rejection_Nonce as a human-verifiable operator artifact
 - realtime operator alert stream over Server-Sent Events (SSE) or WebSocket
+- `POST /security-center/v1/events` accepts internal-system event submissions, validates `sourceSystem`, `eventTypeId`, `schemaVersion`, `summary`, `occurredAt`, `severity`, and configured payload fields, persists legal events before success, returns `duplicate=false` for new events, returns `duplicate=true` for identical sourceSystem plus eventId repeats, and rejects conflicting same-key submissions.
+- `GET /security-center/v1/operator/events` returns accepted security events receivedAt-descending with filters for time range, sourceSystem, eventTypeId, and severity, core fields, and configured list payload fields only.
+- `GET /security-center/v1/operator/events/{sourceSystem}/{eventId}` returns stable detail for one accepted event, including base facts, labeled structured payload, undefined payload fields, and bounded read-only raw payload.
+- `GET /security-center/v1/operator/event-reception-failures` returns traceable failed reception records with received time, submitted source field, submitted event type field, failure reason, and bounded request summary.
+
+### Security Event Data Model
+- Accepted event identity is `(sourceSystem, eventId)`.
+- Accepted events store `eventTypeId`, `schemaVersion`, `severity`, caller-provided `summary`, caller-provided `occurredAt`, backend-generated `receivedAt`, configured structured payload fields, undefined payload fields, and bounded raw payload for detail display.
+- Failure records store received time, submitted source field, submitted event type field, submitted eventId when present, failure reason, and bounded request summary for source rejection, type rejection, schema rejection, payload validation failure, idempotency conflict, persistence failure, and oversized invalid payload handling.
+- Canonical idempotency comparison must normalize event content using the accepted request fields and configured payload values. `sourceSystem` is part of the key; global `eventId` uniqueness is not required.
 
 ### Notes
 - Coding/Repair may choose concrete framework and route layout, but must preserve HTTP as the edge transport, keep this backend as the only cloud-side control point for edge interactions, require missing-gap verification before an `UNTRUSTED` client regains model access, and publish Security_Rejection_Nonce-triggered operator alerts to deploy/web in under 500ms from uplink receipt without requiring manual refresh.
+- For `sec-event-ingestion-v1`, the current repository state has no implemented event intake/list/detail/failure-record API routes. The explicit entrypoints under `../../tests/integration/security/test_security_event_ingestion.py` and `../../tests/e2e/security_center/test_security_event_inbox.py` are expected to fail with `Security_Event_Ingestion_API_Missing` until Coding/Repair implements this backend contract.
+- Legal event persistence must complete before `POST /security-center/v1/events` returns success. If the store write fails, the API must return failure and create or preserve a bounded failure reception record when possible; it must not return accepted success for an event that cannot be queried.
+- Security Event records must be durably persisted before success is returned to the caller.
+- `X-QwenPaw-Test-Persistence-Failure` is reserved only as a test-environment failure-injection seam for the frozen explicit acceptance entrypoint. It must not become public production V1 API semantics, must not be documented as an integration feature, and must be ignored or unavailable outside explicit test mode.
+- Undefined payload fields are preserved for traceability but must not become configured list columns unless `deploy/config/security-event-contracts.v1.json` declares them as payload fields with `showInList=true`.
 - For sec-e2e-025, editing the second committed non-tail audit record after three high-risk actions must project as `UNTRUSTED` or recovery-required through the operator overview and timeline APIs until full-chain cloud validation succeeds. Returning `gap_status=CLEAR`, `recovery_gate_status=CLEAR`, or `recovery_required=false` for that tampered client before validation is a Security Center backend failure.
 - The lease registry and recovery model are keyed by one canonical runtime client id per live edge runtime. A startup heartbeat must not create a separate bootstrap-only client whose shadow hash is later compared against the real audit chain for that same runtime.
 - Current repository evidence now also proves the backend admits a freshly started online runtime as a normal canonical terminal: clean startup heartbeat now converges to `trust_state=ALIGNED`, `gap_status=CLEAR`, `recovery_gate_status=CLEAR`, and `recovery_required=false` before any offline lease-expiry or recovery workflow begins, and the prior `missing_gap_proof` startup misclassification is closed.

@@ -58,8 +58,15 @@
   implements:
     - intent-security-center
     - intent-cloud-integrity-stub
+    - intent-security-event-ingestion-v1
   contract: deploy/ARCHITECTURE.md
-  role: Stable repository-owned contract boundary for the physically separate Security Center service, including a cloud-side HTTP API backend, an operator-facing web frontend, SSE or WebSocket alert delivery to operators, and the integrity mirror seam consumed only through edge-to-cloud HTTP.
+  role: Stable repository-owned contract boundary for the physically separate Security Center service, including a cloud-side HTTP API backend, an operator-facing web frontend, SSE or WebSocket alert delivery to operators, the integrity mirror seam consumed only through edge-to-cloud HTTP, and the Security Event Ingestion V1 intake/inbox capability for configured internal systems.
+
+- path: deploy/config/security-event-contracts.v1.json
+  kind: SecurityEventContractConfig
+  implements:
+    - intent-security-event-contract-config
+  role: Repository-owned V1 configuration artifact for enabled source systems, allowed event types, schema versions, payload field validation, list-display metadata, and bounded failure/raw-payload display limits.
 
 - path: .github/validator
   kind: BootstrapAssetZone
@@ -88,12 +95,21 @@
 - direct sub-boundary materialization: `deploy/api/ARCHITECTURE.md` freezes the Security Center backend HTTP API service consumed by the edge runtime and operator web, including SSE or WebSocket alert publication, nonce voucher APIs, and shadow-hash divergence timeline delivery.
 - direct sub-boundary materialization: `deploy/api/ARCHITECTURE.md` freezes the Security Center backend HTTP API service consumed by the edge runtime and operator web, including the lease registry, TTL expiry downgrade path, reconnect recovery gate, SSE or WebSocket alert publication, nonce voucher APIs, and shadow-hash divergence timeline delivery.
 - direct sub-boundary materialization: `deploy/web/ARCHITECTURE.md` freezes the operator-facing Security Center web frontend that visualizes anomalies, rejected events, recovery state, hash-break curve forks, and nonce-driven red alerts.
+- direct implementation boundary: `deploy/api/ARCHITECTURE.md` owns `intent-security-event-ingestion-v1`, `intent-security-event`, and `intent-security-event-failure-record` for V1 event intake, configuration validation, durable-before-success accepted-event persistence, failure reception records, list/detail query APIs, persistence-error semantics, idempotency, and bounded oversized invalid payload summaries.
+- direct implementation boundary: `deploy/web/ARCHITECTURE.md` owns `intent-security-event-inbox-web` by consuming deploy/api list/detail APIs only; it renders receivedAt-descending inbox rows, filters, configured list fields, stable detail URLs, undefined fields, and bounded read-only raw payload without Web configuration editing.
+- direct configuration materialization: `deploy/config/security-event-contracts.v1.json` realizes `intent-security-event-contract-config` and is the frozen V1 configuration baseline for `sourceSystem`, `eventTypeId`, `schemaVersion`, payload field labels/types/required flags/enums/max lengths/list flags, and bounded failure/raw display limits.
 - direct testcase materialization: `tests/integration/security/test_audit_foundation.py::test_end_to_end_non_repudiation_evidence_chain` is the read-only explicit entrypoint for `sec-e2e-024-end-to-end-non-repudiation-evidence-chain`, and it must run through the real `app_server` fixture rather than repository source inspection.
 - direct testcase materialization: `tests/integration/security/test_audit_foundation.py::test_audit_integrity_self_healing_lockdown` is the read-only explicit entrypoint for `sec-e2e-025-audit-integrity-self-healing-lockdown`.
 - direct testcase materialization detail: `sec-e2e-025-audit-integrity-self-healing-lockdown` now freezes the historical tamper branch where three high-risk records are created, the second committed non-tail record is edited by operating-system means, the next high-risk boundary must enter `UNTRUSTED`, and Security Center backend/web must remain recovery-required rather than `CLEAR` until cloud-validated full-chain recovery.
 - direct testcase materialization: `tests/integration/security/test_audit_foundation.py::test_lease_expiry_blocks_untrusted_rejoin_until_gap_sync` is the read-only explicit entrypoint for `sec-e2e-027-lease-expiry-active-defense`, and its implementation-architecture contract freezes one entrypoint with two control points plus two distinct console observation points: `pre_recovery_console_status` for the denied rejoin frame before missing-gap verification and `post_recovery_console_status` for the restored-access frame after continuity validation.
 - direct testcase materialization: `tests/integration/security/test_audit_foundation.py::test_normal_offline_reconnect_clears_without_gap_recovery` is the read-only explicit entrypoint for `sec-e2e-028-normal-offline-reconnect-clear-state`, and its implementation-architecture contract freezes the non-incident reconnect branch: trusted audit head, normal offline stop, same canonical client restarted before lease expiry, Security Center backend/web projecting `ALIGNED` or `TRUSTED` with `gap_status=CLEAR`, `recovery_gate_status=CLEAR`, `recovery_required=false`, and ordinary model access `200`.
 - direct testcase materialization: `tests/integration/security/test_audit_foundation.py::test_prompt_injection_cannot_bypass_high_risk_tool_guard` is the read-only explicit entrypoint for `sec-e2e-021-prompt-injection-tool-guard-enforced`.
+- direct testcase materialization: `tests/integration/security/test_security_event_ingestion.py::test_accepts_legal_event_after_persistence` is the read-only explicit entrypoint for `sec-event-ingestion-v1-accept-legal-event`.
+- direct testcase materialization: `tests/integration/security/test_security_event_ingestion.py::test_rejects_invalid_event_config_boundary` is the read-only explicit entrypoint for `sec-event-ingestion-v1-reject-invalid-config-boundary`.
+- direct testcase materialization: `tests/integration/security/test_security_event_ingestion.py::test_preserves_undefined_payload_fields_in_detail_only` is the read-only explicit entrypoint for `sec-event-ingestion-v1-preserve-undefined-payload-fields`.
+- direct testcase materialization: `tests/integration/security/test_security_event_ingestion.py::test_enforces_source_event_id_idempotency` is the read-only explicit entrypoint for `sec-event-ingestion-v1-enforce-idempotency`.
+- direct testcase materialization: `tests/e2e/security_center/test_security_event_inbox.py::test_web_lists_filters_and_opens_event_detail` is the read-only explicit entrypoint for `sec-event-ingestion-v1-render-web-list-and-detail`.
+- direct testcase materialization: `tests/integration/security/test_security_event_ingestion.py::test_records_failed_receptions_without_business_event_pollution` is the read-only explicit entrypoint for `sec-event-ingestion-v1-bound-failure-records`.
 
 ## Explicit Testcase Materialization
 - testcase: cli-version-surface
@@ -146,12 +162,43 @@
   entrypoint: tests/unit/security/tool_guard/test_rules_integrity.py::test_builtin_rule_line_ending_invariant
   runtime_mode: unit-harness-with-temporary-rules-directory
 
+- testcase: sec-event-ingestion-v1-accept-legal-event
+  intent_element: intent-security-event-ingestion-v1
+  entrypoint: tests/integration/security/test_security_event_ingestion.py::test_accepts_legal_event_after_persistence
+  runtime_mode: real-security-center-api-and-web-subprocess
+
+- testcase: sec-event-ingestion-v1-reject-invalid-config-boundary
+  intent_element: intent-security-event-ingestion-v1
+  entrypoint: tests/integration/security/test_security_event_ingestion.py::test_rejects_invalid_event_config_boundary
+  runtime_mode: real-security-center-api-and-web-subprocess
+
+- testcase: sec-event-ingestion-v1-preserve-undefined-payload-fields
+  intent_element: intent-security-event-ingestion-v1
+  entrypoint: tests/integration/security/test_security_event_ingestion.py::test_preserves_undefined_payload_fields_in_detail_only
+  runtime_mode: real-security-center-api-and-web-subprocess
+
+- testcase: sec-event-ingestion-v1-enforce-idempotency
+  intent_element: intent-security-event-ingestion-v1
+  entrypoint: tests/integration/security/test_security_event_ingestion.py::test_enforces_source_event_id_idempotency
+  runtime_mode: real-security-center-api-and-web-subprocess
+
+- testcase: sec-event-ingestion-v1-render-web-list-and-detail
+  intent_element: intent-security-event-inbox-web
+  entrypoint: tests/e2e/security_center/test_security_event_inbox.py::test_web_lists_filters_and_opens_event_detail
+  runtime_mode: real-security-center-api-and-web-subprocess
+
+- testcase: sec-event-ingestion-v1-bound-failure-records
+  intent_element: intent-security-event-ingestion-v1
+  entrypoint: tests/integration/security/test_security_event_ingestion.py::test_records_failed_receptions_without_business_event_pollution
+  runtime_mode: real-security-center-api-and-web-subprocess
+
 ## Critical Non-Explicit Guardrails
 - tests/architecture/root-architecture-contracts.test.js guards the presence and cross-reference integrity of the root contracts, including the new security contracts.
 - tests/architecture/root-architecture-deliverables.test.js guards that the expected architecture deliverables exist at stable repository paths.
 - tests/architecture/validator-bootstrap-traceability.test.js guards the wiring between `package.json` validation commands and bundled validator assets.
 - tests/architecture/security-audit-contract-boundaries.test.js guards the frozen boundary between `src/qwenpaw/security`, the explicit security entrypoint zone, the separate Security Center deployment boundary, and the root/runtime/test contracts that reference them.
 - tests/architecture/security-explicit-entrypoint-traceability.test.js guards that `sec-e2e-024`, `sec-e2e-025`, `sec-e2e-027`, `sec-e2e-028`, `sec-e2e-021`, and `sec-e2e-029` stay mounted to the read-only explicit entrypoints and that the implementation handoff keeps the same paths plus frozen execution-state traceability for open security gaps.
+- tests/architecture/security-event-ingestion-contract-boundaries.test.js guards that Security Event Ingestion V1 stays mounted to `deploy/api`, `deploy/web`, `deploy/config/security-event-contracts.v1.json`, `tests/integration/security/test_security_event_ingestion.py`, `tests/integration/security/security_event_harness.py`, and `tests/e2e/security_center/test_security_event_inbox.py` with expected failing handoff entries until Coding/Repair implements the production behavior.
 
 ## Frozen Files For Downstream Coding
 - design/KG/SystemArchitecture.json
@@ -167,14 +214,21 @@
 - deploy/ARCHITECTURE.md
 - deploy/api/ARCHITECTURE.md
 - deploy/web/ARCHITECTURE.md
+- deploy/config/security-event-contracts.v1.json
 - tests/ARCHITECTURE.md
 - tests/architecture/ARCHITECTURE.md
 - tests/integration/security/ARCHITECTURE.md
 - tests/integration/security/harness.py
 - tests/integration/security/test_audit_foundation.py
+- tests/integration/security/security_event_harness.py
+- tests/integration/security/test_security_event_ingestion.py
+- tests/e2e/security_center/ARCHITECTURE.md
+- tests/e2e/security_center/conftest.py
+- tests/e2e/security_center/test_security_event_inbox.py
 - tests/contract/security/test_lease_recovery_semantics_contract.py
 - tests/architecture/root-architecture-contracts.test.js
 - tests/architecture/root-architecture-deliverables.test.js
 - tests/architecture/security-audit-contract-boundaries.test.js
 - tests/architecture/security-explicit-entrypoint-traceability.test.js
+- tests/architecture/security-event-ingestion-contract-boundaries.test.js
 - .github/validator/ARCHITECTURE.md

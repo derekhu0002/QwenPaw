@@ -6,12 +6,18 @@ import os
 from typing import Any
 
 import uvicorn
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import StreamingResponse
+from fastapi.responses import JSONResponse, StreamingResponse
 from pydantic import BaseModel, Field
 
 from .store import SecurityCenterStore
+
+_TEST_FAILURE_INJECTION_ENV = "QWENPAW_SECURITY_CENTER_ENABLE_TEST_FAILURE_INJECTION"
+
+
+def _test_failure_injection_enabled() -> bool:
+    return os.environ.get(_TEST_FAILURE_INJECTION_ENV, "").strip().lower() in {"1", "true", "yes", "on"}
 
 
 class RecoveryHandshakeRequest(BaseModel):
@@ -113,9 +119,55 @@ def create_app(store: SecurityCenterStore | None = None) -> FastAPI:
     async def uplink_trusted_anchor(body: TrustedAnchorUplinkRequest) -> dict[str, Any]:
         return await service_store.record_trusted_anchor(body.model_dump(mode="json"))
 
+    @app.post("/security-center/v1/events")
+    async def submit_security_event(request: Request) -> JSONResponse:
+        try:
+            body = await request.json()
+        except json.JSONDecodeError:
+            body = {}
+        if not isinstance(body, dict):
+            body = {"_invalidRequest": body}
+        test_persistence_failure_requested = (
+            _test_failure_injection_enabled()
+            and request.headers.get("X-QwenPaw-Test-Persistence-Failure", "").lower() == "true"
+        )
+        result = await service_store.submit_security_event(
+            body,
+            force_persistence_failure=test_persistence_failure_requested,
+        )
+        status_code = int(result.pop("_status_code", 200))
+        return JSONResponse(result, status_code=status_code)
+
     @app.get("/security-center/v1/operator/overview")
     async def operator_overview() -> dict[str, Any]:
         return await service_store.overview()
+
+    @app.get("/security-center/v1/operator/events")
+    async def operator_security_events(
+        sourceSystem: str | None = None,  # noqa: N803 - external API field spelling is frozen.
+        eventTypeId: str | None = None,  # noqa: N803
+        severity: str | None = None,
+        occurredFrom: str | None = None,  # noqa: N803
+        occurredTo: str | None = None,  # noqa: N803
+    ) -> dict[str, Any]:
+        return await service_store.security_events(
+            source_system=sourceSystem,
+            event_type_id=eventTypeId,
+            severity=severity,
+            occurred_from=occurredFrom,
+            occurred_to=occurredTo,
+        )
+
+    @app.get("/security-center/v1/operator/events/{source_system}/{event_id}")
+    async def operator_security_event_detail(source_system: str, event_id: str) -> dict[str, Any]:
+        event = await service_store.security_event_detail(source_system, event_id)
+        if event is None:
+            raise HTTPException(status_code=404, detail="security event not found")
+        return event
+
+    @app.get("/security-center/v1/operator/event-reception-failures")
+    async def operator_security_event_failures() -> dict[str, Any]:
+        return await service_store.security_event_failures()
 
     @app.get("/security-center/v1/operator/rejections/{nonce}")
     async def operator_rejection(nonce: str) -> dict[str, Any]:

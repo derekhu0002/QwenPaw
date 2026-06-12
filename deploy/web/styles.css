@@ -428,6 +428,95 @@ button {
   overflow: auto;
 }
 
+.security-event-inbox-panel {
+  display: grid;
+  gap: 1rem;
+}
+
+.security-event-filters {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 0.65rem;
+}
+
+.security-event-list {
+  overflow-x: auto;
+}
+
+.security-event-table {
+  width: 100%;
+  border-collapse: collapse;
+  min-width: 980px;
+}
+
+.security-event-table th,
+.security-event-table td {
+  padding: 0.7rem 0.75rem;
+  border-bottom: 1px solid rgba(118, 177, 216, 0.12);
+  text-align: left;
+  vertical-align: top;
+}
+
+.security-event-table th {
+  color: var(--accent);
+  font-size: 0.76rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.security-event-table a {
+  color: var(--accent-warm);
+}
+
+.security-event-detail-card {
+  display: grid;
+  gap: 1rem;
+}
+
+.security-event-detail-card h3 {
+  margin: 0;
+}
+
+.detail-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.8rem;
+}
+
+.key-value-grid {
+  display: grid;
+  grid-template-columns: minmax(8rem, 0.6fr) minmax(0, 1fr);
+  gap: 0.45rem 0.7rem;
+  margin: 0;
+}
+
+.key-value-grid dt {
+  color: var(--accent);
+}
+
+.key-value-grid dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.raw-payload {
+  max-height: 18rem;
+  overflow: auto;
+  padding: 1rem;
+  border-radius: 1rem;
+  border: 1px solid rgba(118, 177, 216, 0.12);
+  background: rgba(0, 0, 0, 0.24);
+  color: var(--text);
+  white-space: pre-wrap;
+}
+
+.empty-state {
+  padding: 1rem;
+  border-radius: 1rem;
+  border: 1px dashed rgba(118, 177, 216, 0.2);
+  color: var(--muted);
+}
+
 .compact-event-log {
   max-height: 14.5rem;
 }
@@ -482,7 +571,9 @@ button {
   .app-frame,
   .hero-banner,
   .analytics-grid,
-  .chart-grid {
+  .chart-grid,
+  .detail-grid,
+  .security-event-filters {
     grid-template-columns: 1fr;
   }
 

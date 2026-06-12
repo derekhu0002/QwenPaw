@@ -30,6 +30,60 @@ def test_security_center_store_uses_configured_data_dir(tmp_path, monkeypatch) -
     monkeypatch.delenv("QWENPAW_SECURITY_CENTER_DATA_DIR", raising=False)
 
 
+def _security_event_body(event_id: str) -> dict:
+    return {
+        "sourceSystem": "endpoint_edr",
+        "eventId": event_id,
+        "eventTypeId": "malware_detected",
+        "schemaVersion": "1.0",
+        "severity": "HIGH",
+        "summary": "Endpoint malware blocked on finance workstation",
+        "occurredAt": "2026-06-12T03:00:00Z",
+        "payload": {
+            "assetId": "finance-workstation-7",
+            "detectionName": "EICAR-Test-File",
+            "actionTaken": "blocked",
+        },
+    }
+
+
+def test_persistence_failure_header_requires_test_mode_gate(tmp_path, monkeypatch) -> None:
+    """Control point: submit the V1 persistence-failure header with and without the explicit test-mode gate.
+
+    Observation point: production-mode deploy/api ignores the header and persists
+    the event, while explicit test mode turns the same header into a failure
+    injection seam for frozen acceptance tests.
+    """
+
+    monkeypatch.delenv("QWENPAW_SECURITY_CENTER_ENABLE_TEST_FAILURE_INJECTION", raising=False)
+    production_client = TestClient(create_app(SecurityCenterStore(tmp_path / "production-store.json")))
+
+    production_response = production_client.post(
+        "/security-center/v1/events",
+        json=_security_event_body("production-header-ignored-001"),
+        headers={"X-QwenPaw-Test-Persistence-Failure": "true"},
+    )
+
+    assert production_response.status_code == 200
+    assert production_response.json()["success"] is True
+    detail = production_client.get(
+        "/security-center/v1/operator/events/endpoint_edr/production-header-ignored-001",
+    )
+    assert detail.status_code == 200
+
+    monkeypatch.setenv("QWENPAW_SECURITY_CENTER_ENABLE_TEST_FAILURE_INJECTION", "1")
+    test_mode_client = TestClient(create_app(SecurityCenterStore(tmp_path / "test-mode-store.json")))
+
+    test_mode_response = test_mode_client.post(
+        "/security-center/v1/events",
+        json=_security_event_body("test-mode-header-enabled-001"),
+        headers={"X-QwenPaw-Test-Persistence-Failure": "true"},
+    )
+
+    assert test_mode_response.status_code == 503
+    assert test_mode_response.json()["failureReason"] == "PERSISTENCE_WRITE_FAILED"
+
+
 def _build_confirmation_anchor(*, run_id: str, session_id: str, user_id: str, tool_name: str, prior_hash: str, sequence: int, anchored_event_id: str, confirmed_at: float) -> dict:
     confirmation_digest = hashlib.sha256(
         "|".join(

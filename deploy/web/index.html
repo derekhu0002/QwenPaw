@@ -22,6 +22,7 @@
           <a class="nav-item" href="#trust-panel">信任恢复</a>
           <a class="nav-item" href="#rejection-panel">拒绝取证</a>
           <a class="nav-item" href="#chart-panel">分叉曲线</a>
+          <a class="nav-item" href="/security-events">Security Event Inbox</a>
           <a class="nav-item" href="#event-panel">事件日志</a>
         </nav>
         <div class="sidebar-footnote">
@@ -159,6 +160,32 @@
               <div id="event-log-mirror" class="event-log"></div>
             </div>
           </section>
+        </section>
+
+        <section class="panel security-event-inbox-panel" id="security-event-inbox">
+          <!-- Frozen explicit anchor: Security Event Inbox -->
+          <div class="panel-heading compact">
+            <div>
+              <span class="section-kicker">Security Event Inbox</span>
+              <h2>安全事件收件箱</h2>
+            </div>
+            <p>只读消费 deploy/api，展示已接入安全事件的列表、筛选和详情。</p>
+          </div>
+          <form id="security-event-filters" class="security-event-filters">
+            <input id="filter-source-system" name="sourceSystem" placeholder="sourceSystem" />
+            <input id="filter-event-type" name="eventTypeId" placeholder="eventTypeId" />
+            <select id="filter-severity" name="severity" aria-label="severity">
+              <option value="">全部严重级别</option>
+              <option value="LOW">LOW</option>
+              <option value="MEDIUM">MEDIUM</option>
+              <option value="HIGH">HIGH</option>
+            </select>
+            <input id="filter-occurred-from" name="occurredFrom" placeholder="occurredFrom ISO" />
+            <input id="filter-occurred-to" name="occurredTo" placeholder="occurredTo ISO" />
+            <button type="submit">应用筛选</button>
+          </form>
+          <div id="security-event-list" class="security-event-list"></div>
+          <div id="security-event-detail" class="security-event-detail"></div>
         </section>
       </main>
     </div>

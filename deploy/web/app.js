@@ -24,6 +24,9 @@ const elements = {
   alertLatency: document.getElementById("alert-latency"),
   eventLog: document.getElementById("event-log"),
   eventLogMirror: document.getElementById("event-log-mirror"),
+  securityEventFilters: document.getElementById("security-event-filters"),
+  securityEventList: document.getElementById("security-event-list"),
+  securityEventDetail: document.getElementById("security-event-detail"),
   toast: document.getElementById("toast"),
 };
 
@@ -60,6 +63,13 @@ elements.clientSelect.addEventListener("change", async (event) => {
   await renderTimeline();
 });
 
+if (elements.securityEventFilters) {
+  elements.securityEventFilters.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    await renderSecurityEventInbox();
+  });
+}
+
 function apiUrl(path) {
   return `${state.apiBase}${path}`;
 }
@@ -70,6 +80,15 @@ function trustLabel(value) {
 
 function alertTypeLabel(value) {
   return ALERT_TYPE_LABELS[value] || value || "未分类告警";
+}
+
+function escapeHtml(value) {
+  return String(value ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
 }
 
 async function readJson(path) {
@@ -86,6 +105,21 @@ function metricCard(label, value, tone = "") {
 
 function stackCard(title, body, tone = "") {
   return `<div class="stack-card ${tone}"><strong>${title}</strong><div>${body}</div></div>`;
+}
+
+function objectTable(payload, labels = {}) {
+  const entries = Object.entries(payload || {});
+  if (!entries.length) {
+    return '<div class="empty-state">无数据</div>';
+  }
+  return `
+    <dl class="key-value-grid">
+      ${entries.map(([key, value]) => `
+        <dt>${escapeHtml(labels[key] || key)}</dt>
+        <dd>${escapeHtml(typeof value === "object" ? JSON.stringify(value) : value)}</dd>
+      `).join("")}
+    </dl>
+  `;
 }
 
 function setApiStatus(message, tone = "") {
@@ -287,6 +321,146 @@ function renderEventLogs(alerts) {
   sortedAlerts.forEach((alert) => appendEventLog(alert));
 }
 
+function securityEventDetailPath() {
+  const match = window.location.pathname.match(/^\/security-events\/([^/]+)\/([^/]+)$/);
+  if (!match) {
+    return null;
+  }
+  return {
+    sourceSystem: decodeURIComponent(match[1]),
+    eventId: decodeURIComponent(match[2]),
+  };
+}
+
+function securityEventFilterQuery() {
+  const params = new URLSearchParams();
+  const form = elements.securityEventFilters;
+  if (!form) {
+    return "";
+  }
+  for (const field of ["sourceSystem", "eventTypeId", "severity", "occurredFrom", "occurredTo"]) {
+    const value = (form.elements[field]?.value || "").trim();
+    if (value) {
+      params.set(field, value);
+    }
+  }
+  const query = params.toString();
+  return query ? `?${query}` : "";
+}
+
+function renderSecurityEventRows(events) {
+  if (!elements.securityEventList) {
+    return;
+  }
+  if (!events.length) {
+    elements.securityEventList.innerHTML = '<div class="empty-state">暂无 Security Event 记录。</div>';
+    return;
+  }
+  elements.securityEventList.innerHTML = `
+    <table class="security-event-table">
+      <thead>
+        <tr>
+          <th>receivedAt</th>
+          <th>occurredAt</th>
+          <th>sourceSystem</th>
+          <th>event type</th>
+          <th>severity</th>
+          <th>summary</th>
+          <th>eventId</th>
+          <th>list payload</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${events.map((event) => {
+          const payloadEntries = Object.entries(event)
+            .filter(([key]) => ![
+              "receivedAt",
+              "occurredAt",
+              "sourceSystem",
+              "eventTypeId",
+              "eventTypeDisplayName",
+              "schemaVersion",
+              "severity",
+              "summary",
+              "eventId",
+            ].includes(key));
+          return `
+            <tr>
+              <td>${escapeHtml(event.receivedAt)}</td>
+              <td>${escapeHtml(event.occurredAt)}</td>
+              <td>${escapeHtml(event.sourceSystem)}</td>
+              <td>${escapeHtml(event.eventTypeDisplayName || event.eventTypeId)}</td>
+              <td>${escapeHtml(event.severity)}</td>
+              <td>${escapeHtml(event.summary)}</td>
+              <td><a href="/security-events/${encodeURIComponent(event.sourceSystem)}/${encodeURIComponent(event.eventId)}">${escapeHtml(event.eventId)}</a></td>
+              <td>${payloadEntries.map(([key, value]) => `${escapeHtml(key)}=${escapeHtml(value)}`).join("<br/>") || "--"}</td>
+            </tr>
+          `;
+        }).join("")}
+      </tbody>
+    </table>
+  `;
+}
+
+function renderSecurityEventDetail(event) {
+  if (!elements.securityEventDetail) {
+    return;
+  }
+  if (!event) {
+    elements.securityEventDetail.innerHTML = '<div class="empty-state">选择列表中的事件查看详情。</div>';
+    return;
+  }
+  elements.securityEventDetail.innerHTML = `
+    <article class="security-event-detail-card">
+      <h3>Security Event Detail: ${escapeHtml(event.sourceSystem)} / ${escapeHtml(event.eventId)}</h3>
+      <div class="detail-grid">
+        ${stackCard("基础事实", objectTable({
+          eventId: event.eventId,
+          sourceSystem: event.sourceSystem,
+          eventTypeId: event.eventTypeId,
+          eventTypeDisplayName: event.eventTypeDisplayName,
+          schemaVersion: event.schemaVersion,
+          severity: event.severity,
+          summary: event.summary,
+          occurredAt: event.occurredAt,
+          receivedAt: event.receivedAt,
+        }))}
+        ${stackCard("结构化 payload", objectTable(event.structuredPayload, event.structuredPayloadLabels))}
+        ${stackCard("未定义字段", objectTable(event.undefinedPayloadFields))}
+      </div>
+      <pre class="raw-payload" aria-label="read-only raw payload">${escapeHtml(JSON.stringify(event.rawPayload || {}, null, 2))}</pre>
+    </article>
+  `;
+}
+
+async function renderSecurityEventInbox() {
+  if (!elements.securityEventList || !elements.securityEventDetail) {
+    return;
+  }
+  try {
+    const list = await readJson(`/security-center/v1/operator/events${securityEventFilterQuery()}`);
+    const events = list.events || [];
+    renderSecurityEventRows(events);
+    const detailTarget = securityEventDetailPath();
+    if (detailTarget) {
+      const detail = await readJson(
+        `/security-center/v1/operator/events/${encodeURIComponent(detailTarget.sourceSystem)}/${encodeURIComponent(detailTarget.eventId)}`,
+      );
+      renderSecurityEventDetail(detail);
+    } else if (events.length) {
+      const first = events[0];
+      const detail = await readJson(
+        `/security-center/v1/operator/events/${encodeURIComponent(first.sourceSystem)}/${encodeURIComponent(first.eventId)}`,
+      );
+      renderSecurityEventDetail(detail);
+    } else {
+      renderSecurityEventDetail(null);
+    }
+  } catch (error) {
+    elements.securityEventList.innerHTML = `<div class="empty-state danger">Security Event Inbox 加载失败：${escapeHtml(error.message)}</div>`;
+  }
+}
+
 function showToast(alert) {
   elements.toast.innerHTML = `<strong>${alertTypeLabel(alert.type)}</strong><div>${alert.message}</div>`;
   elements.toast.classList.remove("hidden");
@@ -333,6 +507,7 @@ async function refreshDashboard(reconnectStream = true) {
     renderEventLogs(overview.alerts || []);
     updateClientPicker(overview);
     await renderTimeline();
+    await renderSecurityEventInbox();
     setApiStatus("已连接到安全中心后端。", "success");
     if (reconnectStream) {
       connectStream();
@@ -352,6 +527,7 @@ async function refreshDashboard(reconnectStream = true) {
         renderEventLogs(overview.alerts || []);
         updateClientPicker(overview);
         await renderTimeline();
+        await renderSecurityEventInbox();
         setApiStatus(`已通过 ${state.apiBase} 恢复后端连接。`, "success");
         if (reconnectStream) {
           connectStream();

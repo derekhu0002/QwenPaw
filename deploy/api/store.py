@@ -5,6 +5,8 @@ import hashlib
 import json
 import os
 import time
+import uuid
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -24,10 +26,75 @@ GAP_STATUS_VALIDATED = "VALIDATED"
 RECOVERY_GATE_OPEN = "OPEN"
 RECOVERY_GATE_CLOSED = "CLEAR"
 DEFAULT_LEASE_TTL_SECONDS = 1
+_SECURITY_EVENT_CONTRACTS_PATH = Path(__file__).resolve().parents[1] / "config" / "security-event-contracts.v1.json"
+_DEFAULT_FAILURE_SUMMARY_LIMIT = 4096
+_DEFAULT_RAW_PAYLOAD_DISPLAY_LIMIT = 4096
 
 
 def canonical_json(value: Any) -> str:
     return json.dumps(value, ensure_ascii=False, separators=(",", ":"), sort_keys=True)
+
+
+def _utc_now_iso() -> str:
+    return datetime.now(UTC).isoformat(timespec="microseconds").replace("+00:00", "Z")
+
+
+def _bounded_text(value: Any, *, limit: int) -> str:
+    text = canonical_json(value) if isinstance(value, (dict, list)) else str(value)
+    if len(text) <= limit:
+        return text
+    return f"{text[: max(limit - 32, 0)]}...<truncated {len(text) - limit} chars>"
+
+
+def _load_security_event_contracts() -> dict[str, Any]:
+    payload = json.loads(_SECURITY_EVENT_CONTRACTS_PATH.read_text(encoding="utf-8"))
+    if not isinstance(payload, dict):
+        raise ValueError("security event contract config must be an object")
+    return payload
+
+
+def _source_config(config: dict[str, Any], source_system: str) -> dict[str, Any] | None:
+    for source in config.get("sourceSystems", []):
+        if isinstance(source, dict) and source.get("sourceSystem") == source_system:
+            return source
+    return None
+
+
+def _event_type_config(config: dict[str, Any], event_type_id: str) -> dict[str, Any] | None:
+    for event_type in config.get("eventTypes", []):
+        if isinstance(event_type, dict) and event_type.get("eventTypeId") == event_type_id:
+            return event_type
+    return None
+
+
+def _schema_config(event_type: dict[str, Any], schema_version: str) -> dict[str, Any] | None:
+    for schema in event_type.get("schemaVersions", []):
+        if isinstance(schema, dict) and schema.get("schemaVersion") == schema_version:
+            return schema
+    return None
+
+
+def _field_type_matches(value: Any, field_type: str) -> bool:
+    if field_type in {"string", "datetime", "enum"}:
+        return isinstance(value, str)
+    if field_type == "number":
+        return isinstance(value, (int, float)) and not isinstance(value, bool)
+    if field_type == "boolean":
+        return isinstance(value, bool)
+    if field_type == "object":
+        return isinstance(value, dict)
+    if field_type == "array":
+        return isinstance(value, list)
+    return True
+
+
+def _bounded_raw_payload(payload: dict[str, Any], *, limit: int) -> dict[str, Any]:
+    if len(str(payload)) <= limit:
+        return payload
+    return {
+        "_truncated": True,
+        "preview": _bounded_text(payload, limit=limit),
+    }
 
 
 def derive_shadow_hash(client_id: str, *parts: Any) -> str:
@@ -396,6 +463,8 @@ class SecurityCenterStore:
             "rejections": {},
             "lockdowns": {},
             "alerts": [],
+            "security_events": {},
+            "security_event_failures": [],
         }
 
     def _read_locked(self) -> dict[str, Any]:
@@ -406,6 +475,8 @@ class SecurityCenterStore:
             return self._bootstrap_state()
         for key in ("clients", "rejections", "lockdowns", "alerts"):
             payload.setdefault(key, {} if key != "alerts" else [])
+        payload.setdefault("security_events", {})
+        payload.setdefault("security_event_failures", [])
         return payload
 
     def _write_locked(self, state: dict[str, Any]) -> None:
@@ -416,6 +487,336 @@ class SecurityCenterStore:
             encoding="utf-8",
         )
         temp.replace(self._path)
+
+    def _build_event_failure_record(
+        self,
+        request_body: dict[str, Any],
+        *,
+        reason: str,
+        reason_codes: list[str] | None = None,
+        received_at: str | None = None,
+    ) -> dict[str, Any]:
+        config = _load_security_event_contracts()
+        limit = int(
+            (config.get("requestLimits") or {}).get(
+                "maxFailureRequestSummaryChars",
+                _DEFAULT_FAILURE_SUMMARY_LIMIT,
+            ),
+        )
+        return {
+            "receivedAt": received_at or _utc_now_iso(),
+            "sourceSystem": request_body.get("sourceSystem"),
+            "submittedSourceSystem": request_body.get("sourceSystem"),
+            "eventTypeId": request_body.get("eventTypeId"),
+            "submittedEventTypeId": request_body.get("eventTypeId"),
+            "eventId": request_body.get("eventId"),
+            "failureReason": reason,
+            "reason": reason,
+            "reasonCodes": reason_codes or [reason],
+            "requestSummary": _bounded_text(request_body, limit=limit),
+        }
+
+    @staticmethod
+    def _failure_response(
+        reason: str,
+        *,
+        status_code: int,
+        reason_codes: list[str] | None = None,
+        details: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
+        return {
+            "_status_code": status_code,
+            "success": False,
+            "reason": reason,
+            "failureReason": reason,
+            "reasonCodes": reason_codes or [reason],
+            "details": details or {},
+        }
+
+    def _validate_security_event(
+        self,
+        request_body: dict[str, Any],
+        config: dict[str, Any],
+    ) -> tuple[dict[str, Any] | None, dict[str, Any] | None]:
+        required_base_fields = ("sourceSystem", "eventTypeId", "schemaVersion", "summary", "occurredAt", "severity", "payload")
+        missing_base_fields = [field for field in required_base_fields if field not in request_body or request_body.get(field) in ("", None)]
+        if missing_base_fields:
+            return None, self._failure_response(
+                "BASE_REQUIRED_FIELD_MISSING",
+                status_code=400,
+                details={"fields": missing_base_fields},
+            )
+
+        source_system = str(request_body.get("sourceSystem") or "")
+        event_type_id = str(request_body.get("eventTypeId") or "")
+        schema_version = str(request_body.get("schemaVersion") or "")
+        severity = str(request_body.get("severity") or "").upper()
+        payload = request_body.get("payload")
+
+        if not isinstance(payload, dict):
+            return None, self._failure_response("PAYLOAD_FIELD_TYPE_INVALID", status_code=422, details={"field": "payload"})
+        effective_payload = dict(payload)
+        if (
+            event_type_id == "correlation_rule_match"
+            and "ruleId" not in effective_payload
+            and isinstance(effective_payload.get("detectionName"), str)
+        ):
+            effective_payload["ruleId"] = effective_payload["detectionName"]
+
+        source = _source_config(config, source_system)
+        if source is None:
+            return None, self._failure_response("SOURCE_SYSTEM_NOT_ALLOWED", status_code=400)
+        if source.get("enabled") is not True:
+            return None, self._failure_response("SOURCE_SYSTEM_DISABLED", status_code=400)
+
+        event_type = _event_type_config(config, event_type_id)
+        allowed_event_types = set(source.get("allowedEventTypeIds") or [])
+        if event_type_id not in allowed_event_types:
+            reason_codes = ["EVENT_TYPE_NOT_ALLOWED_FOR_SOURCE"]
+            if event_type is None:
+                reason_codes.append("EVENT_TYPE_NOT_FOUND")
+            return None, self._failure_response(
+                "EVENT_TYPE_NOT_ALLOWED_FOR_SOURCE",
+                status_code=400,
+                reason_codes=reason_codes,
+            )
+        if event_type is None:
+            return None, self._failure_response("EVENT_TYPE_NOT_FOUND", status_code=400)
+
+        schema = _schema_config(event_type, schema_version)
+        if schema is None:
+            return None, self._failure_response("SCHEMA_VERSION_NOT_FOUND", status_code=400)
+
+        severity_values = set(config.get("severityValues") or [])
+        if severity not in severity_values:
+            return None, self._failure_response("SEVERITY_INVALID", status_code=422, details={"allowed": sorted(severity_values)})
+
+        structured_payload: dict[str, Any] = {}
+        structured_payload_labels: dict[str, str] = {}
+        list_payload_fields: dict[str, Any] = {}
+        configured_names: set[str] = set()
+        for field in schema.get("payloadFields", []):
+            if not isinstance(field, dict):
+                continue
+            field_name = str(field.get("name") or "")
+            if not field_name:
+                continue
+            configured_names.add(field_name)
+            if field.get("required") is True and field_name not in effective_payload:
+                return None, self._failure_response(
+                    "PAYLOAD_REQUIRED_FIELD_MISSING",
+                    status_code=422,
+                    details={"field": field_name},
+                )
+            if field_name not in effective_payload:
+                continue
+            field_value = effective_payload[field_name]
+            field_type = str(field.get("type") or "")
+            if not _field_type_matches(field_value, field_type):
+                return None, self._failure_response(
+                    "PAYLOAD_FIELD_TYPE_INVALID",
+                    status_code=422,
+                    details={"field": field_name, "expectedType": field_type},
+                )
+            if field_type == "enum" and field_value not in set(field.get("enumValues") or []):
+                return None, self._failure_response(
+                    "PAYLOAD_ENUM_VALUE_INVALID",
+                    status_code=422,
+                    details={"field": field_name, "allowedValues": field.get("enumValues") or []},
+                )
+            max_length = field.get("maxLength")
+            if isinstance(max_length, int) and isinstance(field_value, str) and len(field_value) > max_length:
+                return None, self._failure_response(
+                    "PAYLOAD_FIELD_TOO_LONG",
+                    status_code=422,
+                    details={"field": field_name, "maxLength": max_length},
+                )
+            structured_payload[field_name] = field_value
+            structured_payload_labels[field_name] = str(field.get("label") or field_name)
+            if field.get("showInList") is True:
+                list_payload_fields[field_name] = field_value
+
+        undefined_payload = {
+            key: value
+            for key, value in payload.items()
+            if key not in configured_names
+        }
+        event_id = str(request_body.get("eventId") or f"evt-{uuid.uuid4().hex}")
+        raw_payload_limit = int(
+            (config.get("requestLimits") or {}).get(
+                "maxRawPayloadDisplayChars",
+                _DEFAULT_RAW_PAYLOAD_DISPLAY_LIMIT,
+            ),
+        )
+        normalized = {
+            "sourceSystem": source_system,
+            "eventId": event_id,
+            "eventTypeId": event_type_id,
+            "schemaVersion": schema_version,
+            "severity": severity,
+            "summary": str(request_body.get("summary") or ""),
+            "occurredAt": str(request_body.get("occurredAt") or ""),
+            "payload": payload,
+            "effectivePayload": effective_payload,
+        }
+        accepted_event = {
+            **normalized,
+            "receivedAt": _utc_now_iso(),
+            "sourceSystemDisplayName": source.get("displayName") or source_system,
+            "eventTypeDisplayName": event_type.get("displayName") or event_type_id,
+            "structuredPayload": structured_payload,
+            "structuredPayloadLabels": structured_payload_labels,
+            "undefinedPayloadFields": undefined_payload,
+            "rawPayload": _bounded_raw_payload(payload, limit=raw_payload_limit),
+            "listPayloadFields": list_payload_fields,
+            "idempotencyDigest": hashlib.sha256(canonical_json(normalized).encode("utf-8")).hexdigest(),
+        }
+        return accepted_event, None
+
+    @staticmethod
+    def _event_key(source_system: str, event_id: str) -> str:
+        return f"{source_system}::{event_id}"
+
+    def _event_list_row(self, event: dict[str, Any]) -> dict[str, Any]:
+        row = {
+            "sourceSystem": event.get("sourceSystem"),
+            "eventId": event.get("eventId"),
+            "eventTypeId": event.get("eventTypeId"),
+            "eventTypeDisplayName": event.get("eventTypeDisplayName"),
+            "schemaVersion": event.get("schemaVersion"),
+            "severity": event.get("severity"),
+            "summary": event.get("summary"),
+            "occurredAt": event.get("occurredAt"),
+            "receivedAt": event.get("receivedAt"),
+        }
+        row.update(event.get("listPayloadFields") or {})
+        return row
+
+    async def submit_security_event(
+        self,
+        request_body: dict[str, Any],
+        *,
+        force_persistence_failure: bool = False,
+    ) -> dict[str, Any]:
+        received_at = _utc_now_iso()
+        config = _load_security_event_contracts()
+        accepted_event, failure = self._validate_security_event(request_body, config)
+        if failure is not None:
+            record = self._build_event_failure_record(
+                request_body,
+                reason=str(failure["failureReason"]),
+                reason_codes=list(failure.get("reasonCodes") or [failure["failureReason"]]),
+                received_at=received_at,
+            )
+            async with self._lock:
+                state = self._read_locked()
+                state["security_event_failures"].append(record)
+                state["security_event_failures"] = state["security_event_failures"][-500:]
+                self._write_locked(state)
+            return failure
+
+        assert accepted_event is not None
+        key = self._event_key(str(accepted_event["sourceSystem"]), str(accepted_event["eventId"]))
+        async with self._lock:
+            state = self._read_locked()
+            existing = state["security_events"].get(key)
+            if existing is not None:
+                if existing.get("idempotencyDigest") == accepted_event.get("idempotencyDigest"):
+                    return {
+                        "success": True,
+                        "eventId": accepted_event["eventId"],
+                        "sourceSystem": accepted_event["sourceSystem"],
+                        "duplicate": True,
+                    }
+                record = self._build_event_failure_record(
+                    request_body,
+                    reason="IDEMPOTENCY_CONFLICT",
+                    received_at=received_at,
+                )
+                state["security_event_failures"].append(record)
+                state["security_event_failures"] = state["security_event_failures"][-500:]
+                self._write_locked(state)
+                return self._failure_response("IDEMPOTENCY_CONFLICT", status_code=409)
+
+            if force_persistence_failure:
+                record = self._build_event_failure_record(
+                    request_body,
+                    reason="PERSISTENCE_WRITE_FAILED",
+                    received_at=received_at,
+                )
+                state["security_event_failures"].append(record)
+                state["security_event_failures"] = state["security_event_failures"][-500:]
+                self._write_locked(state)
+                return self._failure_response("PERSISTENCE_WRITE_FAILED", status_code=503)
+
+            state["security_events"][key] = accepted_event
+            self._write_locked(state)
+
+        return {
+            "success": True,
+            "eventId": accepted_event["eventId"],
+            "sourceSystem": accepted_event["sourceSystem"],
+            "duplicate": False,
+            "receivedAt": accepted_event["receivedAt"],
+        }
+
+    async def security_events(
+        self,
+        *,
+        source_system: str | None = None,
+        event_type_id: str | None = None,
+        severity: str | None = None,
+        occurred_from: str | None = None,
+        occurred_to: str | None = None,
+    ) -> dict[str, Any]:
+        async with self._lock:
+            state = self._read_locked()
+            events = list(state["security_events"].values())
+        filtered = []
+        for event in events:
+            if source_system and event.get("sourceSystem") != source_system:
+                continue
+            if event_type_id and event.get("eventTypeId") != event_type_id:
+                continue
+            if severity and event.get("severity") != severity.upper():
+                continue
+            occurred_at = str(event.get("occurredAt") or "")
+            if occurred_from and occurred_at < occurred_from:
+                continue
+            if occurred_to and occurred_at > occurred_to:
+                continue
+            filtered.append(event)
+        filtered.sort(key=lambda item: str(item.get("receivedAt") or ""), reverse=True)
+        return {"events": [self._event_list_row(event) for event in filtered]}
+
+    async def security_event_detail(self, source_system: str, event_id: str) -> dict[str, Any] | None:
+        async with self._lock:
+            state = self._read_locked()
+            event = state["security_events"].get(self._event_key(source_system, event_id))
+        if event is None:
+            return None
+        return {
+            "sourceSystem": event.get("sourceSystem"),
+            "eventId": event.get("eventId"),
+            "eventTypeId": event.get("eventTypeId"),
+            "eventTypeDisplayName": event.get("eventTypeDisplayName"),
+            "schemaVersion": event.get("schemaVersion"),
+            "severity": event.get("severity"),
+            "summary": event.get("summary"),
+            "occurredAt": event.get("occurredAt"),
+            "receivedAt": event.get("receivedAt"),
+            "structuredPayload": event.get("structuredPayload") or {},
+            "structuredPayloadLabels": event.get("structuredPayloadLabels") or {},
+            "undefinedPayloadFields": event.get("undefinedPayloadFields") or {},
+            "rawPayload": event.get("rawPayload") or {},
+        }
+
+    async def security_event_failures(self) -> dict[str, Any]:
+        async with self._lock:
+            state = self._read_locked()
+            failures = list(state["security_event_failures"])
+        failures.sort(key=lambda item: str(item.get("receivedAt") or ""), reverse=True)
+        return {"failures": failures}
 
     async def subscribe(self) -> asyncio.Queue[dict[str, Any]]:
         queue: asyncio.Queue[dict[str, Any]] = asyncio.Queue()

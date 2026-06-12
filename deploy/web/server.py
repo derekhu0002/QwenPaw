@@ -11,7 +11,8 @@ class SecurityCenterWebHandler(SimpleHTTPRequestHandler):
         super().__init__(*args, directory=str(directory), **kwargs)
 
     def do_GET(self) -> None:  # noqa: N802
-        if self.path.split("?", 1)[0] == "/config.js":
+        request_path = self.path.split("?", 1)[0]
+        if request_path == "/config.js":
             self.send_response(200)
             self.send_header("Content-Type", "application/javascript; charset=utf-8")
             self.end_headers()
@@ -20,6 +21,8 @@ class SecurityCenterWebHandler(SimpleHTTPRequestHandler):
                 f"window.SECURITY_CENTER_CONFIG = {{ apiBase: {api_base!r} }};".encode("utf-8"),
             )
             return
+        if request_path == "/security-events" or request_path.startswith("/security-events/"):
+            self.path = "/index.html"
         return super().do_GET()
 
 

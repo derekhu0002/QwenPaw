@@ -1,0 +1,114 @@
+{
+  "version": "security-event-contracts.v1",
+  "summary": "Repository-owned V1 contract configuration for Security Center internal-system security events. It defines validation and display metadata only; it does not define alerting, workflow, ownership, status transitions, retention, authentication, or Web self-service editing.",
+  "requestLimits": {
+    "maxFailureRequestSummaryChars": 4096,
+    "maxRawPayloadDisplayChars": 4096
+  },
+  "severityValues": [
+    "LOW",
+    "MEDIUM",
+    "HIGH"
+  ],
+  "sourceSystems": [
+    {
+      "sourceSystem": "endpoint_edr",
+      "enabled": true,
+      "displayName": "Endpoint EDR",
+      "allowedEventTypeIds": [
+        "malware_detected"
+      ]
+    },
+    {
+      "sourceSystem": "cloud_siem",
+      "enabled": true,
+      "displayName": "Cloud SIEM",
+      "allowedEventTypeIds": [
+        "correlation_rule_match"
+      ]
+    },
+    {
+      "sourceSystem": "retired_dlp",
+      "enabled": false,
+      "displayName": "Retired DLP",
+      "allowedEventTypeIds": [
+        "data_loss_policy_match"
+      ]
+    }
+  ],
+  "eventTypes": [
+    {
+      "eventTypeId": "malware_detected",
+      "displayName": "Malware Detected",
+      "schemaVersions": [
+        {
+          "schemaVersion": "1.0",
+          "payloadFields": [
+            {
+              "name": "assetId",
+              "label": "Asset ID",
+              "type": "string",
+              "required": true,
+              "maxLength": 128,
+              "showInList": true
+            },
+            {
+              "name": "detectionName",
+              "label": "Detection Name",
+              "type": "string",
+              "required": true,
+              "maxLength": 256,
+              "showInList": true
+            },
+            {
+              "name": "actionTaken",
+              "label": "Action Taken",
+              "type": "enum",
+              "required": true,
+              "enumValues": [
+                "blocked",
+                "quarantined"
+              ],
+              "showInList": false
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "eventTypeId": "correlation_rule_match",
+      "displayName": "Correlation Rule Match",
+      "schemaVersions": [
+        {
+          "schemaVersion": "1.0",
+          "payloadFields": [
+            {
+              "name": "ruleId",
+              "label": "Rule ID",
+              "type": "string",
+              "required": true,
+              "maxLength": 128,
+              "showInList": true
+            },
+            {
+              "name": "assetId",
+              "label": "Asset ID",
+              "type": "string",
+              "required": false,
+              "maxLength": 128,
+              "showInList": true
+            },
+            {
+              "name": "actionTaken",
+              "label": "Action Taken",
+              "type": "string",
+              "required": true,
+              "maxLength": 128,
+              "showInList": false
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
