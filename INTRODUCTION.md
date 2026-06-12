@@ -150,9 +150,7 @@ Invalid source/type/schema/payload submissions, idempotency conflicts, and persi
 
 - QwenPaw runtime Integrity Protection API: `src/qwenpaw/app/routers/config.py`
   - Default-off settings: `GET /api/config/security/integrity-protection/settings`
-    - Projects Integrity Check and Health Check menu availability while keeping persona protection, source trust verification, and health check disabled by default.
-  - Verify-only source trust: `POST /api/config/security/integrity-protection/source-trust/verify`
-    - Verifies a selected local skill or agent package signature and source status without installing or executing the package.
+    - Projects Integrity Check and Health Check menu availability while keeping persona protection and health check disabled by default.
   - Scan-only health check: `POST /api/config/security/integrity-protection/health-check/scan`
     - Accepts an optional JSON body `{ "deep": false }`; callers must explicitly send `deep: true` to include connectivity-heavy doctor items.
     - Returns read-only qwenpaw doctor projection items with `group`, `id`, `status`, `detail`, `risk`, `recommendation`, `fix_id`, and `deep_only`, plus progress, risks, and repair suggestions without mutating user files.

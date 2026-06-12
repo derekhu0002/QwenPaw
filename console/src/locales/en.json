@@ -1997,7 +1997,7 @@
         "integrityCheck": "Integrity Check",
         "healthCheck": "Health Check"
       },
-      "description": "Verify persona baselines, package source trust, and built-in rule integrity without automatic repair.",
+      "description": "Verify persona baselines and built-in rule integrity without automatic repair.",
       "defaultOffNotice": "Integrity Protection is default-off. Protected paths are listed only after the operator enables persona protection.",
       "personaProtection": "Persona Integrity Protection",
       "protectedPathsLabel": "Protected persona files",
@@ -2016,9 +2016,6 @@
       "confirmReestablishBaselinePhrase": "Confirm re-establish persona baseline",
       "confirmRestorePhrase": "Confirm persona restore",
       "confirmAcceptPhrase": "Confirm persona accept",
-      "sourceTrustVerification": "Source Trust Verification",
-      "packagePathPlaceholder": "Local skill or agent package path",
-      "verifySourceTrust": "Verify source trust",
       "ruleIntegrityTitle": "Built-in Rule Integrity Check",
       "ruleIntegrityAction": "Check dangerous_shell_commands.yaml",
       "emptyFindings": "No rule integrity findings",

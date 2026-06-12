@@ -17,11 +17,9 @@ from qwenpaw.security.integrity_protection import (
     IntegrityProtectionSettings,
     PersonaBaselineGuardian,
     capture_file_writes,
-    create_demo_signed_package,
     run_confirmed_health_fix,
     run_health_check_scan,
     run_rule_integrity_check,
-    verify_source_trust_package,
 )
 
 
@@ -53,7 +51,6 @@ class IntegritySecurityMenuObservation:
     health_check_menu_visible: bool
     peer_menu_placement_ready: bool
     persona_protection_default_off: bool
-    source_trust_verification_default_off: bool
     health_check_default_off: bool
     rule_integrity_check_passive_until_clicked: bool
     existing_security_flows_unchanged: bool
@@ -67,7 +64,6 @@ class IntegritySecurityMenuObservation:
                 self.health_check_menu_visible,
                 self.peer_menu_placement_ready,
                 self.persona_protection_default_off,
-                self.source_trust_verification_default_off,
                 self.health_check_default_off,
                 self.rule_integrity_check_passive_until_clicked,
                 self.existing_security_flows_unchanged,
@@ -180,42 +176,6 @@ class ExternalWatchDriftObservation:
             (
                 self.drift_detected,
                 self.provenance_is_external_watch,
-                not self.failure_reasons,
-            ),
-        )
-
-
-@dataclass(frozen=True)
-class SourceTrustPackageScenario:
-    signed_release_package_label: str
-    tampered_release_package_label: str
-    unsigned_release_package_label: str
-    verification_mode: str
-
-
-@dataclass(frozen=True)
-class SourceTrustPackageObservation:
-    integrity_check_entry_visible: bool
-    signed_package_reports_trusted: bool
-    tampered_package_reports_untrusted: bool
-    unsigned_package_reports_verification_error: bool
-    verifier_reuses_clawsec_guarded_install_logic: bool
-    verification_does_not_install_package: bool
-    verification_does_not_execute_package: bool
-    key_material_limited_to_local_demo_boundary: bool
-    failure_reasons: tuple[str, ...]
-
-    def verifies_source_trust_without_side_effects(self) -> bool:
-        return all(
-            (
-                self.integrity_check_entry_visible,
-                self.signed_package_reports_trusted,
-                self.tampered_package_reports_untrusted,
-                self.unsigned_package_reports_verification_error,
-                self.verifier_reuses_clawsec_guarded_install_logic,
-                self.verification_does_not_install_package,
-                self.verification_does_not_execute_package,
-                self.key_material_limited_to_local_demo_boundary,
                 not self.failure_reasons,
             ),
         )
@@ -431,9 +391,6 @@ class IntegrityProtectionHarness:
             ),
             peer_menu_placement_ready=expected_peer_menus.issubset(menus),
             persona_protection_default_off=not settings.persona_protection_enabled,
-            source_trust_verification_default_off=(
-                not settings.source_trust_verification_enabled
-            ),
             health_check_default_off=not settings.health_check_enabled,
             rule_integrity_check_passive_until_clicked=(
                 settings.rule_integrity_check_passive
@@ -865,46 +822,6 @@ class IntegrityProtectionHarness:
             failure_reasons=tuple(failure_reasons),
         )
 
-    def verify_source_trust_package(
-        self,
-        scenario: SourceTrustPackageScenario,
-    ) -> SourceTrustPackageObservation:
-        package_dir = self.workspace_root / "source-trust-packages"
-        signed_package = create_demo_signed_package(
-            package_dir / "trusted-skill.qwenskill.zip",
-        )
-        tampered_package = package_dir / "tampered-skill.qwenskill.zip"
-        self._write_tampered_copy(signed_package, tampered_package)
-        unsigned_package = package_dir / "unsigned-agent.qwenagent.zip"
-        unsigned_package.parent.mkdir(parents=True, exist_ok=True)
-        unsigned_package.write_text("unsigned package", encoding="utf-8")
-
-        signed = verify_source_trust_package(signed_package)
-        tampered = verify_source_trust_package(tampered_package)
-        unsigned = verify_source_trust_package(unsigned_package)
-
-        return SourceTrustPackageObservation(
-            integrity_check_entry_visible=True,
-            signed_package_reports_trusted=signed.trusted and signed.status == "trusted",
-            tampered_package_reports_untrusted=(
-                not tampered.trusted and tampered.status == "untrusted"
-            ),
-            unsigned_package_reports_verification_error=(
-                not unsigned.trusted and unsigned.status == "verification_error"
-            ),
-            verifier_reuses_clawsec_guarded_install_logic=True,
-            verification_does_not_install_package=(
-                not signed.installed and not tampered.installed and not unsigned.installed
-            ),
-            verification_does_not_execute_package=(
-                not signed.executed and not tampered.executed and not unsigned.executed
-            ),
-            key_material_limited_to_local_demo_boundary=(
-                scenario.verification_mode == "verify_only_local_demo_key_boundary"
-            ),
-            failure_reasons=(),
-        )
-
     def verify_health_check_scan_and_confirmed_fix(
         self,
         scenario: HealthCheckRepairScenario,
@@ -970,9 +887,6 @@ class IntegrityProtectionHarness:
             "security.integrityProtection.tabs.healthCheck",
             "security.integrityProtection.description",
             "security.integrityProtection.personaProtection",
-            "security.integrityProtection.sourceTrustVerification",
-            "security.integrityProtection.packagePathPlaceholder",
-            "security.integrityProtection.verifySourceTrust",
             "security.integrityProtection.ruleIntegrityTitle",
             "security.integrityProtection.ruleIntegrityAction",
             "security.integrityProtection.emptyFindings",
@@ -1031,8 +945,6 @@ class IntegrityProtectionHarness:
         integrity_section_copy_is_i18n_keyed = (
             "security.integrityProtection." in integrity_section
             and "Persona Integrity Protection" not in integrity_section
-            and "Source Trust Verification" not in integrity_section
-            and "Verify source trust" not in integrity_section
             and "Built-in Rule Integrity Check" not in integrity_section
         )
         health_section_copy_is_i18n_keyed = (
@@ -1357,20 +1269,6 @@ class IntegrityProtectionHarness:
             node = node[part]
         return isinstance(node, str) and bool(node.strip())
 
-    def _write_tampered_copy(self, source: Path, target: Path) -> None:
-        import zipfile
-
-        with zipfile.ZipFile(source, "r") as zin, zipfile.ZipFile(
-            target,
-            "w",
-            compression=zipfile.ZIP_DEFLATED,
-        ) as zout:
-            for item in zin.infolist():
-                data = zin.read(item.filename)
-                if item.filename == "payload.bin":
-                    data = data + b"tampered\n"
-                zout.writestr(item, data)
-
     def render_default_off_failure_report(
         self,
         expectation: IntegritySecurityMenuExpectation,
@@ -1426,19 +1324,6 @@ class IntegrityProtectionHarness:
         return _category_report(
             'category="Persona_External_Watch_Gap"',
             {"observation": asdict(observation)},
-        )
-
-    def render_source_trust_failure_report(
-        self,
-        scenario: SourceTrustPackageScenario,
-        observation: SourceTrustPackageObservation,
-    ) -> str:
-        return _category_report(
-            'category="Source_Trust_Verification_Gap"',
-            {
-                "scenario": asdict(scenario),
-                "observation": asdict(observation),
-            },
         )
 
     def render_health_check_failure_report(

@@ -66,22 +66,10 @@ export interface ToolGuardRulesIntegrityRepair {
 
 export interface IntegrityProtectionSettings {
   persona_protection_enabled: boolean;
-  source_trust_verification_enabled: boolean;
   health_check_enabled: boolean;
   rule_integrity_check_passive: boolean;
   protected_paths: string[];
   menus: string[];
-}
-
-export interface SourceTrustVerifyResponse {
-  status: string;
-  trusted: boolean;
-  reason: string;
-  publisher?: string | null;
-  package_sha256?: string | null;
-  installed: boolean;
-  executed: boolean;
-  verification_scheme: string;
 }
 
 // ── File Guard types ──────────────────────────────────────────────
@@ -178,15 +166,6 @@ export const securityApi = {
   getIntegrityProtectionSettings: () =>
     request<IntegrityProtectionSettings>(
       "/config/security/integrity-protection/settings",
-    ),
-
-  verifyIntegritySourceTrustPackage: (packagePath: string) =>
-    request<SourceTrustVerifyResponse>(
-      "/config/security/integrity-protection/source-trust/verify",
-      {
-        method: "POST",
-        body: JSON.stringify({ package_path: packagePath }),
-      },
     ),
 
   runIntegrityHealthCheckScan: healthCheckApi.runIntegrityHealthCheckScan,

@@ -117,7 +117,7 @@ element_path: src/qwenpaw/security
 ## Integrity Protection Delivery Addendum
 
 ### Responsibility
-- Own backend semantics for `intent-integrity-protection-delivery`, including default-off settings, persona baseline protection, source trust verification, health-check orchestration, and rule-integrity exposure.
+- Own backend semantics for `intent-integrity-protection-delivery`, including default-off settings, persona baseline protection, health-check orchestration, and rule-integrity exposure. Source trust (`intent-source-trust-verifier`) is deferred.
 - Keep all new Integrity Protection features opt-in and disabled by default.
 - Preserve scan-before-fix, verify-before-trust, alert-before-restore, and explicit-action-before-mutation semantics.
 
@@ -129,8 +129,8 @@ element_path: src/qwenpaw/security
   - Coding/Repair must adapt ClawSec soul-guardian baseline, check, restore, and approve concepts behind QwenPaw APIs.
   - Detection may run on startup or watch notifications only after enablement.
   - Restore and Accept must remain separate user actions.
-- source trust verifier seam
-  - Coding/Repair must expose verify-only skill or agent package verification that reuses ClawSec guarded skill install or extracted release-verification primitives.
+- source trust verifier seam (deferred)
+  - Prior demo Ed25519 verify-only implementation was removed 2026-06-11. Future Coding/Repair must expose verify-only skill or agent package verification that reuses ClawSec guarded skill install or extracted release-verification primitives per extension/Intergrity  Protection PRD.txt section 二.
   - Verification must not install or execute the selected package.
   - The PRD plaintext private-key signing tool remains local/demo only unless the user approves production key-management requirements.
 - health check orchestrator seam
@@ -153,9 +153,9 @@ element_path: src/qwenpaw/security
   control_point: enable persona protection, configure protected persona paths, change one protected file, then choose Restore and Accept paths
   observation_point: drift alert is immediate and path-specific, Restore returns prior approved content, and Accept records changed content as the new baseline
 - testcase_name: ip-e2e-003-source-trust-verification-package
-  entry_path: ../../tests/integration/security/test_integrity_protection.py::test_source_trust_verification_package
-  control_point: verify signed, tampered, and unsigned skill or agent packages from disk
-  observation_point: signed package is trusted, invalid packages show clear untrusted or verification-error status, and verification has no install or execution side effect
+  entry_path: deferred
+  control_point: deferred until ClawSec-backed verify-only package flow ships
+  observation_point: deferred; prior pytest entry removed 2026-06-11
 - testcase_name: ip-e2e-004-health-check-scan-and-confirmed-fix
   entry_path: ../../tests/integration/security/test_integrity_protection.py::test_health_check_scan_and_confirmed_fix
   control_point: run Health Check scan, inspect progress and risks, then confirm one selected repair
@@ -171,6 +171,5 @@ element_path: src/qwenpaw/security
 
 ### Current Evidence And Gaps
 - Current repository evidence confirms existing `tool_guard/rules_integrity.py`, `doctor_cmd.py`, `doctor_checks.py`, `doctor_connectivity.py`, `doctor_fix_runner.py`, `console/src/api/modules/security.ts`, and thirdparty ClawSec assets.
-- Current repository evidence does not yet include Integrity Protection backend APIs, console submenus, persona drift actions, source-trust verify-only endpoint, or health-check dashboard implementation.
-- The explicit Integrity Protection tests are currently passing with Coding/Repair behavior implemented behind `../../tests/integration/security/integrity_harness.py`; future changes must preserve the default-off, verify-only, scan-only, second-confirmed-fix, Restore/Accept, and passive rule-check boundaries.
+- Current repository evidence does not yet include source-trust verify-only endpoint (deferred). Persona, health-check, and rule-integrity flows are implemented behind `../../tests/integration/security/integrity_harness.py`.
 - `ip-e2e-007-healthcheck-full-doctor-coverage` is expected to fail until Coding/Repair adds the structured full doctor coverage projection and deep option behind this backend boundary.

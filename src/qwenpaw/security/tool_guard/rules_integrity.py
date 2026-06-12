@@ -13,7 +13,6 @@ import hashlib
 import json
 import logging
 import os
-import shutil
 import tempfile
 import time
 from dataclasses import asdict, dataclass
@@ -468,7 +467,6 @@ def repair_default_builtin_rule_file() -> RuleIntegrityRepairResult:
 
     rules_dir = _default_rules_dir()
     target_path = rules_dir / DANGEROUS_SHELL_RULES_NAME
-    backup_path: Path | None = None
     source_url = RECOVERY_SOURCE_URL
 
     try:
@@ -489,12 +487,6 @@ def repair_default_builtin_rule_file() -> RuleIntegrityRepairResult:
             )
 
         rules_dir.mkdir(parents=True, exist_ok=True)
-        if target_path.exists():
-            timestamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S%fZ")
-            backup_path = target_path.with_name(
-                f"{target_path.name}.repair-backup.{timestamp}",
-            )
-            shutil.copy2(target_path, backup_path)
 
         fd, tmp_name = tempfile.mkstemp(
             prefix=f"{DANGEROUS_SHELL_RULES_NAME}.tmp.",
@@ -520,7 +512,7 @@ def repair_default_builtin_rule_file() -> RuleIntegrityRepairResult:
                 else "Rule file was replaced, but integrity is still failing."
             ),
             source_url=source_url,
-            backup_path=str(backup_path) if backup_path else None,
+            backup_path=None,
             integrity=integrity,
         )
     except Exception as exc:  # pylint: disable=broad-except
@@ -534,6 +526,6 @@ def repair_default_builtin_rule_file() -> RuleIntegrityRepairResult:
             ok=False,
             message=f"Failed to repair built-in tool guard rules: {exc}",
             source_url=source_url,
-            backup_path=str(backup_path) if backup_path else None,
+            backup_path=None,
             integrity=integrity,
         )

@@ -1,11 +1,9 @@
 import { useState } from "react";
-import { Button, Card, Input, Switch, Table, Tag } from "@agentscope-ai/design";
-import { Space } from "antd";
+import { Button, Card, Table, Tag } from "@agentscope-ai/design";
 import { useTranslation } from "react-i18next";
 import api from "../../../../api";
 import type {
   IntegrityProtectionSettings,
-  SourceTrustVerifyResponse,
   ToolGuardRulesIntegrity,
 } from "../../../../api/modules/security";
 import {
@@ -29,24 +27,9 @@ function IntegrityCheckDeliverySection({
   settings: IntegrityProtectionSettings | null;
 }) {
   const { t } = useTranslation();
-  const [packagePath, setPackagePath] = useState("");
-  const [sourceTrustResult, setSourceTrustResult] =
-    useState<SourceTrustVerifyResponse | null>(null);
   const [ruleIntegrity, setRuleIntegrity] =
     useState<ToolGuardRulesIntegrity | null>(null);
   const [loading, setLoading] = useState(false);
-
-  const verifySourceTrust = async () => {
-    if (!packagePath.trim()) return;
-    setLoading(true);
-    try {
-      setSourceTrustResult(
-        await api.verifyIntegritySourceTrustPackage(packagePath.trim()),
-      );
-    } finally {
-      setLoading(false);
-    }
-  };
 
   const checkRuleIntegrity = async () => {
     setLoading(true);
@@ -64,15 +47,6 @@ function IntegrityCheckDeliverySection({
       <Card className={styles.formCard}>
         <div className={styles.integrityGrid}>
           <PersonaProtectionSwitchRow />
-          <div className={styles.integrityConfigItem}>
-            <span className={styles.skillScannerLabel}>
-              {t("security.integrityProtection.sourceTrustVerification")}
-            </span>
-            <Switch
-              checked={settings?.source_trust_verification_enabled ?? false}
-              disabled
-            />
-          </div>
         </div>
         <PersonaProtectionProtectedPaths
           fallbackPaths={settings?.protected_paths ?? []}
@@ -80,27 +54,6 @@ function IntegrityCheckDeliverySection({
         <p className={styles.tabDescription}>
           {t("security.integrityProtection.defaultOffNotice")}
         </p>
-        <Space.Compact style={{ width: "100%" }}>
-          <Input
-            value={packagePath}
-            onChange={(event) => setPackagePath(event.target.value)}
-            placeholder={t(
-              "security.integrityProtection.packagePathPlaceholder",
-            )}
-            allowClear
-          />
-          <Button type="primary" loading={loading} onClick={verifySourceTrust}>
-            {t("security.integrityProtection.verifySourceTrust")}
-          </Button>
-        </Space.Compact>
-        {sourceTrustResult && (
-          <div className={styles.integrityResult}>
-            <Tag color={sourceTrustResult.trusted ? "green" : "red"}>
-              {sourceTrustResult.status}
-            </Tag>
-            <span>{sourceTrustResult.reason}</span>
-          </div>
-        )}
       </Card>
 
       <PersonaProtectionAlertsCard highlightAlertId={highlightAlertId} />

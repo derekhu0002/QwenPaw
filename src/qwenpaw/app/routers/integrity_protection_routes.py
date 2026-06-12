@@ -1,9 +1,8 @@
 # -*- coding: utf-8 -*-
-"""Integrity Protection delivery routes (settings, source trust, health, rule check)."""
+"""Integrity Protection delivery routes (settings, health, rule check)."""
 from __future__ import annotations
 
 import asyncio
-from pathlib import Path as FilePath
 
 from fastapi import APIRouter
 
@@ -13,8 +12,6 @@ from .schemas_integrity_delivery import (
     HealthCheckScanRequest,
     HealthCheckScanResponse,
     IntegrityProtectionSettingsResponse,
-    SourceTrustVerifyRequest,
-    SourceTrustVerifyResponse,
     ToolGuardRuleIntegrityResponse,
 )
 
@@ -31,23 +28,6 @@ async def get_integrity_protection_settings() -> IntegrityProtectionSettingsResp
 
     settings = get_default_integrity_settings()
     return IntegrityProtectionSettingsResponse(**settings.to_dict())
-
-
-@router.post(
-    "/security/integrity-protection/source-trust/verify",
-    response_model=SourceTrustVerifyResponse,
-    summary="Verify a skill or agent package without installing it",
-)
-async def verify_integrity_source_trust(
-    body: SourceTrustVerifyRequest,
-) -> SourceTrustVerifyResponse:
-    from ...security.integrity_protection import verify_source_trust_package
-
-    result = await asyncio.to_thread(
-        verify_source_trust_package,
-        FilePath(body.package_path),
-    )
-    return SourceTrustVerifyResponse(**result.to_dict())
 
 
 @router.post(

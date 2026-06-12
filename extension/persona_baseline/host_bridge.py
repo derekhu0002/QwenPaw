@@ -48,7 +48,6 @@ def get_integrity_settings_projection() -> IntegrityProtectionSettings:
     projection = get_persona_service().get_integrity_projection()
     return IntegrityProtectionSettings(
         persona_protection_enabled=projection["persona_protection_enabled"],
-        source_trust_verification_enabled=base.source_trust_verification_enabled,
         health_check_enabled=base.health_check_enabled,
         rule_integrity_check_passive=base.rule_integrity_check_passive,
         protected_paths=tuple(projection["protected_paths"]),

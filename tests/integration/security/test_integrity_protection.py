@@ -14,7 +14,6 @@ from .integrity_harness import (
     PersonaDisableReenableScenario,
     RuleIntegrityConsoleScenario,
     SecurityI18nProgressCarouselScenario,
-    SourceTrustPackageScenario,
 )
 
 
@@ -86,36 +85,6 @@ def test_persona_drift_alert_restore_accept(integrity_harness: IntegrityProtecti
     assert drift_observation.supports_restore_and_accept_contract(), integrity_harness.render_persona_drift_failure_report(
         scenario=persona_drift_review,
         observation=drift_observation,
-    )
-
-
-@pytest.mark.integration
-@pytest.mark.p0
-def test_source_trust_verification_package(integrity_harness: IntegrityProtectionHarness) -> None:
-    """Control point: verify signed, tampered, and unsigned packages from disk.
-
-    Observation point: valid packages are trusted, invalid packages receive a
-    clear untrusted or verification-error result, and verification never
-    installs or executes the selected package.
-    """
-
-    # // GIVEN
-    source_trust_review = SourceTrustPackageScenario(
-        signed_release_package_label="signed_skill_release_from_trusted_publisher",
-        tampered_release_package_label="tampered_skill_release_after_signature",
-        unsigned_release_package_label="unsigned_agent_release_package",
-        verification_mode="verify_only_local_demo_key_boundary",
-    )
-
-    # // WHEN
-    trust_observation = integrity_harness.verify_source_trust_package(
-        source_trust_review,
-    )
-
-    # // THEN
-    assert trust_observation.verifies_source_trust_without_side_effects(), integrity_harness.render_source_trust_failure_report(
-        scenario=source_trust_review,
-        observation=trust_observation,
     )
 
 

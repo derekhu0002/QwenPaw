@@ -27,26 +27,10 @@ class ToolGuardRuleIntegrityResponse(BaseModel):
 
 class IntegrityProtectionSettingsResponse(BaseModel):
     persona_protection_enabled: bool = False
-    source_trust_verification_enabled: bool = False
     health_check_enabled: bool = False
     rule_integrity_check_passive: bool = True
     protected_paths: List[str] = Field(default_factory=list)
     menus: List[str] = Field(default_factory=list)
-
-
-class SourceTrustVerifyRequest(BaseModel):
-    package_path: str
-
-
-class SourceTrustVerifyResponse(BaseModel):
-    status: str
-    trusted: bool
-    reason: str
-    publisher: Optional[str] = None
-    package_sha256: Optional[str] = None
-    installed: bool = False
-    executed: bool = False
-    verification_scheme: str
 
 
 class HealthCheckScanResponse(BaseModel):

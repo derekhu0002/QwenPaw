@@ -1846,7 +1846,7 @@
         "integrityCheck": "完整性检查",
         "healthCheck": "健康检查"
       },
-      "description": "验证人格基线、软件包来源可信度和内置规则完整性，不自动修复。",
+      "description": "验证人格基线和内置规则完整性，不自动修复。",
       "defaultOffNotice": "完整性保护默认关闭。只有操作员启用人格保护后，才会列出并监控受保护路径。",
       "personaProtection": "人格完整性保护",
       "protectedPathsLabel": "受保护的人格文件",
@@ -1865,9 +1865,6 @@
       "confirmReestablishBaselinePhrase": "Confirm re-establish persona baseline",
       "confirmRestorePhrase": "Confirm persona restore",
       "confirmAcceptPhrase": "Confirm persona accept",
-      "sourceTrustVerification": "来源可信验证",
-      "packagePathPlaceholder": "本地技能或 Agent 软件包路径",
-      "verifySourceTrust": "验证来源可信度",
       "ruleIntegrityTitle": "内置规则完整性检查",
       "ruleIntegrityAction": "检查 dangerous_shell_commands.yaml",
       "emptyFindings": "暂无规则完整性发现",

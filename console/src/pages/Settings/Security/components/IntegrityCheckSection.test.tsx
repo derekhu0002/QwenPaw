@@ -37,7 +37,6 @@ vi.mock("../../../../api", () => ({
     getIntegrityProtectionSettings: mockGetIntegritySettings,
     updatePersonaProtectionSettings: mockUpdatePersonaSettings,
     checkIntegrityRuleEntry: vi.fn(),
-    verifyIntegritySourceTrustPackage: vi.fn(),
   },
 }));
 
@@ -64,12 +63,8 @@ vi.mock("react-i18next", () => ({
       const labels: Record<string, string> = {
         "security.integrityProtection.personaProtection":
           "Persona Integrity Protection",
-        "security.integrityProtection.sourceTrustVerification":
-          "Source Trust Verification",
         "security.integrityProtection.protectedPathsLabel": "Protected paths",
         "security.integrityProtection.defaultOffNotice": "Default off notice",
-        "security.integrityProtection.packagePathPlaceholder": "Package path",
-        "security.integrityProtection.verifySourceTrust": "Verify",
         "security.integrityProtection.personaAlertsTitle": "Persona drift alerts",
         "security.integrityProtection.personaAlertsEmpty": "No persona alerts",
         "security.integrityProtection.columns.file": "File",
@@ -119,7 +114,6 @@ const enabledPersona: PersonaProtectionSettings = {
 
 const integritySettings: IntegrityProtectionSettings = {
   persona_protection_enabled: false,
-  source_trust_verification_enabled: false,
   health_check_enabled: false,
   rule_integrity_check_passive: true,
   protected_paths: [],

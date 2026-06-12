@@ -276,8 +276,8 @@
 
 - testcase: ip-e2e-003-source-trust-verification-package
   intent_element: intent-source-trust-verifier
-  entrypoint: tests/integration/security/test_integrity_protection.py::test_source_trust_verification_package
-  runtime_mode: business-readable integration harness, currently passing after Coding/Repair implementation
+  entrypoint: deferred (demo implementation reverted 2026-06-11; see extension/Intergrity  Protection PRD.txt section 二)
+  runtime_mode: intent-only until ClawSec guarded_skill_install integration ships
 
 - testcase: ip-e2e-004-health-check-scan-and-confirmed-fix
   intent_element: intent-health-check-orchestrator
@@ -300,7 +300,7 @@
   runtime_mode: business-readable integration harness, expected to fail until Coding/Repair replaces the fixed two-item Health Check adapter with a structured full doctor coverage projection
 
 ### Integrity Protection Critical Non-Explicit Guardrails
-- tests/architecture/integrity-protection-entrypoint-traceability.test.js guards explicit entrypoint correctness, GIVEN/WHEN/THEN body markers, harness abstraction names, business failure categories, implementation handoff traceability, and failure-record alignment for all seven graph-mounted Integrity Protection testcases.
+- tests/architecture/integrity-protection-entrypoint-traceability.test.js guards explicit entrypoint correctness, GIVEN/WHEN/THEN body markers, harness abstraction names, business failure categories, implementation handoff traceability, and failure-record alignment for active graph-mounted Integrity Protection testcases (ip-e2e-003 deferred).
 
 ### Integrity Protection Frozen Files For Downstream Coding
 - extension/ARCHITECTURE.md

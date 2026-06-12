@@ -36,7 +36,6 @@ function IntegrityCheckPersonaLoader({
     ]).catch(() => {
       setSettings({
         persona_protection_enabled: false,
-        source_trust_verification_enabled: false,
         health_check_enabled: false,
         rule_integrity_check_passive: true,
         protected_paths: [],

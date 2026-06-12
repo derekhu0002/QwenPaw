@@ -128,7 +128,6 @@ element_path: src/qwenpaw
 ### Explicit Testcase Entrypoints
 - tests/integration/security/test_integrity_protection.py::test_integrity_security_menu_default_off
 - tests/integration/security/test_integrity_protection.py::test_persona_drift_alert_restore_accept
-- tests/integration/security/test_integrity_protection.py::test_source_trust_verification_package
 - tests/integration/security/test_integrity_protection.py::test_health_check_scan_and_confirmed_fix
 - tests/integration/security/test_integrity_protection.py::test_rule_integrity_entry_visible
 - tests/integration/security/test_integrity_protection.py::test_security_i18n_and_healthcheck_progress_carousel

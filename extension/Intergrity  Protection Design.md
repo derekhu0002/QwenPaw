@@ -11,7 +11,7 @@ Integrity Protection is default-off. When disabled, it must not start protected-
 
 ## Layering
 - `extension` owns PRD-scoped adapter design and low-intrusion glue.
-- `src/qwenpaw/security` owns integrity-protection backend semantics, including default-off settings, persona baseline lifecycle, source trust verification outcome shape, and rule-integrity exposure.
+- `src/qwenpaw/security` owns integrity-protection backend semantics, including default-off settings, persona baseline lifecycle, and rule-integrity exposure.
 - `src/qwenpaw/app` owns HTTP/SSE routing and must not redefine the security semantics.
 - `src/qwenpaw/cli` owns existing `qwenpaw doctor` and `qwenpaw doctor fix`; health-check orchestration must wrap these as scan-only then confirmed-fix phases.
 - `console` owns Settings/Security UI placement and API client calls.
@@ -19,7 +19,7 @@ Integrity Protection is default-off. When disabled, it must not start protected-
 
 ## Interface Contracts
 - Persona baseline protection must expose enablement, protected path listing, drift alert observation, Restore, and Accept operations through backend APIs consumed by console UI.
-- Source trust verification must expose a verify-only package API. It may reuse ClawSec guarded skill install or extracted release-verification primitives, but must not install or execute the selected package.
+- Source trust verification (PRD section 二) is **deferred as of 2026-06-11**: the prior local demo Ed25519 verifier, verify-only API, and console entry were removed. Future work must reuse ClawSec guarded skill install or extracted release-verification primitives and must not install or execute the selected package.
 - Health Check must expose scan progress and suggested repairs separately from confirmed fix execution. A scan request is read-only. A fix request requires a second explicit user confirmation and targets one selected repair.
 - Health Check full doctor coverage must expose a structured projection with `group`, `id`, `status`, `detail`, `risk`, `recommendation`, `fix_id`, and `deep_only` fields for each check item. The projection must be generated from qwenpaw doctor helper semantics, not by parsing `click.echo` output.
 - Default Health Check scan must use `deep=false` and omit channel connectivity and local LLM deep probes. The console/API may offer explicit `deep=true` only as an advanced scan action, and that scan remains read-only.
@@ -30,7 +30,6 @@ Integrity Protection is default-off. When disabled, it must not start protected-
 ## Testcase Entrypoints
 - `tests/integration/security/test_integrity_protection.py::test_integrity_security_menu_default_off`
 - `tests/integration/security/test_integrity_protection.py::test_persona_drift_alert_restore_accept`
-- `tests/integration/security/test_integrity_protection.py::test_source_trust_verification_package`
 - `tests/integration/security/test_integrity_protection.py::test_health_check_scan_and_confirmed_fix`
 - `tests/integration/security/test_integrity_protection.py::test_rule_integrity_entry_visible`
 - `tests/integration/security/test_integrity_protection.py::test_security_i18n_and_healthcheck_progress_carousel`
@@ -43,7 +42,7 @@ These tests are business-readable acceptance contracts. Coding/Repair may implem
 Persona drift protection (PRD section 一) is specified in detail in `extension/Persona Baseline Guardian Design.md` (v0.6.7), including enable gate, scenario tests with **SOUL.md pilot default**, **P2 Restore/Accept**, and PB-S20 user journey (§18.8).
 
 ## Key Implementation Mapping
-- Direct: `src/qwenpaw/security` realizes `intent-integrity-protection-delivery`, `intent-persona-baseline-guardian`, `intent-source-trust-verifier`, and `intent-health-check-orchestrator` backend semantics.
+- Direct: `src/qwenpaw/security` realizes `intent-integrity-protection-delivery`, `intent-persona-baseline-guardian`, and `intent-health-check-orchestrator` backend semantics. `intent-source-trust-verifier` remains intent-only until ClawSec integration is implemented.
 - Direct: `console` realizes `intent-integrity-security-console`.
 - Indirect: `extension` carries PRD-scoped adapter design and low-intrusion glue under the runtime and console contracts.
 - Indirect: `thirdparty/clawsec-main/clawsec-main/skills/soul-guardian` carries persona baseline mechanics.
@@ -68,7 +67,7 @@ Persona drift protection (PRD section 一) is specified in detail in `extension/
 ## Expected First Failure Signals
 - `Integrity_Default_Off_Gap`
 - `Persona_Drift_Protection_Gap`
-- `Source_Trust_Verification_Gap`
+- `Source_Trust_Verification_Gap` (deferred; no active acceptance test until ClawSec-backed verifier ships)
 - `Health_Check_Confirmed_Fix_Gap`
 - `Rule_Integrity_Console_Entry_Gap`
 - `Security_I18n_Progress_Carousel_Gap`

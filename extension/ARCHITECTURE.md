@@ -46,13 +46,12 @@ element_path: extension
 ### Explicit Testcase Entrypoints
 - tests/integration/security/test_integrity_protection.py::test_integrity_security_menu_default_off
 - tests/integration/security/test_integrity_protection.py::test_persona_drift_alert_restore_accept
-- tests/integration/security/test_integrity_protection.py::test_source_trust_verification_package
 - tests/integration/security/test_integrity_protection.py::test_health_check_scan_and_confirmed_fix
 - tests/integration/security/test_integrity_protection.py::test_rule_integrity_entry_visible
 - tests/integration/security/test_integrity_protection.py::test_security_i18n_and_healthcheck_progress_carousel
 - tests/integration/security/test_integrity_protection.py::test_healthcheck_full_doctor_coverage_projection
 
 ### Current Evidence
-- Current repository evidence confirms the PRD path, existing reusable capabilities, implemented Integrity Protection backend APIs, console submenus, persona drift actions, source trust verify-only API, health-check dashboard, and passive rule-integrity entry.
+- Current repository evidence confirms the PRD path, existing reusable capabilities, implemented Integrity Protection backend APIs, console submenus, persona drift actions, health-check dashboard, and passive rule-integrity entry. Source trust (PRD section 二) is deferred; prior demo verifier was removed.
 - The acceptance entrypoints now pass through production behavior behind `tests/integration/security/integrity_harness.py`; this extension contract must keep the low-intrusion adapter boundary and local/demo signing constraint stable.
 - Current repository evidence confirms grouped doctor coverage lives in `extension/health_check/projection.py` with core re-exports from `src/qwenpaw/security/integrity_protection.py`; console UI lives under `console/src/extension/health_check/`.
