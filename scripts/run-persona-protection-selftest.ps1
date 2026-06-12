@@ -1,4 +1,4 @@
-# Run Persona Protection self-test net (architecture + backend + frontend).
+# Run Persona Protection self-test net (wiring + backend + frontend).
 param(
     [string[]]$Layer,
     [switch]$List

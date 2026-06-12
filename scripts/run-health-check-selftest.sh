@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Run Health Check self-test net (architecture + backend + frontend).
+# Run Health Check self-test net (wiring + backend + frontend).
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

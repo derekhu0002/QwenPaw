@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""Run the Persona Protection self-test net (architecture + backend + frontend).
+"""Run the Persona Protection self-test net (wiring + backend + frontend).
 
 Usage:
   python scripts/run-persona-protection-selftest.py
   python scripts/run-persona-protection-selftest.py --layer backend
-  python scripts/run-persona-protection-selftest.py --layer frontend --layer architecture
+  python scripts/run-persona-protection-selftest.py --layer frontend --layer wiring
   python scripts/run-persona-protection-selftest.py --list
 """
 from __future__ import annotations
@@ -23,7 +23,7 @@ SCRIPT_DIR = Path(__file__).resolve().parent
 REPO_ROOT = SCRIPT_DIR.parent
 MANIFEST_PATH = SCRIPT_DIR / "persona-protection-selftest.manifest.json"
 
-ALL_LAYERS = ("architecture", "backend", "frontend")
+ALL_LAYERS = ("wiring", "backend", "frontend")
 
 
 @dataclass
@@ -55,16 +55,16 @@ def _run(cmd: list[str], *, cwd: Path, env: dict[str, str] | None = None) -> sub
     )
 
 
-def run_architecture_layer(manifest: dict) -> LayerResult:
-    layer = manifest["layers"]["architecture"]
+def run_wiring_layer(manifest: dict) -> LayerResult:
+    layer = manifest["layers"]["wiring"]
     label = layer["label"]
     targets = layer["targets"]
     cmd = ["node", *targets]
-    _print_header(f"[architecture] {label}")
+    _print_header(f"[wiring] {label}")
     print("Command:", " ".join(cmd))
     proc = _run(cmd, cwd=REPO_ROOT)
     ok = proc.returncode == 0
-    return LayerResult("architecture", label, ok, " ".join(cmd))
+    return LayerResult("wiring", label, ok, " ".join(cmd))
 
 
 def run_backend_layer(manifest: dict) -> LayerResult:
@@ -113,7 +113,7 @@ def run_frontend_layer(manifest: dict) -> LayerResult:
 
 
 LAYER_RUNNERS = {
-    "architecture": run_architecture_layer,
+    "wiring": run_wiring_layer,
     "backend": run_backend_layer,
     "frontend": run_frontend_layer,
 }
@@ -152,7 +152,7 @@ def print_summary(results: list[LayerResult]) -> int:
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        description="Run Persona Protection architecture/backend/frontend self-test net.",
+        description="Run Persona Protection wiring/backend/frontend self-test net.",
     )
     parser.add_argument(
         "--layer",

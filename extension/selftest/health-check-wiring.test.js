@@ -1,5 +1,5 @@
 /**
- * Architecture guard for the Health Check self-test net.
+ * Extension wiring check for the Health Check self-test net.
  */
 const assert = require('assert');
 const fs = require('fs');
@@ -25,7 +25,7 @@ const unitBody = read('tests/unit/security/test_health_check_projection.py');
 
 assert.strictEqual(manifest.name, 'health-check-selftest');
 
-for (const layerName of ['architecture', 'frontend']) {
+for (const layerName of ['wiring', 'frontend']) {
     const layer = manifest.layers[layerName];
     for (const target of layer.targets) {
         const relative = layerName === 'frontend' ? path.join('console', target) : target;
@@ -43,13 +43,13 @@ for (const target of manifest.layers.backend.targets) {
 }
 
 const requiredWiring = [
-  'console/src/extension/health_check/components/HealthCheckSection.tsx',
-  'console/src/extension/persona_baseline/components/PersonaDriftAlertNotifier/index.tsx',
-  'src/qwenpaw/security/integrity_protection.py',
-  'src/qwenpaw/app/routers/integrity_protection_routes.py',
-  'src/qwenpaw/app/routers/config.py',
-  'console/src/pages/Settings/Security/components/IntegrityCheckSection.tsx',
-  'console/src/api/modules/security.ts',
+    'console/src/extension/health_check/components/HealthCheckSection.tsx',
+    'console/src/extension/persona_baseline/components/PersonaDriftAlertNotifier/index.tsx',
+    'src/qwenpaw/security/integrity_protection.py',
+    'src/qwenpaw/app/routers/integrity_protection_routes.py',
+    'src/qwenpaw/app/routers/config.py',
+    'console/src/pages/Settings/Security/components/IntegrityCheckSection.tsx',
+    'console/src/api/modules/security.ts',
 ];
 
 for (const filePath of requiredWiring) {
@@ -73,7 +73,7 @@ for (const scenarioId of ['HC-S01', 'HC-S05', 'ip-e2e-004', 'HC-DOCTOR']) {
 }
 
 console.log(
-    `health-check-selftest-net: manifest v${manifest.version} ok ` +
+    `health-check-wiring: manifest v${manifest.version} ok ` +
         `(integration ${manifest.layers.backend.targets[0].tests.length} tests, ` +
         `${manifest.layers.frontend.targets.length} frontend suites)`,
 );

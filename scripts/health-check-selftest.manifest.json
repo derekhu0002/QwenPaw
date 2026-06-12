@@ -1,13 +1,13 @@
 {
   "version": 1,
   "name": "health-check-selftest",
-  "description": "Unified self-test net for Integrity Protection Health Check (architecture + backend + frontend).",
+  "description": "Unified self-test net for Integrity Protection Health Check (wiring + backend + frontend).",
   "layers": {
-    "architecture": {
-      "label": "Architecture guard",
+    "wiring": {
+      "label": "Extension wiring",
       "runner": "node",
       "targets": [
-        "tests/architecture/health-check-selftest-net.test.js"
+        "extension/selftest/health-check-wiring.test.js"
       ]
     },
     "backend": {

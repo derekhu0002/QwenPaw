@@ -1,13 +1,13 @@
 {
   "version": 1,
   "name": "persona-protection-selftest",
-  "description": "Unified self-test net for Persona Baseline Guardian (backend + frontend + architecture guards).",
+  "description": "Unified self-test net for Persona Baseline Guardian (wiring + backend + frontend).",
   "layers": {
-    "architecture": {
-      "label": "Architecture guard",
+    "wiring": {
+      "label": "Extension wiring",
       "runner": "node",
       "targets": [
-        "tests/architecture/persona-protection-selftest-net.test.js"
+        "extension/selftest/persona-wiring.test.js"
       ]
     },
     "backend": {

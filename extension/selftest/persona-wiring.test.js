@@ -1,6 +1,6 @@
 /**
- * Architecture guard for the Persona Protection self-test net.
- * Ensures manifest targets, wiring entrypoints, and scenario markers stay aligned.
+ * Extension wiring check for the Persona Protection self-test net.
+ * Ensures manifest targets, host bridges, and scenario markers stay aligned.
  */
 const assert = require('assert');
 const fs = require('fs');
@@ -25,7 +25,7 @@ const integrityTestBody = read('tests/integration/security/test_integrity_protec
 
 assert.strictEqual(manifest.name, 'persona-protection-selftest');
 
-for (const layerName of ['architecture', 'backend', 'frontend']) {
+for (const layerName of ['wiring', 'backend', 'frontend']) {
     const layer = manifest.layers[layerName];
     assert.ok(Array.isArray(layer.targets) && layer.targets.length > 0, `${layerName} targets missing`);
     if (layerName === 'backend') {
@@ -96,7 +96,7 @@ for (const scenarioId of expectedScenarioIds) {
 }
 
 console.log(
-    `persona-protection-selftest-net: manifest v${manifest.version} ok ` +
+    `persona-wiring: manifest v${manifest.version} ok ` +
         `(${manifest.layers.backend.targets.length} backend, ` +
         `${manifest.layers.frontend.targets.length} frontend targets)`,
 );

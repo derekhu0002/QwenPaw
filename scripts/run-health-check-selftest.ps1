@@ -1,4 +1,4 @@
-# Run Health Check self-test net (architecture + backend + frontend).
+# Run Health Check self-test net (wiring + backend + frontend).
 param(
     [string[]]$Layer,
     [switch]$List

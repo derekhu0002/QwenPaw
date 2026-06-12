@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Run Persona Protection self-test net (architecture + backend + frontend).
+# Run Persona Protection self-test net (wiring + backend + frontend).
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
