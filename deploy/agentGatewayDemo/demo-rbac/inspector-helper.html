@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>QwenPaw RBAC 双屏 Inspector 助手</title>
+  <style>
+    * { box-sizing: border-box; }
+    body { font-family: "Segoe UI", sans-serif; margin: 0; background: #0f172a; color: #e2e8f0; }
+    header { padding: 16px 24px; background: #1e293b; border-bottom: 1px solid #334155; }
+    h1 { margin: 0; font-size: 1.25rem; }
+    .sub { color: #94a3b8; font-size: 0.9rem; margin-top: 6px; }
+    .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; padding: 16px; min-height: calc(100vh - 80px); }
+    .panel { background: #1e293b; border: 1px solid #334155; border-radius: 12px; padding: 16px; }
+    .panel.guest { border-top: 4px solid #94a3b8; grid-column: 1 / -1; }
+    .panel.employee { border-top: 4px solid #38bdf8; }
+    .panel.manager { border-top: 4px solid #4ade80; }
+    h2 { margin: 0 0 12px; font-size: 1.1rem; }
+    label { display: block; font-size: 0.75rem; color: #94a3b8; margin-bottom: 4px; }
+    textarea { width: 100%; height: 88px; font-family: Consolas, monospace; font-size: 11px; background: #0f172a; color: #e2e8f0; border: 1px solid #475569; border-radius: 8px; padding: 8px; resize: vertical; }
+    button { margin-top: 8px; padding: 8px 12px; border: none; border-radius: 8px; cursor: pointer; font-weight: 600; }
+    .copy { background: #2563eb; color: white; }
+    .copy:hover { background: #1d4ed8; }
+    ol { padding-left: 20px; line-height: 1.7; font-size: 0.9rem; }
+    code { background: #0f172a; padding: 2px 6px; border-radius: 4px; font-size: 0.85rem; }
+    table { width: 100%; border-collapse: collapse; font-size: 0.85rem; margin-top: 12px; }
+    th, td { border: 1px solid #334155; padding: 8px; text-align: left; }
+    th { background: #0f172a; }
+    .ok { color: #4ade80; }
+    .no { color: #f87171; }
+    .shared { grid-column: 1 / -1; background: #172554; border-color: #1d4ed8; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>QwenPaw RBAC 演示 — 双屏 Inspector 助手</h1>
+    <p class="sub">Gateway: <code>http://localhost:3000/mcp</code> · Transport: Streamable HTTP · Custom Header: <code>Authorization</code>（可选）</p>
+  </header>
+
+  <div class="grid">
+    <div class="panel guest">
+      <h2>无 Token</h2>
+      <p style="margin:0;font-size:0.9rem;color:#94a3b8">
+        Inspector 中<strong>不要</strong>添加 Authorization Header，直接 Connect。
+        List Tools 预期: 仅 <code>forum_list_posts</code>（读论坛）。
+      </p>
+    </div>
+
+    <div class="panel employee">
+      <h2>普通员工 Token（employeeQwenpaw）</h2>
+      <label>Authorization 值（Custom Headers → Authorization）</label>
+      <textarea id="tok-employee" readonly></textarea>
+      <button class="copy" onclick="copyToken('tok-employee')">复制普通员工 Token</button>
+      <p style="margin-top:12px;font-size:0.85rem">List Tools 预期: <code>forum_list_posts</code> + <code>forum_create_post</code></p>
+    </div>
+
+    <div class="panel manager">
+      <h2>管理员 Token（managerQwenpaw）</h2>
+      <label>Authorization 值</label>
+      <textarea id="tok-manager" readonly></textarea>
+      <button class="copy" onclick="copyToken('tok-manager')">复制管理员 Token</button>
+      <p style="margin-top:12px;font-size:0.85rem">List Tools 预期: 5 个工具（人事 + 论坛全部）</p>
+    </div>
+
+    <div class="panel shared">
+      <h2>权限矩阵（三档）</h2>
+      <table>
+        <tr><th>工具（Inspector 名）</th><th>无 Token</th><th>普通员工 Token</th><th>管理员 Token</th></tr>
+        <tr><td>forum_list_posts</td><td class="ok">允许</td><td class="ok">允许</td><td class="ok">允许</td></tr>
+        <tr><td>forum_create_post</td><td class="no">拒绝</td><td class="ok">允许</td><td class="ok">允许</td></tr>
+        <tr><td>forum_delete_post</td><td class="no">拒绝</td><td class="no">拒绝</td><td class="ok">允许</td></tr>
+        <tr><td>hr_get_employee</td><td class="no">拒绝</td><td class="no">拒绝</td><td class="ok">允许</td></tr>
+        <tr><td>hr_update_employee</td><td class="no">拒绝</td><td class="no">拒绝</td><td class="ok">允许</td></tr>
+      </table>
+    </div>
+
+    <div class="panel shared">
+      <h2>Inspector 演示流程</h2>
+      <ol>
+        <li><strong>无 Token</strong>：不填 Authorization → Connect → List Tools 仅 1 个 → Call <code>forum_list_posts</code> 成功</li>
+        <li><strong>普通员工 Token</strong>：粘贴后 Reconnect → List Tools 2 个 → Call <code>forum_create_post</code> 成功</li>
+        <li><strong>管理员 Token</strong>：粘贴后 Reconnect → List Tools 5 个 → Call <code>hr_get_employee</code> 成功</li>
+        <li><strong>攻击对比（普通员工 Token）</strong>：Call <code>hr_get_employee</code> {} → Unknown tool（RBAC 拦截）</li>
+      </ol>
+    </div>
+
+    <div class="panel shared">
+      <h2>样例员工 ID（hr_get_employee，仅管理员 Token）</h2>
+      <table>
+        <tr><th>employee_id</th><th>姓名</th><th>电话</th></tr>
+        <tr><td>E10001</td><td>王小明</td><td>13800001234</td></tr>
+        <tr><td>E10002</td><td>李芳</td><td>13900005678</td></tr>
+        <tr><td>E10003</td><td>张伟</td><td>13700009876</td></tr>
+        <tr><td>E10004</td><td>陈静</td><td>13600004567</td></tr>
+      </table>
+    </div>
+  </div>
+
+  <script>
+    const TOKENS = {
+      employee: "Bearer eyJhbGciOiJFUzI1NiIsImtpZCI6Ii10ZVlPcl96UFlFb1g2Q3lnV0h3YmJ6RlUtZVJOQWZCbXY2cnZNRnZlSFUiLCJ0eXAiOiJKV1QifQ.eyJpc3MiOiJhZ2VudGdhdGV3YXkuZGV2IiwiYXVkIjoidGVzdC5hZ2VudGdhdGV3YXkuZGV2IiwiZXhwIjoxODkzNDU2MDAwLCJzdWIiOiJlbXBsb3llZVF3ZW5wYXciLCJyb2xlcyI6WyJlbXBsb3llZSJdfQ.U4OcVOVtkhuigo-fReLmgXJnT_mDdYJ7yCkpRr09YG45TrEHzky51xMfiDbiBqlTTpobAAv6rq5ExlgCj4GB-A",
+      manager: "Bearer eyJhbGciOiJFUzI1NiIsImtpZCI6Ii10ZVlPcl96UFlFb1g2Q3lnV0h3YmJ6RlUtZVJOQWZCbXY2cnZNRnZlSFUiLCJ0eXAiOiJKV1QifQ.eyJpc3MiOiJhZ2VudGdhdGV3YXkuZGV2IiwiYXVkIjoidGVzdC5hZ2VudGdhdGV3YXkuZGV2IiwiZXhwIjoxODkzNDU2MDAwLCJzdWIiOiJtYW5hZ2VyUXdlbnBhdyIsInJvbGVzIjpbIm1hbmFnZXIiXX0.dDQ88zMfZxjIy7qK9PDvvDurXwFhXgQ3yOi6MDIqKl3T7MXxPAVEY3XeRBFMDsKRqC8kbM1fphPB5Xz8n9gLkQ"
+    };
+    document.getElementById("tok-employee").value = TOKENS.employee;
+    document.getElementById("tok-manager").value = TOKENS.manager;
+    function copyToken(id) {
+      const el = document.getElementById(id);
+      navigator.clipboard.writeText(el.value).then(() => alert("已复制到剪贴板"));
+    }
+  </script>
+</body>
+</html>

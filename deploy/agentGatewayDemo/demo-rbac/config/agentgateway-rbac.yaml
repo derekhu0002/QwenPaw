@@ -1,0 +1,64 @@
+# AgentGateway RBAC 演示 — 人事 MCP + 论坛 MCP
+# 完全自包含，不依赖 agentgateway-main 目录。
+#
+# 目录结构（DeployRoot，可整体复制到其他 Windows 机器）:
+#   DeployRoot/
+#     agentgateway.exe
+#     demo-rbac/
+#       config/agentgateway-rbac.yaml
+#       jwt/pub-key
+#       ...
+#
+# 启动（在 DeployRoot 下）:
+#   .\demo-rbac\scripts\start-all.ps1
+#
+# JWKS 路径相对 DeployRoot（agentgateway 运行时的工作目录）。
+
+frontendPolicies:
+  accessLog:
+    add:
+      audit_mcp_error: mcp.tool.error
+      audit_mcp_tool: mcp.tool.name
+
+binds:
+  - port: 3000
+    listeners:
+      - routes:
+          - policies:
+              cors:
+                allowOrigins: ["*"]
+                allowHeaders: ["*"]
+                exposeHeaders: ["Mcp-Session-Id"]
+
+              jwtAuth:
+                mode: optional
+                issuer: agentgateway.dev
+                audiences: [test.agentgateway.dev]
+                jwks:
+                  file: demo-rbac/jwt/pub-key
+
+              mcpAuthorization:
+                rules:
+                  # 无 Token（游客）：仅论坛读
+                  - '!has(jwt.sub) && mcp.tool.name == "list_posts"'
+
+                  # 左 Token employeeQwenpaw：论坛读 + 发帖
+                  - 'jwt.roles.contains("employee") && mcp.tool.name == "list_posts"'
+                  - 'jwt.roles.contains("employee") && mcp.tool.name == "create_post"'
+
+                  # 右 Token managerQwenpaw：全部工具
+                  - 'jwt.roles.contains("manager") && mcp.tool.name == "list_posts"'
+                  - 'jwt.roles.contains("manager") && mcp.tool.name == "create_post"'
+                  - 'jwt.roles.contains("manager") && mcp.tool.name == "delete_post"'
+                  - 'jwt.roles.contains("manager") && mcp.tool.name == "get_employee"'
+                  - 'jwt.roles.contains("manager") && mcp.tool.name == "update_employee"'
+
+            backends:
+              - mcp:
+                  targets:
+                    - name: hr
+                      mcp:
+                        host: http://127.0.0.1:9001/mcp
+                    - name: forum
+                      mcp:
+                        host: http://127.0.0.1:9002/mcp

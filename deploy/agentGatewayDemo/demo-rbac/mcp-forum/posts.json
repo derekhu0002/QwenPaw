@@ -1,0 +1,58 @@
+[
+  {
+    "id": "P0008",
+    "title": "RBAC demo post",
+    "content": "Author token can create posts.",
+    "author": "employeeQwenpaw",
+    "created_at": "2026-06-12T10:41:07"
+  },
+  {
+    "id": "P0007",
+    "title": "RBAC demo post",
+    "content": "Author token can create posts.",
+    "author": "employeeQwenpaw",
+    "created_at": "2026-06-12T10:40:32"
+  },
+  {
+    "id": "P0006",
+    "title": "标题",
+    "content": "内容",
+    "author": "anonymous",
+    "created_at": "2026-06-12T10:39:02"
+  },
+  {
+    "id": "P0005",
+    "title": "测试发帖",
+    "content": "内容",
+    "author": "anonymous",
+    "created_at": "2026-06-12T10:20:23"
+  },
+  {
+    "id": "P0004",
+    "title": "RBAC demo post",
+    "content": "Author token can create posts.",
+    "author": "employeeQwenpaw",
+    "created_at": "2026-06-12T10:15:19"
+  },
+  {
+    "id": "P0003",
+    "title": "",
+    "content": "",
+    "author": "anonymous",
+    "created_at": "2026-06-11T19:57:20"
+  },
+  {
+    "id": "P0001",
+    "title": "QwenPaw 网关 RBAC 演示",
+    "content": "欢迎参加内部论坛，普通员工只能读帖。",
+    "author": "admin",
+    "created_at": "2026-06-01T10:00:00"
+  },
+  {
+    "id": "P0002",
+    "title": "安全培训通知",
+    "content": "请勿将 JWT Token 转发到外部聊天工具。",
+    "author": "security-team",
+    "created_at": "2026-06-02T09:30:00"
+  }
+]

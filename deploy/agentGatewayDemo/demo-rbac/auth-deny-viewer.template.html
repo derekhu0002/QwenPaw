@@ -1,0 +1,305 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>QwenPaw RBAC — 鉴权拒绝取证</title>
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      font-family: "Segoe UI", "Microsoft YaHei", sans-serif;
+      margin: 0;
+      background: #0f172a;
+      color: #e2e8f0;
+      line-height: 1.55;
+    }
+    header {
+      padding: 20px 24px;
+      background: linear-gradient(135deg, #1e293b 0%, #450a0a 100%);
+      border-bottom: 1px solid #7f1d1d;
+    }
+    h1 { margin: 0; font-size: 1.35rem; }
+    .sub { color: #fca5a5; font-size: 0.9rem; margin-top: 8px; }
+    main { padding: 20px 24px 40px; max-width: 1100px; margin: 0 auto; }
+    .banner {
+      display: flex; align-items: center; gap: 16px;
+      background: #450a0a; border: 1px solid #dc2626; border-radius: 12px;
+      padding: 16px 20px; margin-bottom: 20px;
+    }
+    .banner-icon {
+      font-size: 2rem; background: #dc2626; width: 56px; height: 56px;
+      border-radius: 50%; display: flex; align-items: center; justify-content: center;
+      flex-shrink: 0;
+    }
+    .banner h2 { margin: 0; color: #fecaca; font-size: 1.2rem; }
+    .banner p { margin: 4px 0 0; color: #fca5a5; font-size: 0.95rem; }
+    .cards {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+      gap: 14px;
+      margin-bottom: 20px;
+    }
+    .card {
+      background: #1e293b;
+      border: 1px solid #334155;
+      border-radius: 12px;
+      padding: 14px 16px;
+    }
+    .card label {
+      display: block;
+      font-size: 0.72rem;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: #94a3b8;
+      margin-bottom: 6px;
+    }
+    .card .value { font-size: 1rem; font-weight: 600; word-break: break-word; }
+    .card.deny .value { color: #f87171; }
+    .card.who .value { color: #38bdf8; }
+    .card.what .value { color: #fbbf24; }
+    .card.why .value { color: #c4b5fd; font-weight: 500; font-size: 0.92rem; }
+    section {
+      background: #1e293b;
+      border: 1px solid #334155;
+      border-radius: 12px;
+      padding: 16px 18px;
+      margin-bottom: 16px;
+    }
+    section h3 {
+      margin: 0 0 12px;
+      font-size: 1rem;
+      color: #f1f5f9;
+      border-bottom: 1px solid #334155;
+      padding-bottom: 8px;
+    }
+    .story { font-size: 0.95rem; }
+    .story dt { color: #94a3b8; font-size: 0.8rem; margin-top: 10px; }
+    .story dd { margin: 4px 0 0; color: #e2e8f0; }
+    .policy {
+      margin-top: 12px;
+      padding: 10px 12px;
+      background: #0f172a;
+      border-radius: 8px;
+      font-family: Consolas, monospace;
+      font-size: 0.82rem;
+      color: #4ade80;
+      word-break: break-all;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.88rem;
+    }
+    th, td {
+      border: 1px solid #334155;
+      padding: 8px 10px;
+      text-align: left;
+      vertical-align: top;
+    }
+    th { background: #0f172a; color: #94a3b8; font-weight: 600; width: 22%; }
+    td.key { font-family: Consolas, monospace; color: #7dd3fc; width: 22%; }
+    td.val { font-family: Consolas, monospace; word-break: break-all; width: 28%; }
+    tr.highlight td { background: rgba(220, 38, 38, 0.08); }
+    tr.highlight td.key { color: #fca5a5; font-weight: 600; }
+    .tag {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 999px;
+      font-size: 0.72rem;
+      font-weight: 700;
+      margin-right: 4px;
+      margin-bottom: 4px;
+    }
+    .tag.deny { background: #7f1d1d; color: #fecaca; }
+    .tag.hint { background: #422006; color: #fde68a; }
+    pre.raw {
+      background: #0f172a;
+      border: 1px solid #334155;
+      border-radius: 8px;
+      padding: 12px;
+      overflow-x: auto;
+      font-size: 0.78rem;
+      line-height: 1.45;
+      white-space: pre-wrap;
+      word-break: break-all;
+      color: #cbd5e1;
+    }
+    .meta { color: #64748b; font-size: 0.82rem; margin-bottom: 16px; }
+    .entry + .entry { margin-top: 28px; padding-top: 28px; border-top: 1px dashed #475569; }
+    .empty { text-align: center; padding: 40px; color: #94a3b8; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>QwenPaw RBAC — 网关鉴权拒绝取证</h1>
+    <p class="sub">AgentGateway Access Log 解析 · 重点：认证鉴权拒绝、被拒绝主体、被拒绝行为与原因</p>
+  </header>
+  <main id="app"></main>
+  <script>
+    const REPORT = __REPORT_JSON__;
+
+    const GLOSSARY = {
+      'jwt.sub': 'JWT 主体（sub claim），标识发起 MCP 请求的用户身份',
+      'gen_ai.tool.name': '网关记录的内部 MCP 工具名（CEL 规则 mcp.tool.name 匹配此字段）',
+      'audit_mcp_tool': 'Access Log 审计字段：被请求调用的工具名',
+      'http.status': 'HTTP 响应状态码；400 表示请求被拒绝（含鉴权失败）',
+      'http.method': 'HTTP 方法',
+      'http.path': '请求路径',
+      'http.host': '请求 Host',
+      'http.version': 'HTTP 协议版本',
+      'error': '错误详情；Unknown tool 是 mcpAuthorization 拒绝时对客户端的对外表现',
+      'reason': '拒绝分类；MCP 表示 MCP 协议层拦截',
+      'protocol': '后端协议类型',
+      'mcp.method.name': 'MCP JSON-RPC 方法，tools/call 表示调用工具',
+      'mcp.target': 'MCP 聚合后端 target 名（hr=人事，forum=论坛）',
+      'mcp.resource.type': 'MCP 资源类型（tool / prompt / resource）',
+      'mcp.session.id': 'MCP 会话 ID（多后端聚合会话）',
+      'src.addr': '客户端源 IP:端口',
+      'gateway': '网关 bind 标识',
+      'listener': '监听器名',
+      'route': '路由名',
+      'duration': '请求处理耗时',
+      'audit_mcp_error': 'Access Log 审计：MCP 工具错误对象（code / message）'
+    };
+
+    const ROLE_LABEL = {
+      employee: '论坛作者（roles: employee，读 + 发帖）',
+      manager: '管理员（roles: manager，全部权限）',
+      unknown: '游客 / 未知角色'
+    };
+
+    function esc(s) {
+      if (s == null) return '';
+      return String(s)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;');
+    }
+
+    function buildNarrative(entry) {
+      const s = entry.summary || {};
+      const subject = s.subject || 'unknown';
+      const roleLabel = ROLE_LABEL[s.role] || ROLE_LABEL.unknown;
+      const tool = s.actionTool || s.internalTool || 'get_employee';
+      const status = s.httpStatus || '?';
+      const error = s.error || '';
+
+      const who = `${subject} — ${roleLabel}`;
+      const what = `尝试通过 MCP tools/call 读取员工 PII（${tool}）`;
+      const result = entry.verdict === 'deny'
+        ? `被拒绝（HTTP ${status}）`
+        : '已记录，未见明确拒绝码';
+      let why = `${subject} 以 employee 角色调用人事敏感工具 ${tool}。`
+        + `mcpAuthorization 规则仅允许 manager 调用 get_employee；employee 不在授权范围内。`
+        + `网关未将请求转发至 HR MCP 后端，对外返回 HTTP ${status} 与 Unknown tool 错误，避免 PII 泄露。`;
+      if (error) why += ` 错误信息: ${error}`;
+
+      return {
+        who,
+        what,
+        result,
+        why,
+        policy: 'mcpAuthorization: jwt.roles.contains("manager") && mcp.tool.name == "get_employee"',
+        defense: 'AgentGateway 在工具级 RBAC 拦截；employee 仅可见 forum_list_posts',
+        action: `越权调用敏感工具 ${tool}（内部名: ${s.internalTool || tool}）`
+      };
+    }
+
+    function renderEntry(entry, idx) {
+      const s = entry.summary || {};
+      const n = buildNarrative(entry);
+      const verdictText = entry.verdict === 'deny' ? '鉴权拒绝（RBAC）' : '请求审计（待人工判定）';
+      const hints = (entry.denyHints || []).map(h =>
+        `<span class="tag hint">${esc(h)}</span>`).join('');
+      const rows = (entry.fieldRows || []).map(r => `
+        <tr class="${r.highlight ? 'highlight' : ''}">
+          <td class="key">${esc(r.key)}</td>
+          <td class="val">${esc(r.value)}</td>
+          <td>${esc(GLOSSARY[r.key] || '网关 access log 字段')}</td>
+        </tr>`).join('');
+
+      return `
+        <article class="entry">
+          <div class="banner">
+            <div class="banner-icon">&#9940;</div>
+            <div>
+              <h2>${esc(verdictText)}</h2>
+              <p>记录 #${idx + 1} · ${esc(s.timestamp || '')} · HTTP ${esc(s.httpStatus || '?')}</p>
+            </div>
+          </div>
+
+          ${hints ? `<div style="margin-bottom:12px">${hints}</div>` : ''}
+
+          <div class="cards">
+            <div class="card who">
+              <label>被拒绝的主体（谁）</label>
+              <div class="value">${esc(s.subject || '—')}</div>
+              <div style="font-size:0.85rem;color:#94a3b8;margin-top:4px">${esc(n.who)}</div>
+            </div>
+            <div class="card what">
+              <label>被拒绝的行为（做了什么）</label>
+              <div class="value">${esc(n.action)}</div>
+              <div style="font-size:0.85rem;color:#94a3b8;margin-top:4px">
+                ${esc(s.mcpMethod || 'tools/call')} · target=${esc(s.mcpTarget || '')}
+              </div>
+            </div>
+            <div class="card deny">
+              <label>裁决结果（认证 / 鉴权）</label>
+              <div class="value">${esc(n.result)}</div>
+              <div style="font-size:0.85rem;color:#fca5a5;margin-top:4px">${esc(s.error || '')}</div>
+            </div>
+            <div class="card why">
+              <label>拒绝原因（为什么）</label>
+              <div class="value">${esc(n.why)}</div>
+            </div>
+          </div>
+
+          <section>
+            <h3>安全叙事（演示解说）</h3>
+            <dl class="story">
+              <dt>身份</dt><dd>${esc(n.who)}</dd>
+              <dt>攻击动作</dt><dd>${esc(n.what)}</dd>
+              <dt>网关裁决</dt><dd>${esc(n.result)} — ${esc(s.reason || 'MCP')} 层拦截</dd>
+              <dt>根因</dt><dd>${esc(n.why)}</dd>
+              <dt>生效策略</dt><dd><div class="policy">${esc(n.policy)}</div></dd>
+              <dt>防护效果</dt><dd>${esc(n.defense)}</dd>
+            </dl>
+          </section>
+
+          <section>
+            <h3>Access Log 字段解析</h3>
+            <table>
+              <thead><tr><th>字段</th><th>值</th><th>含义</th></tr></thead>
+              <tbody>${rows}</tbody>
+            </table>
+          </section>
+
+          <section>
+            <h3>原始日志行</h3>
+            <pre class="raw">${esc(entry.raw)}</pre>
+          </section>
+        </article>`;
+    }
+
+    function render() {
+      const app = document.getElementById('app');
+      if (!REPORT || !REPORT.entries || REPORT.entries.length === 0) {
+        app.innerHTML = '<div class="empty">暂无匹配的鉴权拒绝记录</div>';
+        return;
+      }
+      const meta = `
+        <p class="meta">
+          生成时间: ${esc(REPORT.generatedAt)} ·
+          来源: ${esc(REPORT.logFile)} ·
+          筛选: ${esc(REPORT.filter)} ·
+          匹配 ${REPORT.count} 条
+        </p>`;
+      const body = REPORT.entries.map((e, i) => renderEntry(e, i)).join('');
+      app.innerHTML = meta + body;
+    }
+
+    render();
+  </script>
+</body>
+</html>
