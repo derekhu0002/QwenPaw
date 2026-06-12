@@ -47,12 +47,20 @@ from .schemas_config import (
     ChannelRestartResponse,
     HeartbeatBody,
 )
+from .schemas_integrity_delivery import (
+    ToolGuardRuleIntegrityFindingResponse,
+    ToolGuardRuleIntegrityResponse,
+)
+from .integrity_protection_routes import router as integrity_protection_delivery_router
+from .persona_protection_routes import router as persona_protection_delivery_router
 from ..channels.qrcode_auth_handler import (
     QRCODE_AUTH_HANDLERS,
     generate_qrcode_image,
 )
 
 router = APIRouter(prefix="/config", tags=["config"])
+router.include_router(integrity_protection_delivery_router)
+router.include_router(persona_protection_delivery_router)
 
 
 _CHANNEL_CONFIG_CLASS_MAP = {
@@ -722,314 +730,12 @@ async def get_builtin_rules() -> List[ToolGuardRuleConfig]:
     ]
 
 
-class ToolGuardRuleIntegrityFindingResponse(BaseModel):
-    file: str
-    reason: str
-    expected_sha256: Optional[str] = None
-    actual_sha256: Optional[str] = None
-    detail: str = ""
-
-
-class ToolGuardRuleIntegrityResponse(BaseModel):
-    ok: bool
-    status: str
-    message: str
-    checked_at: Optional[str] = None
-    findings: List[ToolGuardRuleIntegrityFindingResponse] = Field(
-        default_factory=list,
-    )
-
-
 class ToolGuardRuleIntegrityRepairResponse(BaseModel):
     ok: bool
     message: str
     source_url: str
     backup_path: Optional[str] = None
     integrity: ToolGuardRuleIntegrityResponse
-
-
-class IntegrityProtectionSettingsResponse(BaseModel):
-    persona_protection_enabled: bool = False
-    source_trust_verification_enabled: bool = False
-    health_check_enabled: bool = False
-    rule_integrity_check_passive: bool = True
-    protected_paths: List[str] = Field(default_factory=list)
-    menus: List[str] = Field(default_factory=list)
-
-
-class SourceTrustVerifyRequest(BaseModel):
-    package_path: str
-
-
-class SourceTrustVerifyResponse(BaseModel):
-    status: str
-    trusted: bool
-    reason: str
-    publisher: Optional[str] = None
-    package_sha256: Optional[str] = None
-    installed: bool = False
-    executed: bool = False
-    verification_scheme: str
-
-
-class HealthCheckScanResponse(BaseModel):
-    scan_id: str
-    read_only: bool
-    progress: int
-    check_items: List[dict[str, Any]] = Field(default_factory=list)
-    risk_summary: List[str] = Field(default_factory=list)
-    repair_suggestions: List[dict[str, Any]] = Field(default_factory=list)
-    mutated_files: List[str] = Field(default_factory=list)
-
-
-class HealthCheckScanRequest(BaseModel):
-    deep: bool = False
-
-
-class HealthCheckFixRequest(BaseModel):
-    selected_repair: str
-    confirmation_phrase: str
-    expected_confirmation_phrase: str = "Confirm selected doctor fix"
-
-
-class HealthCheckFixResponse(BaseModel):
-    confirmed: bool
-    selected_repair: str
-    fix_id: str
-    executed: bool
-    exit_code: int
-    output: List[str] = Field(default_factory=list)
-
-
-class PersonaProtectionSettingsResponse(BaseModel):
-    enabled: bool = False
-    pilot_mode: bool = True
-    protected_targets: List[str] = Field(default_factory=list)
-    protected_paths: List[str] = Field(default_factory=list)
-    baseline_established: bool = False
-    baseline_cleared_at: Optional[str] = None
-    open_alert_count: int = 0
-    scan_status: Optional[str] = None
-    last_scan_at: Optional[str] = None
-    last_scan_drift_count: Optional[int] = None
-    agents: List[dict[str, Any]] = Field(default_factory=list)
-
-
-class PersonaProtectionSettingsUpdateRequest(BaseModel):
-    enabled: Optional[bool] = None
-    protected_targets: Optional[List[str]] = None
-    confirmation_phrase: Optional[str] = None
-
-
-class PersonaProtectionAlertsResponse(BaseModel):
-    enabled: bool = False
-    scanning: bool = False
-    alerts: List[dict[str, Any]] = Field(default_factory=list)
-    open_alert_count: int = 0
-
-
-class PersonaProtectionActionRequest(BaseModel):
-    alert_id: str
-    confirmation_phrase: str
-
-
-class PersonaProtectionActionResponse(BaseModel):
-    confirmed: bool
-    message: Optional[str] = None
-    alert_id: Optional[str] = None
-    action: Optional[str] = None
-
-
-@router.get(
-    "/security/integrity-protection/settings",
-    response_model=IntegrityProtectionSettingsResponse,
-    summary="Get default-off Integrity Protection settings",
-)
-async def get_integrity_protection_settings() -> IntegrityProtectionSettingsResponse:
-    from ...security.integrity_protection import get_default_integrity_settings
-
-    settings = get_default_integrity_settings()
-    return IntegrityProtectionSettingsResponse(**settings.to_dict())
-
-
-@router.get(
-    "/security/persona-protection/settings",
-    response_model=PersonaProtectionSettingsResponse,
-    summary="Get persona baseline protection settings",
-)
-async def get_persona_protection_settings() -> PersonaProtectionSettingsResponse:
-    from ...security.persona_baseline_bridge import get_persona_service
-
-    return PersonaProtectionSettingsResponse(
-        **get_persona_service().get_settings_payload(),
-    )
-
-
-@router.put(
-    "/security/persona-protection/settings",
-    response_model=PersonaProtectionSettingsResponse,
-    summary="Update persona baseline protection settings",
-)
-async def update_persona_protection_settings(
-    body: PersonaProtectionSettingsUpdateRequest,
-) -> PersonaProtectionSettingsResponse:
-    from fastapi import HTTPException
-
-    from ...security.persona_baseline_bridge import get_persona_service
-
-    service = get_persona_service()
-    try:
-        payload = await service.update_settings(
-            enabled=body.enabled,
-            protected_targets=body.protected_targets,
-            confirmation_phrase=body.confirmation_phrase,
-        )
-    except PermissionError as exc:
-        raise HTTPException(status_code=409, detail=str(exc)) from exc
-    except ValueError as exc:
-        raise HTTPException(status_code=409, detail=str(exc)) from exc
-    except Exception as exc:
-        raise HTTPException(status_code=500, detail=str(exc)) from exc
-    return PersonaProtectionSettingsResponse(**payload)
-
-
-@router.get(
-    "/security/persona-protection/alerts",
-    response_model=PersonaProtectionAlertsResponse,
-    summary="List open persona drift alerts",
-)
-async def get_persona_protection_alerts() -> PersonaProtectionAlertsResponse:
-    from ...security.persona_baseline_bridge import get_persona_service
-
-    payload = await get_persona_service().list_alerts()
-    return PersonaProtectionAlertsResponse(**payload)
-
-
-@router.post(
-    "/security/persona-protection/restore",
-    response_model=PersonaProtectionActionResponse,
-    summary="Restore persona file from approved baseline (P2)",
-)
-async def restore_persona_protection_alert(
-    body: PersonaProtectionActionRequest,
-) -> PersonaProtectionActionResponse:
-    from fastapi import HTTPException
-
-    from ...security.persona_baseline_bridge import get_persona_service
-
-    service = get_persona_service()
-    if not service.is_enabled():
-        raise HTTPException(status_code=403, detail="persona protection disabled")
-    result = await service.restore(
-        alert_id=body.alert_id,
-        confirmation_phrase=body.confirmation_phrase,
-    )
-    return PersonaProtectionActionResponse(**result)
-
-
-@router.post(
-    "/security/persona-protection/accept",
-    response_model=PersonaProtectionActionResponse,
-    summary="Accept current persona file as new baseline (P2)",
-)
-async def accept_persona_protection_alert(
-    body: PersonaProtectionActionRequest,
-) -> PersonaProtectionActionResponse:
-    from fastapi import HTTPException
-
-    from ...security.persona_baseline_bridge import get_persona_service
-
-    service = get_persona_service()
-    if not service.is_enabled():
-        raise HTTPException(status_code=403, detail="persona protection disabled")
-    result = await service.accept(
-        alert_id=body.alert_id,
-        confirmation_phrase=body.confirmation_phrase,
-    )
-    return PersonaProtectionActionResponse(**result)
-
-
-@router.get(
-    "/security/persona-protection/watch",
-    summary="SSE stream for persona drift and baseline updates",
-)
-async def watch_persona_protection(request: Request) -> StreamingResponse:
-    from ...security.persona_baseline_bridge import stream_persona_events
-
-    return StreamingResponse(
-        stream_persona_events(request),
-        media_type="text/event-stream",
-        headers={
-            "Cache-Control": "no-cache",
-            "Connection": "keep-alive",
-            "X-Accel-Buffering": "no",
-        },
-    )
-
-
-@router.post(
-    "/security/integrity-protection/source-trust/verify",
-    response_model=SourceTrustVerifyResponse,
-    summary="Verify a skill or agent package without installing it",
-)
-async def verify_integrity_source_trust(
-    body: SourceTrustVerifyRequest,
-) -> SourceTrustVerifyResponse:
-    from ...security.integrity_protection import verify_source_trust_package
-
-    result = await asyncio.to_thread(
-        verify_source_trust_package,
-        FilePath(body.package_path),
-    )
-    return SourceTrustVerifyResponse(**result.to_dict())
-
-
-@router.post(
-    "/security/integrity-protection/health-check/scan",
-    response_model=HealthCheckScanResponse,
-    summary="Run read-only Integrity Protection health check scan",
-)
-async def run_integrity_health_check_scan(
-    body: HealthCheckScanRequest | None = None,
-) -> HealthCheckScanResponse:
-    from ...security.integrity_protection import run_health_check_scan
-
-    result = await asyncio.to_thread(
-        run_health_check_scan,
-        deep=bool(body.deep) if body is not None else False,
-    )
-    return HealthCheckScanResponse(**result.to_dict())
-
-
-@router.post(
-    "/security/integrity-protection/health-check/fix",
-    response_model=HealthCheckFixResponse,
-    summary="Run one explicitly confirmed doctor fix",
-)
-async def run_integrity_health_check_fix(
-    body: HealthCheckFixRequest,
-) -> HealthCheckFixResponse:
-    from ...security.integrity_protection import run_confirmed_health_fix
-
-    result = await asyncio.to_thread(
-        run_confirmed_health_fix,
-        selected_repair=body.selected_repair,
-        confirmation_phrase=body.confirmation_phrase,
-        expected_confirmation_phrase=body.expected_confirmation_phrase,
-    )
-    return HealthCheckFixResponse(**result.to_dict())
-
-
-@router.post(
-    "/security/integrity-protection/rules-integrity/check",
-    response_model=ToolGuardRuleIntegrityResponse,
-    summary="Run built-in rule integrity check without repair",
-)
-async def check_integrity_rule_entry() -> ToolGuardRuleIntegrityResponse:
-    from ...security.integrity_protection import run_rule_integrity_check
-
-    status = await asyncio.to_thread(run_rule_integrity_check)
-    return ToolGuardRuleIntegrityResponse(**status)
 
 
 @router.get(

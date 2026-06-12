@@ -47,7 +47,10 @@ import { Package } from "lucide-react";
 import { clearAuthToken } from "../api/config";
 import { authApi } from "../api/modules/auth";
 import api from "../api";
-import { INBOX_CHANGED_EVENT, readInboxChangedDetail } from "../utils/inboxEvents";
+import {
+  INBOX_CHANGED_EVENT,
+  readInboxChangedDetail,
+} from "@extension/shared/inbox/inboxEvents";
 import { usePlugins } from "../plugins/PluginContext";
 import { useCodingMode } from "../stores/codingModeStore";
 import styles from "./index.module.less";

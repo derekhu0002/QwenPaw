@@ -34,8 +34,8 @@
       "runner": "vitest",
       "cwd": "console",
       "targets": [
-        "src/api/modules/security.health.test.ts",
-        "src/pages/Settings/Security/components/HealthCheckSection.test.tsx",
+        "src/extension/health_check/api/client.test.ts",
+        "src/extension/health_check/components/HealthCheckSection.test.tsx",
         "src/pages/Settings/Security/useSecurityPage.health.test.tsx"
       ]
     }

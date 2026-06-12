@@ -33,7 +33,7 @@ import { commandsApi } from "../../api/modules/commands";
 import { chatApi } from "../../api/modules/chat";
 import sessionApi from "../Chat/sessionApi";
 import { PushMessageCard } from "./components";
-import { resolvePersonaDriftNavigation } from "./personaNavigation";
+import { resolvePersonaDriftNavigation } from "@extension/persona_baseline/lib/navigation";
 import { useInboxData } from "./hooks/useInboxData";
 import { useTraceViewer } from "./hooks/useTraceViewer";
 import { useAgentStore } from "../../stores/agentStore";

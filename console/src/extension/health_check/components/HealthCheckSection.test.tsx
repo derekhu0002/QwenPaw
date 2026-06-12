@@ -10,7 +10,7 @@ const { mockRunScan, mockRunFix } = vi.hoisted(() => ({
   mockRunFix: vi.fn(),
 }));
 
-vi.mock("../../../../api", () => ({
+vi.mock("@/api", () => ({
   default: {
     runIntegrityHealthCheckScan: mockRunScan,
     runIntegrityHealthCheckFix: mockRunFix,
@@ -31,7 +31,7 @@ vi.mock("@agentscope-ai/design", async () => {
 
 vi.mock("react-i18next", () => ({
   useTranslation: () => ({
-    t: (key: string, options?: { defaultValue?: string; repair?: string }) => {
+    t: (key: string, options?: { defaultValue?: string; repair?: string; item?: string; fixId?: string }) => {
       const labels: Record<string, string> = {
         "security.healthCheck.title": "Health Check",
         "security.healthCheck.runReadOnlyScan": "Run read-only scan",
@@ -91,6 +91,7 @@ const sampleScan: HealthCheckScanResponse = {
       status: "ok",
       detail: "exists",
       risk: "",
+      recommendation: "",
       fix_id: null,
       deep_only: false,
     },
@@ -103,6 +104,7 @@ const sampleScan: HealthCheckScanResponse = {
       requires_confirmation: true,
     },
   ],
+  mutated_files: [],
 };
 
 describe("HealthCheckSection", () => {

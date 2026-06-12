@@ -61,7 +61,7 @@ def test_confirmed_health_fix_rejects_wrong_phrase(tmp_path: Path) -> None:
 
 def test_confirmed_health_fix_runs_doctor_fix_after_phrase_match(tmp_path: Path) -> None:
     with patch(
-        "qwenpaw.security.integrity_protection.run_doctor_fix",
+        "health_check.fix.run_doctor_fix",
         return_value=0,
     ) as mock_fix:
         result = run_confirmed_health_fix(

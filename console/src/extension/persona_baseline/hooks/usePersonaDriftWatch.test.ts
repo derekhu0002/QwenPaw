@@ -2,11 +2,11 @@ import { describe, it, expect, vi, afterEach } from "vitest";
 import { renderHook } from "@testing-library/react";
 import { usePersonaDriftWatch } from "./usePersonaDriftWatch";
 
-vi.mock("../api/config", () => ({
+vi.mock("@/api/config", () => ({
   getApiUrl: (path: string) => `/api${path}`,
 }));
 
-vi.mock("../api/authHeaders", () => ({
+vi.mock("@/api/authHeaders", () => ({
   buildAuthHeaders: vi.fn(() => ({ Authorization: "Bearer test" })),
 }));
 

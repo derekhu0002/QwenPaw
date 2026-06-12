@@ -12,9 +12,12 @@ import {
   getPersonaDriftBody,
   getPersonaDriftTitle,
   getPersonaProtectionChannelName,
-} from "../../../utils/personaDriftDisplay";
+} from "@extension/persona_baseline/lib/driftDisplay";
 import type { HarvestInstance, InboxSummary, PushMessage } from "../types";
-import { INBOX_CHANGED_EVENT, readInboxChangedDetail } from "../../../utils/inboxEvents";
+import {
+  INBOX_CHANGED_EVENT,
+  readInboxChangedDetail,
+} from "@extension/shared/inbox/inboxEvents";
 
 const PUSH_POLLING_INTERVAL_MS = 6000;
 

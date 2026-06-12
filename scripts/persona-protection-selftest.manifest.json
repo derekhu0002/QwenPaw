@@ -32,14 +32,14 @@
       "runner": "vitest",
       "cwd": "console",
       "targets": [
-        "src/api/modules/security.persona.test.ts",
+        "src/extension/persona_baseline/api/client.test.ts",
+        "src/extension/persona_baseline/lib/alertActions.test.ts",
+        "src/extension/persona_baseline/lib/driftAlertItems.test.ts",
+        "src/extension/persona_baseline/lib/navigation.test.ts",
+        "src/extension/persona_baseline/hooks/usePersonaDriftWatch.test.ts",
         "src/pages/Settings/Security/components/IntegrityCheckSection.test.tsx",
         "src/pages/Settings/Security/useSecurityPage.persona.test.tsx",
-        "src/pages/Inbox/personaNavigation.test.ts",
-        "src/pages/Inbox/hooks/useInboxData.persona.test.ts",
-        "src/hooks/usePersonaDriftWatch.test.ts",
-        "src/utils/personaAlertActions.test.ts",
-        "src/utils/personaDriftAlertItems.test.ts"
+        "src/pages/Inbox/hooks/useInboxData.persona.test.ts"
       ]
     }
   },

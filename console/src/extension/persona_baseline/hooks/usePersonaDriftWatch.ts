@@ -3,8 +3,8 @@
  */
 
 import { useEffect, useRef } from "react";
-import { buildAuthHeaders } from "../api/authHeaders";
-import { getApiUrl } from "../api/config";
+import { buildAuthHeaders } from "@/api/authHeaders";
+import { getApiUrl } from "@/api/config";
 
 export interface PersonaDriftEvent {
   type: "persona_drift";

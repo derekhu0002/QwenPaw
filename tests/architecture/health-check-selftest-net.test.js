@@ -43,24 +43,29 @@ for (const target of manifest.layers.backend.targets) {
 }
 
 const requiredWiring = [
-    'src/qwenpaw/security/integrity_protection.py',
-    'src/qwenpaw/app/routers/config.py',
-    'console/src/pages/Settings/Security/components/HealthCheckSection.tsx',
-    'console/src/api/modules/security.ts',
+  'console/src/extension/health_check/components/HealthCheckSection.tsx',
+  'console/src/extension/persona_baseline/components/PersonaDriftAlertNotifier/index.tsx',
+  'src/qwenpaw/security/integrity_protection.py',
+  'src/qwenpaw/app/routers/integrity_protection_routes.py',
+  'src/qwenpaw/app/routers/config.py',
+  'console/src/pages/Settings/Security/components/IntegrityCheckSection.tsx',
+  'console/src/api/modules/security.ts',
 ];
 
 for (const filePath of requiredWiring) {
     assert.ok(exists(filePath), `health check wiring file missing: ${filePath}`);
 }
 
-const healthSection = read('console/src/pages/Settings/Security/components/HealthCheckSection.tsx');
+const healthSection = read('console/src/extension/health_check/components/HealthCheckSection.tsx');
 assert.ok(healthSection.includes('runIntegrityHealthCheckScan'), 'HealthCheckSection must call scan API');
 assert.ok(healthSection.includes('runIntegrityHealthCheckFix'), 'HealthCheckSection must call fix API');
 assert.ok(healthSection.includes('runScan(true)'), 'HealthCheckSection must expose deep scan control');
 
+const healthApiClient = read('console/src/extension/health_check/api/client.ts');
 const securityApi = read('console/src/api/modules/security.ts');
-assert.ok(securityApi.includes('/health-check/scan'), 'security API must define scan endpoint');
-assert.ok(securityApi.includes('/health-check/fix'), 'security API must define fix endpoint');
+assert.ok(healthApiClient.includes('/health-check/scan'), 'health check API client must define scan endpoint');
+assert.ok(healthApiClient.includes('/health-check/fix'), 'health check API client must define fix endpoint');
+assert.ok(securityApi.includes('healthCheckApi'), 'security API must delegate health check to extension client');
 
 const scenarioIds = new Set(manifest.scenarios.map((item) => item.id));
 for (const scenarioId of ['HC-S01', 'HC-S05', 'ip-e2e-004', 'HC-DOCTOR']) {

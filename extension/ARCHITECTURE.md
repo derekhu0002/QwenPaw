@@ -28,9 +28,15 @@ element_path: extension
 - path: Intergrity  Protection Design.md
   kind: implementation-design-contract
   role: adapter-level implementation design and Coding/Repair constraints for Integrity Protection Delivery
-- path: Persona Baseline Guardian Design.md
+- path: persona_baseline/
+  kind: extension-module
+  role: persona drift protection business logic and host_bridge wiring for inbox/push/SSE
+- path: health_check/
+  kind: extension-module
+  role: doctor-derived Health Check projection (projection.py), scan orchestration (scanner.py), confirmed fix (fix.py)
+- path: Console Frontend Decoupling Design.md
   kind: implementation-design-contract
-  role: decoupled design for PRD persona baseline drift protection (soul-guardian adapter, write provenance, realtime watch, Accept/Restore)
+  role: console/src/extension module layout and re-export boundary
 
 ### Dependency Direction
 - `extension` adapters may depend inward on stable QwenPaw backend, CLI, console API, and thirdparty ClawSec capabilities.
@@ -49,5 +55,4 @@ element_path: extension
 ### Current Evidence
 - Current repository evidence confirms the PRD path, existing reusable capabilities, implemented Integrity Protection backend APIs, console submenus, persona drift actions, source trust verify-only API, health-check dashboard, and passive rule-integrity entry.
 - The acceptance entrypoints now pass through production behavior behind `tests/integration/security/integrity_harness.py`; this extension contract must keep the low-intrusion adapter boundary and local/demo signing constraint stable.
-- Current repository evidence confirms the new i18n/progress-carousel acceptance entrypoint is expected to fail until `console/src/locales/en.json`, `console/src/locales/zh.json`, `console/src/pages/Settings/Security/index.tsx`, `console/src/pages/Settings/Security/components/IntegrityCheckSection.tsx`, and `console/src/pages/Settings/Security/components/HealthCheckSection.tsx` implement localized copy and readable carousel behavior.
-- Current repository evidence confirms the new full-doctor-coverage acceptance entrypoint is expected to fail until `src/qwenpaw/security/integrity_protection.py`, `src/qwenpaw/app/routers/config.py`, `console/src/api/modules/security.ts`, `console/src/pages/Settings/Security/components/HealthCheckSection.tsx`, `console/src/locales/en.json`, and `console/src/locales/zh.json` implement grouped structured doctor coverage and explicit deep scanning.
+- Current repository evidence confirms grouped doctor coverage lives in `extension/health_check/projection.py` with core re-exports from `src/qwenpaw/security/integrity_protection.py`; console UI lives under `console/src/extension/health_check/`.

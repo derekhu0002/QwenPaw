@@ -5,15 +5,15 @@ import {
   restorePersonaAlert,
   PERSONA_CONFIRM_ACCEPT,
   PERSONA_CONFIRM_RESTORE,
-} from "./personaAlertActions";
-import { INBOX_CHANGED_EVENT } from "./inboxEvents";
+} from "./alertActions";
+import { INBOX_CHANGED_EVENT } from "@extension/shared/inbox/inboxEvents";
 
 const mockRestore = vi.fn();
 const mockAccept = vi.fn();
 const mockGetInboxEvents = vi.fn();
 const mockMarkInboxRead = vi.fn();
 
-vi.mock("../api", () => ({
+vi.mock("@/api", () => ({
   default: {
     restorePersonaProtectionAlert: (...args: unknown[]) => mockRestore(...args),
     acceptPersonaProtectionAlert: (...args: unknown[]) => mockAccept(...args),

@@ -49,9 +49,12 @@ for (const testName of manifest.layers.backend.targets) {
 const requiredWiring = [
     'extension/persona_baseline/emitter.py',
     'extension/persona_baseline/service.py',
+    'extension/persona_baseline/host_bridge.py',
+    'src/qwenpaw/security/extension_host.py',
     'src/qwenpaw/security/persona_baseline_bridge.py',
-    'console/src/components/PersonaDriftAlertNotifier/index.tsx',
-    'console/src/utils/personaAlertActions.ts',
+    'src/qwenpaw/app/routers/persona_protection_routes.py',
+    'console/src/extension/persona_baseline/components/PersonaDriftAlertNotifier/index.tsx',
+    'console/src/extension/persona_baseline/lib/alertActions.ts',
     'console/src/pages/Settings/Security/components/IntegrityCheckSection.tsx',
 ];
 
@@ -60,13 +63,23 @@ for (const filePath of requiredWiring) {
 }
 
 const bridgeBody = read('src/qwenpaw/security/persona_baseline_bridge.py');
-assert.ok(bridgeBody.includes('push_append'), 'persona bridge must wire inbox/push emitters');
-assert.ok(bridgeBody.includes('get_persona_service'), 'persona bridge must expose service accessor');
+const hostBridgeBody = read('extension/persona_baseline/host_bridge.py');
+assert.ok(
+    hostBridgeBody.includes('push_append'),
+    'persona host bridge must wire inbox/push emitters',
+);
+assert.ok(
+    bridgeBody.includes('get_persona_service'),
+    'persona bridge must re-export service accessor',
+);
 
-const notifierBody = read('console/src/components/PersonaDriftAlertNotifier/index.tsx');
+const notifierBody = read('console/src/extension/persona_baseline/components/PersonaDriftAlertNotifier/index.tsx');
 assert.ok(notifierBody.includes('restorePersonaAlert'), 'notifier must call restorePersonaAlert');
 assert.ok(notifierBody.includes('acceptPersonaAlert'), 'notifier must call acceptPersonaAlert');
-assert.ok(notifierBody.includes('dispatchInboxChanged') || notifierBody.includes('personaAlertActions'), 'notifier must use shared persona actions');
+assert.ok(
+    notifierBody.includes('alertActions'),
+    'notifier must use shared persona actions',
+);
 
 const scenarioIds = new Set(manifest.scenarios.map((item) => item.id));
 const expectedScenarioIds = [

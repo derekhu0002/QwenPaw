@@ -41,6 +41,7 @@ export default defineConfig(({ mode }) => {
     resolve: {
       alias: {
         "@": path.resolve(__dirname, "./src"),
+        "@extension": path.resolve(__dirname, "./src/extension"),
       },
     },
     server: {
@@ -58,6 +59,8 @@ export default defineConfig(({ mode }) => {
         inline: [/@agentscope-ai\/(?!icons|chat|design)/],
       },
       alias: {
+        "@": path.resolve(__dirname, "./src"),
+        "@extension": path.resolve(__dirname, "./src/extension"),
         // chat is aliased to a tiny stub to avoid OOM from the 2.3MB real package
         // Tests that need specific behavior override with vi.mock('@agentscope-ai/chat', factory)
         "@agentscope-ai/chat": path.resolve(__dirname, "src/test/chat-mock.ts"),

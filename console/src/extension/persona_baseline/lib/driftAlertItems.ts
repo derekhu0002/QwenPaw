@@ -1,5 +1,5 @@
-import type { InboxEvent } from "../api/modules/console";
-import type { PersonaProtectionAlert } from "../api/modules/security";
+import type { InboxEvent } from "@/api/modules/console";
+import type { PersonaProtectionAlert } from "../api/client";
 
 export interface PersonaDriftAlertItem {
   alertId: string;

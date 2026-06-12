@@ -1,5 +1,5 @@
-import api from "../api";
-import { dispatchInboxChanged } from "./inboxEvents";
+import api from "@/api";
+import { dispatchInboxChanged } from "@extension/shared/inbox/inboxEvents";
 
 export const PERSONA_CONFIRM_RESTORE = "Confirm persona restore";
 export const PERSONA_CONFIRM_ACCEPT = "Confirm persona accept";

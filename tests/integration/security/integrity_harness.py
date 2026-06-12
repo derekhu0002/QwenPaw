@@ -950,8 +950,12 @@ class IntegrityProtectionHarness:
         ).read_text(encoding="utf-8")
         health_section = (
             repo_root
-            / "console/src/pages/Settings/Security/components/HealthCheckSection.tsx"
+            / "console/src/extension/health_check/components/HealthCheckSection.tsx"
         ).read_text(encoding="utf-8")
+        health_scan_ui = (
+            repo_root / "console/src/extension/health_check/lib/scanUi.ts"
+        ).read_text(encoding="utf-8")
+        health_ui_sources = health_section + health_scan_ui
         i18n_config = (repo_root / "console/src/i18n.ts").read_text(encoding="utf-8")
         english_locale = json.loads(
             (repo_root / "console/src/locales/en.json").read_text(encoding="utf-8"),
@@ -1032,7 +1036,7 @@ class IntegrityProtectionHarness:
             and "Built-in Rule Integrity Check" not in integrity_section
         )
         health_section_copy_is_i18n_keyed = (
-            "security.healthCheck." in health_section
+            "security.healthCheck." in health_ui_sources
             and "Security Health Check" not in health_section
             and "Run read-only scan" not in health_section
             and "Confirm selected doctor fix" not in health_section
@@ -1058,26 +1062,26 @@ class IntegrityProtectionHarness:
         )
         each_carousel_item_briefly_readable_contract_visible = (
             "currentCheck" in health_section
-            and "carousel" in health_section
+            and "carousel" in health_ui_sources
             and (
                 "setInterval" in health_section
-                or "readable" in health_section
-                or "displayDuration" in health_section
+                or "readable" in health_ui_sources
+                or "displayDuration" in health_ui_sources
             )
         )
         terminal_states_stop_carousel = all(
-            f"security.healthCheck.carousel.{state}" in health_section
-            or f"security.healthCheck.status.{state}" in health_section
+            f"security.healthCheck.carousel.{state}" in health_ui_sources
+            or f"security.healthCheck.status.{state}" in health_ui_sources
             for state in scenario.terminal_scan_states
         ) and (
             "clearInterval" in health_section
-            or "stopCarousel" in health_section
-            or "terminal" in health_section
+            or "stopCarousel" in health_ui_sources
+            or "terminal" in health_ui_sources
         )
         scan_only_boundary_preserved = (
             scan.read_only
             and not scan.mutated_files
-            and scenario.forbidden_pre_confirmation_effect not in health_section
+            and scenario.forbidden_pre_confirmation_effect not in health_ui_sources
         )
 
         failure_reasons: list[str] = []
@@ -1122,17 +1126,25 @@ class IntegrityProtectionHarness:
     ) -> HealthCheckFullDoctorCoverageObservation:
         repo_root = Path(__file__).resolve().parents[3]
         backend_source = (
-            repo_root / "src/qwenpaw/security/integrity_protection.py"
+            repo_root / "extension/health_check/projection.py"
         ).read_text(encoding="utf-8")
-        router_source = (repo_root / "src/qwenpaw/app/routers/config.py").read_text(
-            encoding="utf-8",
+        router_source = (
+            (repo_root / "src/qwenpaw/app/routers/config.py").read_text(
+                encoding="utf-8",
+            )
+            + (
+                repo_root / "src/qwenpaw/app/routers/integrity_protection_routes.py"
+            ).read_text(encoding="utf-8")
         )
         api_source = (repo_root / "console/src/api/modules/security.ts").read_text(
             encoding="utf-8",
         )
+        extension_api_source = (
+            repo_root / "console/src/extension/health_check/api/client.ts"
+        ).read_text(encoding="utf-8")
         health_section = (
             repo_root
-            / "console/src/pages/Settings/Security/components/HealthCheckSection.tsx"
+            / "console/src/extension/health_check/components/HealthCheckSection.tsx"
         ).read_text(encoding="utf-8")
         english_locale = json.loads(
             (repo_root / "console/src/locales/en.json").read_text(encoding="utf-8"),
@@ -1196,7 +1208,7 @@ class IntegrityProtectionHarness:
         health_check_api_accepts_explicit_deep_option = (
             "deep" in inspect.signature(run_health_check_scan).parameters
             and "deep" in router_source
-            and "deep" in api_source
+            and ("deep" in api_source or "deep" in extension_api_source)
         )
         backend_projection_avoids_cli_text_parsing = (
             "doctor_checks" in backend_source

@@ -381,7 +381,7 @@ async def lifespan(  # pylint: disable=too-many-statements,too-many-branches
             )
             await asyncio.sleep(background_delay)
 
-            from ..security.persona_baseline_bridge import run_startup_scan_if_enabled
+            from ..security.extension_host import run_startup_scan_if_enabled
 
             await run_startup_scan_if_enabled()
 

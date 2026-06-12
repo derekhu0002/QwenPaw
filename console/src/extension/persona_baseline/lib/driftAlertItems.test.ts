@@ -2,7 +2,7 @@ import { describe, it, expect } from "vitest";
 import {
   mapInboxEventsByAlertId,
   mergeAlertItems,
-} from "./personaDriftAlertItems";
+} from "./driftAlertItems";
 
 describe("personaDriftAlertItems", () => {
   it("maps unread inbox persona events by alert id", () => {

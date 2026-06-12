@@ -3,21 +3,21 @@ import { Button } from "@agentscope-ai/design";
 import { message } from "antd";
 import { ShieldAlert } from "lucide-react";
 import { useTranslation } from "react-i18next";
-import api from "../../api";
+import api from "@/api";
 import { usePersonaDriftWatch } from "../../hooks/usePersonaDriftWatch";
 import {
   acceptPersonaAlert,
   restorePersonaAlert,
-} from "../../utils/personaAlertActions";
+} from "../../lib/alertActions";
 import {
   getPersonaDriftBody,
   getPersonaDriftTitle,
-} from "../../utils/personaDriftDisplay";
+} from "../../lib/driftDisplay";
 import {
   mapInboxEventsByAlertId,
   mergeAlertItems,
   type PersonaDriftAlertItem,
-} from "../../utils/personaDriftAlertItems";
+} from "../../lib/driftAlertItems";
 import styles from "./index.module.less";
 
 const PERSONA_SETTINGS_POLL_MS = 15_000;

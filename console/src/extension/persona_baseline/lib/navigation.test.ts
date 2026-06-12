@@ -2,7 +2,7 @@ import { describe, it, expect } from "vitest";
 import {
   resolvePersonaDriftDeepLink,
   resolvePersonaDriftNavigation,
-} from "./personaNavigation";
+} from "./navigation";
 
 describe("personaNavigation", () => {
   it("prefers payload deep_link when present", () => {

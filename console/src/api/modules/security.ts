@@ -1,5 +1,20 @@
 import { request } from "../request";
-import { getApiUrl } from "../config";
+import { healthCheckApi } from "@extension/health_check/api/client";
+import { personaApi } from "@extension/persona_baseline/api/client";
+
+export type {
+  HealthCheckFixResponse,
+  HealthCheckItem,
+  HealthCheckRepairSuggestion,
+  HealthCheckScanResponse,
+} from "@extension/health_check/api/client";
+export type {
+  PersonaProtectionActionResponse,
+  PersonaProtectionAlert,
+  PersonaProtectionAlertsResponse,
+  PersonaProtectionSettings,
+  PersonaProtectionSettingsUpdateBody,
+} from "@extension/persona_baseline/api/client";
 
 export interface ToolGuardRule {
   id: string;
@@ -58,51 +73,6 @@ export interface IntegrityProtectionSettings {
   menus: string[];
 }
 
-export interface PersonaProtectionSettings {
-  enabled: boolean;
-  pilot_mode: boolean;
-  protected_targets: string[];
-  protected_paths: string[];
-  baseline_established: boolean;
-  baseline_cleared_at?: string | null;
-  open_alert_count: number;
-  scan_status?: string | null;
-  last_scan_at?: string | null;
-  last_scan_drift_count?: number | null;
-}
-
-export interface PersonaProtectionAlert {
-  alert_id: string;
-  agent_id: string;
-  path: string;
-  approved_sha256: string;
-  current_sha256: string;
-  provenance: string;
-  status: string;
-  detected_at: string;
-  patch_path?: string | null;
-}
-
-export interface PersonaProtectionAlertsResponse {
-  enabled: boolean;
-  scanning: boolean;
-  alerts: PersonaProtectionAlert[];
-  open_alert_count: number;
-}
-
-export interface PersonaProtectionActionResponse {
-  confirmed: boolean;
-  message?: string;
-  alert_id?: string;
-  action?: string;
-}
-
-export interface PersonaProtectionSettingsUpdateBody {
-  enabled?: boolean;
-  protected_targets?: string[];
-  confirmation_phrase?: string;
-}
-
 export interface SourceTrustVerifyResponse {
   status: string;
   trusted: boolean;
@@ -112,44 +82,6 @@ export interface SourceTrustVerifyResponse {
   installed: boolean;
   executed: boolean;
   verification_scheme: string;
-}
-
-export interface HealthCheckItem {
-  [key: string]: unknown;
-  group: string;
-  id: string;
-  label?: string;
-  status: string;
-  detail: string;
-  risk: string;
-  recommendation: string;
-  fix_id?: string | null;
-  deep_only: boolean;
-}
-
-export interface HealthCheckRepairSuggestion {
-  label: string;
-  doctor_fix_id: string;
-  requires_confirmation: boolean;
-}
-
-export interface HealthCheckScanResponse {
-  scan_id: string;
-  read_only: boolean;
-  progress: number;
-  check_items: HealthCheckItem[];
-  risk_summary: string[];
-  repair_suggestions: HealthCheckRepairSuggestion[];
-  mutated_files: string[];
-}
-
-export interface HealthCheckFixResponse {
-  confirmed: boolean;
-  selected_repair: string;
-  fix_id: string;
-  executed: boolean;
-  exit_code: number;
-  output: string[];
 }
 
 // ── File Guard types ──────────────────────────────────────────────
@@ -257,29 +189,9 @@ export const securityApi = {
       },
     ),
 
-  runIntegrityHealthCheckScan: (deep: boolean = false) =>
-    request<HealthCheckScanResponse>(
-      "/config/security/integrity-protection/health-check/scan",
-      {
-        method: "POST",
-        body: JSON.stringify({ deep }),
-      },
-    ),
+  runIntegrityHealthCheckScan: healthCheckApi.runIntegrityHealthCheckScan,
 
-  runIntegrityHealthCheckFix: (
-    selectedRepair: string,
-    confirmationPhrase: string,
-  ) =>
-    request<HealthCheckFixResponse>(
-      "/config/security/integrity-protection/health-check/fix",
-      {
-        method: "POST",
-        body: JSON.stringify({
-          selected_repair: selectedRepair,
-          confirmation_phrase: confirmationPhrase,
-        }),
-      },
-    ),
+  runIntegrityHealthCheckFix: healthCheckApi.runIntegrityHealthCheckFix,
 
   checkIntegrityRuleEntry: () =>
     request<ToolGuardRulesIntegrity>(
@@ -287,51 +199,17 @@ export const securityApi = {
       { method: "POST" },
     ),
 
-  getPersonaProtectionSettings: () =>
-    request<PersonaProtectionSettings>(
-      "/config/security/persona-protection/settings",
-    ),
+  getPersonaProtectionSettings: personaApi.getPersonaProtectionSettings,
 
-  updatePersonaProtectionSettings: (body: PersonaProtectionSettingsUpdateBody) =>
-    request<PersonaProtectionSettings>(
-      "/config/security/persona-protection/settings",
-      {
-        method: "PUT",
-        body: JSON.stringify(body),
-      },
-    ),
+  updatePersonaProtectionSettings: personaApi.updatePersonaProtectionSettings,
 
-  getPersonaProtectionAlerts: () =>
-    request<PersonaProtectionAlertsResponse>(
-      "/config/security/persona-protection/alerts",
-    ),
+  getPersonaProtectionAlerts: personaApi.getPersonaProtectionAlerts,
 
-  restorePersonaProtectionAlert: (alertId: string, confirmationPhrase: string) =>
-    request<PersonaProtectionActionResponse>(
-      "/config/security/persona-protection/restore",
-      {
-        method: "POST",
-        body: JSON.stringify({
-          alert_id: alertId,
-          confirmation_phrase: confirmationPhrase,
-        }),
-      },
-    ),
+  restorePersonaProtectionAlert: personaApi.restorePersonaProtectionAlert,
 
-  acceptPersonaProtectionAlert: (alertId: string, confirmationPhrase: string) =>
-    request<PersonaProtectionActionResponse>(
-      "/config/security/persona-protection/accept",
-      {
-        method: "POST",
-        body: JSON.stringify({
-          alert_id: alertId,
-          confirmation_phrase: confirmationPhrase,
-        }),
-      },
-    ),
+  acceptPersonaProtectionAlert: personaApi.acceptPersonaProtectionAlert,
 
-  getPersonaProtectionWatchUrl: () =>
-    getApiUrl("/config/security/persona-protection/watch"),
+  getPersonaProtectionWatchUrl: personaApi.getPersonaProtectionWatchUrl,
 
   // ── File Guard ─────────────────────────────────────────────────
 

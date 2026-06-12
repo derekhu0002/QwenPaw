@@ -25,7 +25,7 @@ const {
   mockAcceptPersonaAlert: vi.fn(),
 }));
 
-vi.mock("../../../../utils/personaAlertActions", () => ({
+vi.mock("@extension/persona_baseline/lib/alertActions", () => ({
   restorePersonaAlert: (...args: unknown[]) => mockRestorePersonaAlert(...args),
   acceptPersonaAlert: (...args: unknown[]) => mockAcceptPersonaAlert(...args),
 }));
@@ -41,7 +41,7 @@ vi.mock("../../../../api", () => ({
   },
 }));
 
-vi.mock("../../../../hooks/usePersonaDriftWatch", () => ({
+vi.mock("@extension/persona_baseline/hooks/usePersonaDriftWatch", () => ({
   usePersonaDriftWatch: vi.fn(),
 }));
 

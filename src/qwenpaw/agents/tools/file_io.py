@@ -23,7 +23,7 @@ from ...constant import WORKING_DIR, TRUNCATION_NOTICE_MARKER
 async def _notify_persona_file_saved(resolved_path: str, provenance: str) -> None:
     try:
         from ...app.agent_context import get_current_agent_id
-        from ...security.persona_baseline_bridge import notify_file_saved
+        from ...security.extension_host import notify_file_saved
 
         agent_id = get_current_agent_id() or "default"
         await notify_file_saved(agent_id, resolved_path, provenance)

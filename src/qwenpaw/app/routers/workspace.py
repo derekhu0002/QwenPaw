@@ -160,7 +160,7 @@ async def write_working_file(
             agent_id=workspace.agent_id,
         )
         workspace_manager.write_working_md(md_name, body.content)
-        from ...security.persona_baseline_bridge import notify_file_saved
+        from ...security.extension_host import notify_file_saved
 
         md_file = workspace.workspace_dir / (
             md_name if md_name.endswith(".md") else f"{md_name}.md"
@@ -427,7 +427,7 @@ async def write_code_file(
         size = await asyncio.to_thread(_write)
     except Exception as exc:  # noqa: BLE001
         raise HTTPException(status_code=500, detail=str(exc)) from exc
-    from ...security.persona_baseline_bridge import notify_file_saved
+    from ...security.extension_host import notify_file_saved
 
     await notify_file_saved(
         workspace.agent_id,
