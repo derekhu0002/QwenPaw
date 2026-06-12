@@ -6,6 +6,7 @@
     "maxRawPayloadDisplayChars": 4096
   },
   "severityValues": [
+    "DEBUG",
     "LOW",
     "MEDIUM",
     "HIGH"
@@ -25,6 +26,14 @@
       "displayName": "Cloud SIEM",
       "allowedEventTypeIds": [
         "correlation_rule_match"
+      ]
+    },
+    {
+      "sourceSystem": "opensandbox",
+      "enabled": true,
+      "displayName": "OpenSandbox",
+      "allowedEventTypeIds": [
+        "opensandbox"
       ]
     },
     {
@@ -104,6 +113,82 @@
               "type": "string",
               "required": true,
               "maxLength": 128,
+              "showInList": false
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "eventTypeId": "opensandbox",
+      "displayName": "OpenSandbox",
+      "schemaVersions": [
+        {
+          "schemaVersion": "1.0",
+          "payloadFields": [
+            {
+              "name": "toolName",
+              "label": "Tool Name",
+              "type": "string",
+              "required": true,
+              "maxLength": 128,
+              "showInList": true
+            },
+            {
+              "name": "outcome",
+              "label": "Outcome",
+              "type": "enum",
+              "required": true,
+              "enumValues": [
+                "SUCCEEDED",
+                "FAILED"
+              ],
+              "showInList": true
+            },
+            {
+              "name": "agentId",
+              "label": "Agent ID",
+              "type": "string",
+              "required": true,
+              "maxLength": 128,
+              "showInList": true
+            },
+            {
+              "name": "sandboxId",
+              "label": "Sandbox ID",
+              "type": "string",
+              "required": false,
+              "maxLength": 128,
+              "showInList": true
+            },
+            {
+              "name": "operationClass",
+              "label": "Operation Class",
+              "type": "string",
+              "required": true,
+              "maxLength": 64,
+              "showInList": false
+            },
+            {
+              "name": "durationMs",
+              "label": "Duration (ms)",
+              "type": "number",
+              "required": true,
+              "showInList": false
+            },
+            {
+              "name": "requestDigest",
+              "label": "Request Digest",
+              "type": "string",
+              "required": true,
+              "maxLength": 64,
+              "showInList": false
+            },
+            {
+              "name": "argumentSummary",
+              "label": "Argument Summary",
+              "type": "object",
+              "required": true,
               "showInList": false
             }
           ]

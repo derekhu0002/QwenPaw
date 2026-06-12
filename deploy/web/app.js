@@ -390,7 +390,7 @@ function renderSecurityEventRows(events) {
               <td>${escapeHtml(event.occurredAt)}</td>
               <td>${escapeHtml(event.sourceSystem)}</td>
               <td>${escapeHtml(event.eventTypeDisplayName || event.eventTypeId)}</td>
-              <td>${escapeHtml(event.severity)}</td>
+              <td><span class="severity-badge severity-${escapeHtml(String(event.severity || "").toLowerCase())}">${escapeHtml(event.severity)}</span></td>
               <td>${escapeHtml(event.summary)}</td>
               <td><a href="/security-events/${encodeURIComponent(event.sourceSystem)}/${encodeURIComponent(event.eventId)}">${escapeHtml(event.eventId)}</a></td>
               <td>${payloadEntries.map(([key, value]) => `${escapeHtml(key)}=${escapeHtml(value)}`).join("<br/>") || "--"}</td>

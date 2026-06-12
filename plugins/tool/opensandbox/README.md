@@ -113,14 +113,21 @@ args: [
   "127.0.0.1:8080",
   "--protocol",
   "http",
-  "--use-server-proxy"
+  "--use-server-proxy",
+  "--audit-enabled",
+  "--security-center-url",
+  "http://127.0.0.1:8091",
+  "--audit-agent-id",
+  "<agent-id>",
+  "--audit-timeout-seconds",
+  "2"
 ]
 cwd: 自动计算为插件安装目录
 env:
   OPEN_SANDBOX_API_KEY=
 ```
 
-`command`、`args[0]` 和 `cwd` 由插件根据当前 Python 解释器和插件安装目录生成。用户通常只需要修改 `enabled`、`--domain`、`--protocol`、`OPEN_SANDBOX_API_KEY`、`--use-server-proxy` 或 `--no-use-server-proxy`。
+`command`、`args[0]`、`cwd` 和 `--audit-agent-id` 由插件根据当前 Python 解释器、插件安装目录和 Agent 配置生成。用户通常只需要修改 `enabled`、`--domain`、`--protocol`、`OPEN_SANDBOX_API_KEY`、`--use-server-proxy`、`--no-use-server-proxy`、`--security-center-url` 或 `--audit-timeout-seconds`。如需关闭审计，可把 `--audit-enabled` 改为 `--audit-disabled`。
 
 ### Launcher
 
@@ -130,7 +137,25 @@ env:
 - 支持 `OPEN_SANDBOX_USE_SERVER_PROXY`、`--use-server-proxy` 和 `--no-use-server-proxy`。
 - 在 `Sandbox.create` 前检查 `sandbox_create.image`。
 - 给 `sandbox_create.image` schema 标注唯一可用 enum：`opensandbox/code-interpreter:v1.0.2`。
+- 包装 FastMCP tool manager，为每次官方 OpenSandbox MCP 工具调用生成脱敏审计事件。
+- 使用 `requests` 把审计事件发送到 Security Center 的 `/security-center/v1/events`。
 - 以 stdio 方式运行官方 MCP server。
+
+### Security Center 调用审计
+
+插件启用审计后，每次 OpenSandbox MCP 工具调用结束都会向 8091 上报一条专属 OpenSandbox 事件：
+
+```text
+sourceSystem: opensandbox
+eventTypeId: opensandbox
+schemaVersion: 1.0
+```
+
+审计事件包含工具名、操作分类、Agent ID、sandbox ID、执行结果、耗时、参数摘要和参数摘要哈希。`command_run` 可以记录脱敏且限长的命令预览；`file_write` 和 `file_replace_contents` 只记录内容长度与 SHA-256；`sandbox_create.env` 只记录环境变量名；密码、API key、token 和认证信息会替换为 `[REDACTED]`。插件不上传完整 stdout、stderr、文件内容或完整 MCP 返回值。
+
+没有异常的成功调用使用 `DEBUG`，表示可查询的普通调用审计记录，不表示安全风险。工具异常或 `command_run` 非零退出码使用 `HIGH`。
+
+当前实现每次只发送一次 HTTP 请求，不使用本地 outbox、不自动重试，也不处理重复补报。上报通过 `asyncio.to_thread` 调用 `requests.post`，避免阻塞 MCP 事件循环；HTTP 失败只写入 stderr 日志，不会替换官方工具原本的返回值或异常。
 
 ### Server Proxy
 

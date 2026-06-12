@@ -6,7 +6,7 @@ import json
 import os
 import time
 import uuid
-from datetime import UTC, datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
@@ -36,7 +36,7 @@ def canonical_json(value: Any) -> str:
 
 
 def _utc_now_iso() -> str:
-    return datetime.now(UTC).isoformat(timespec="microseconds").replace("+00:00", "Z")
+    return datetime.now(timezone.utc).isoformat(timespec="microseconds").replace("+00:00", "Z")
 
 
 def _bounded_text(value: Any, *, limit: int) -> str:
