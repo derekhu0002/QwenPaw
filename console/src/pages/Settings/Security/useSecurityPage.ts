@@ -1,4 +1,5 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
+import { useSearchParams } from "react-router-dom";
 import { Form } from "@agentscope-ai/design";
 import { useAppMessage } from "../../../hooks/useAppMessage";
 import { useTranslation } from "react-i18next";
@@ -22,10 +23,21 @@ const BUILTIN_TOOLS = [
 
 export function useSecurityPage() {
   const { t } = useTranslation();
+  const [searchParams] = useSearchParams();
   const [form] = Form.useForm();
   const [editForm] = Form.useForm();
   const [saving, setSaving] = useState(false);
-  const [activeTab, setActiveTab] = useState("toolGuard");
+  const [activeTab, setActiveTab] = useState(
+    () => searchParams.get("tab") || "toolGuard",
+  );
+  const personaHighlightAlertId = searchParams.get("personaAlertId") ?? undefined;
+
+  useEffect(() => {
+    const tab = searchParams.get("tab");
+    if (tab) {
+      setActiveTab(tab);
+    }
+  }, [searchParams]);
 
   // FileGuard handlers exposed from child component
   const [fileGuardHandlers, setFileGuardHandlers] = useState<{
@@ -283,5 +295,6 @@ export function useSecurityPage() {
     loading,
     error,
     fetchAll,
+    personaHighlightAlertId,
   };
 }

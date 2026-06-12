@@ -1,0 +1,195 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+"""Run the Health Check self-test net (architecture + backend + frontend).
+
+Usage:
+  python scripts/run-health-check-selftest.py
+  python scripts/run-health-check-selftest.py --layer backend
+  python scripts/run-health-check-selftest.py --layer frontend --layer architecture
+  python scripts/run-health-check-selftest.py --list
+"""
+from __future__ import annotations
+
+import argparse
+import json
+import os
+import shutil
+import subprocess
+import sys
+from dataclasses import dataclass
+from pathlib import Path
+
+SCRIPT_DIR = Path(__file__).resolve().parent
+REPO_ROOT = SCRIPT_DIR.parent
+MANIFEST_PATH = SCRIPT_DIR / "health-check-selftest.manifest.json"
+
+ALL_LAYERS = ("architecture", "backend", "frontend")
+
+
+@dataclass
+class LayerResult:
+    name: str
+    label: str
+    ok: bool
+    command: str
+    detail: str = ""
+
+
+def _load_manifest() -> dict:
+    return json.loads(MANIFEST_PATH.read_text(encoding="utf-8"))
+
+
+def _print_header(title: str) -> None:
+    line = "=" * 72
+    print(f"\n{line}\n{title}\n{line}")
+
+
+def _run(cmd: list[str], *, cwd: Path, env: dict[str, str] | None = None) -> subprocess.CompletedProcess[str]:
+    return subprocess.run(
+        cmd,
+        cwd=str(cwd),
+        env=env,
+        text=True,
+        capture_output=False,
+        check=False,
+    )
+
+
+def run_architecture_layer(manifest: dict) -> LayerResult:
+    layer = manifest["layers"]["architecture"]
+    label = layer["label"]
+    targets = layer["targets"]
+    cmd = ["node", *targets]
+    _print_header(f"[architecture] {label}")
+    print("Command:", " ".join(cmd))
+    proc = _run(cmd, cwd=REPO_ROOT)
+    return LayerResult("architecture", label, proc.returncode == 0, " ".join(cmd))
+
+
+def run_backend_layer(manifest: dict) -> LayerResult:
+    layer = manifest["layers"]["backend"]
+    label = layer["label"]
+    pytest_args = [sys.executable, "-m", "pytest", "-v", "--tb=short"]
+    for target in layer["targets"]:
+        if isinstance(target, str):
+            pytest_args.append(target)
+            continue
+        module = target["module"]
+        tests = target.get("tests") or []
+        if tests:
+            pytest_args.extend(f"{module}::{name}" for name in tests)
+        else:
+            pytest_args.append(module)
+    _print_header(f"[backend] {label}")
+    print("Command:", " ".join(pytest_args))
+    proc = _run(pytest_args, cwd=REPO_ROOT)
+    return LayerResult("backend", label, proc.returncode == 0, " ".join(pytest_args))
+
+
+def run_frontend_layer(manifest: dict) -> LayerResult:
+    layer = manifest["layers"]["frontend"]
+    label = layer["label"]
+    cwd = REPO_ROOT / layer.get("cwd", "console")
+    targets = layer["targets"]
+    npx = shutil.which("npx")
+    if npx is None:
+        return LayerResult("frontend", label, False, "npx", detail="npx not found on PATH")
+    env = os.environ.copy()
+    env.setdefault("NODE_OPTIONS", "--max-old-space-size=4096")
+    cmd = [npx, "vitest", "run", *targets]
+    _print_header(f"[frontend] {label}")
+    print("Command:", " ".join(cmd))
+    print("CWD:", cwd)
+    proc = _run(cmd, cwd=cwd, env=env)
+    return LayerResult("frontend", label, proc.returncode == 0, " ".join(cmd))
+
+
+LAYER_RUNNERS = {
+    "architecture": run_architecture_layer,
+    "backend": run_backend_layer,
+    "frontend": run_frontend_layer,
+}
+
+
+def list_manifest(manifest: dict) -> None:
+    _print_header("Health Check self-test manifest")
+    print(f"Manifest: {MANIFEST_PATH.relative_to(REPO_ROOT)}")
+    for layer_name in ALL_LAYERS:
+        layer = manifest["layers"][layer_name]
+        print(f"\n{layer_name} ({layer['label']}):")
+        if layer_name == "backend":
+            for target in layer["targets"]:
+                if isinstance(target, str):
+                    print(f"  - {target}")
+                    continue
+                print(f"  - {target['module']}")
+                for test_name in target.get("tests") or ["(all tests in module)"]:
+                    print(f"      ::{test_name}")
+        else:
+            for target in layer["targets"]:
+                print(f"  - {target}")
+    print("\nScenario map:")
+    for item in manifest.get("scenarios", []):
+        print(f"  - {item['id']}: [{item['layer']}] {item['target']}")
+
+
+def print_summary(results: list[LayerResult]) -> int:
+    _print_header("Health Check self-test summary")
+    failed = 0
+    for result in results:
+        status = "PASS" if result.ok else "FAIL"
+        if not result.ok:
+            failed += 1
+        print(f"  [{status}] {result.name}: {result.label}")
+        if result.detail:
+            print(f"         {result.detail}")
+    print()
+    if failed:
+        print(f"FAILED: {failed} layer(s) did not pass.")
+        return 1
+    print("ALL LAYERS PASSED.")
+    return 0
+
+
+def parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(
+        description="Run Health Check architecture/backend/frontend self-test net.",
+    )
+    parser.add_argument(
+        "--layer",
+        action="append",
+        choices=ALL_LAYERS,
+        help="Run only selected layer(s). Default: all layers.",
+    )
+    parser.add_argument(
+        "--list",
+        action="store_true",
+        help="Print manifest targets and exit.",
+    )
+    return parser.parse_args()
+
+
+def main() -> int:
+    if not MANIFEST_PATH.is_file():
+        print(f"Manifest not found: {MANIFEST_PATH}", file=sys.stderr)
+        return 2
+
+    manifest = _load_manifest()
+    args = parse_args()
+
+    if args.list:
+        list_manifest(manifest)
+        return 0
+
+    selected = args.layer or list(ALL_LAYERS)
+    results: list[LayerResult] = []
+    for layer_name in ALL_LAYERS:
+        if layer_name not in selected:
+            continue
+        results.append(LAYER_RUNNERS[layer_name](manifest))
+
+    return print_summary(results)
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

@@ -1,5 +1,7 @@
 import { Button, Tabs } from "@agentscope-ai/design";
+import { Badge } from "antd";
 import { useTranslation } from "react-i18next";
+import { useState } from "react";
 import { useSecurityPage } from "./useSecurityPage";
 import {
   ToolGuardTab,
@@ -8,12 +10,15 @@ import {
   SkillScannerSection,
   FileGuardSection,
   AllowNoAuthHostsTab,
+  IntegrityCheckSection,
+  HealthCheckSection,
 } from "./components";
 import { PageHeader } from "@/components/PageHeader";
 import styles from "./index.module.less";
 
 function SecurityPage() {
   const { t } = useTranslation();
+  const [personaAlertCount, setPersonaAlertCount] = useState(0);
 
   const {
     activeTab,
@@ -53,6 +58,7 @@ function SecurityPage() {
     loading,
     error,
     fetchAll,
+    personaHighlightAlertId,
   } = useSecurityPage();
 
   // Loading state
@@ -158,6 +164,48 @@ function SecurityPage() {
                     </p>
                     <FileGuardSection onSave={onFileGuardHandlersReady} />
                   </div>
+                </div>
+              ),
+            },
+            {
+              key: "integrityCheck",
+              label: (
+                <span className={styles.tabLabel}>
+                  {t("security.integrityProtection.tabs.integrityCheck")}
+                  {personaAlertCount > 0 ? (
+                    <Badge
+                      count={personaAlertCount}
+                      size="small"
+                      style={{ marginLeft: 8 }}
+                    />
+                  ) : null}
+                </span>
+              ),
+              children: (
+                <div className={styles.tabContent}>
+                  <p className={styles.tabDescription}>
+                    {t("security.integrityProtection.description")}
+                  </p>
+                  <IntegrityCheckSection
+                    onAlertCountChange={setPersonaAlertCount}
+                    highlightAlertId={personaHighlightAlertId}
+                  />
+                </div>
+              ),
+            },
+            {
+              key: "healthCheck",
+              label: (
+                <span className={styles.tabLabel}>
+                  {t("security.integrityProtection.tabs.healthCheck")}
+                </span>
+              ),
+              children: (
+                <div className={styles.tabContent}>
+                  <p className={styles.tabDescription}>
+                    {t("security.healthCheck.description")}
+                  </p>
+                  <HealthCheckSection />
                 </div>
               ),
             },

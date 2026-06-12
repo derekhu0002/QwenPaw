@@ -25,6 +25,12 @@ element_path: src/qwenpaw/cli
   role: multi-agent operator command family
 - path: task_cmd.py
   role: headless task execution command family
+- path: doctor_cmd.py
+  role: operator-facing doctor command that renders read-only diagnostics and delegates repairs to doctor_fix_runner.py
+- path: doctor_checks.py
+  role: reusable read-only doctor check semantics that Coding/Repair may project into backend Health Check results without parsing CLI text
+- path: doctor_connectivity.py
+  role: opt-in --deep channel connectivity notes and local LLM deep diagnostics
 
 ### Explicit Testcase Entrypoints
 - tests/unit/cli/test_cli_version.py::test_cli_version_option_outputs_current_version
@@ -33,3 +39,5 @@ element_path: src/qwenpaw/cli
 
 ### Notes
 - The current repository state keeps command modules mostly flat under this directory, while startup cost is constrained by LazyGroup-based deferred imports in main.py.
+- For `ip-e2e-007-healthcheck-full-doctor-coverage`, this element owns doctor semantics but not the Settings/Security backend orchestration or console rendering. Coding/Repair must expose structured check semantics to `src/qwenpaw/security/integrity_protection.py` through reusable helpers or a small registry-style projection, not by scraping `click.echo` output from `doctor_cmd.py`.
+- Deep connectivity remains opt-in. `doctor_connectivity.py` may be called only when the backend Health Check receives an explicit deep scan request.

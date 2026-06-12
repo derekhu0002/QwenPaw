@@ -148,6 +148,19 @@ Invalid source/type/schema/payload submissions, idempotency conflicts, and persi
 - The API returns success only after durable persistence. A write failure returns a failure response instead of an accepted success.
 - Do not use or document `X-QwenPaw-Test-Persistence-Failure` for external integrations. It is a test-only failure-injection seam and is ignored unless the API process is explicitly started with `QWENPAW_SECURITY_CENTER_ENABLE_TEST_FAILURE_INJECTION=1`.
 
+- QwenPaw runtime Integrity Protection API: `src/qwenpaw/app/routers/config.py`
+  - Default-off settings: `GET /api/config/security/integrity-protection/settings`
+    - Projects Integrity Check and Health Check menu availability while keeping persona protection, source trust verification, and health check disabled by default.
+  - Verify-only source trust: `POST /api/config/security/integrity-protection/source-trust/verify`
+    - Verifies a selected local skill or agent package signature and source status without installing or executing the package.
+  - Scan-only health check: `POST /api/config/security/integrity-protection/health-check/scan`
+    - Accepts an optional JSON body `{ "deep": false }`; callers must explicitly send `deep: true` to include connectivity-heavy doctor items.
+    - Returns read-only qwenpaw doctor projection items with `group`, `id`, `status`, `detail`, `risk`, `recommendation`, `fix_id`, and `deep_only`, plus progress, risks, and repair suggestions without mutating user files.
+  - Confirmed health fix: `POST /api/config/security/integrity-protection/health-check/fix`
+    - Runs one selected `doctor fix` action only after the caller supplies the explicit confirmation phrase.
+  - Rule integrity check entry: `POST /api/config/security/integrity-protection/rules-integrity/check`
+    - Invokes the existing dangerous shell command rule integrity verifier and does not repair `dangerous_shell_commands.yaml`.
+
 ## Launch
 
 - Backend API: `python -m deploy.api.app`

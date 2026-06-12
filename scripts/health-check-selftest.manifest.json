@@ -1,0 +1,58 @@
+{
+  "version": 1,
+  "name": "health-check-selftest",
+  "description": "Unified self-test net for Integrity Protection Health Check (architecture + backend + frontend).",
+  "layers": {
+    "architecture": {
+      "label": "Architecture guard",
+      "runner": "node",
+      "targets": [
+        "tests/architecture/health-check-selftest-net.test.js"
+      ]
+    },
+    "backend": {
+      "label": "Backend integration + unit",
+      "runner": "pytest",
+      "targets": [
+        {
+          "module": "tests/integration/security/test_integrity_protection.py",
+          "tests": [
+            "test_integrity_security_menu_default_off",
+            "test_health_check_scan_and_confirmed_fix",
+            "test_security_i18n_and_healthcheck_progress_carousel",
+            "test_healthcheck_full_doctor_coverage_projection"
+          ]
+        },
+        {
+          "module": "tests/unit/security/test_health_check_projection.py",
+          "tests": []
+        }
+      ]
+    },
+    "frontend": {
+      "label": "Console frontend",
+      "runner": "vitest",
+      "cwd": "console",
+      "targets": [
+        "src/api/modules/security.health.test.ts",
+        "src/pages/Settings/Security/components/HealthCheckSection.test.tsx",
+        "src/pages/Settings/Security/useSecurityPage.health.test.tsx"
+      ]
+    }
+  },
+  "scenarios": [
+    { "id": "HC-S01", "layer": "frontend", "target": "read-only scan deep=false" },
+    { "id": "HC-S02", "layer": "frontend", "target": "deep scan deep=true" },
+    { "id": "HC-S03", "layer": "frontend", "target": "grouped check items table" },
+    { "id": "HC-S04", "layer": "frontend", "target": "confirmation phrase gate" },
+    { "id": "HC-S05", "layer": "frontend", "target": "confirmed doctor fix submit" },
+    { "id": "HC-S06", "layer": "frontend", "target": "healthCheck tab deep link" },
+    { "id": "HC-S07", "layer": "frontend", "target": "scan failure UI" },
+    { "id": "ip-e2e-001", "layer": "backend", "target": "test_integrity_security_menu_default_off" },
+    { "id": "ip-e2e-004", "layer": "backend", "target": "test_health_check_scan_and_confirmed_fix" },
+    { "id": "HC-I18N", "layer": "backend", "target": "test_security_i18n_and_healthcheck_progress_carousel" },
+    { "id": "HC-DOCTOR", "layer": "backend", "target": "test_healthcheck_full_doctor_coverage_projection" },
+    { "id": "HC-UNIT-SCAN", "layer": "backend", "target": "test_health_check_scan_is_read_only" },
+    { "id": "HC-UNIT-FIX", "layer": "backend", "target": "test_confirmed_health_fix_rejects_wrong_phrase" }
+  ]
+}

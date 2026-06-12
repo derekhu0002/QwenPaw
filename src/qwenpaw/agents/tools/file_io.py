@@ -20,6 +20,17 @@ from ...config.context import (
 from ...constant import WORKING_DIR, TRUNCATION_NOTICE_MARKER
 
 
+async def _notify_persona_file_saved(resolved_path: str, provenance: str) -> None:
+    try:
+        from ...app.agent_context import get_current_agent_id
+        from ...security.persona_baseline_bridge import notify_file_saved
+
+        agent_id = get_current_agent_id() or "default"
+        await notify_file_saved(agent_id, resolved_path, provenance)
+    except Exception:
+        return
+
+
 def _resolve_file_path(file_path: str) -> str:
     """Resolve file path: use absolute path as-is,
     resolve relative path from current workspace or WORKING_DIR.
@@ -234,6 +245,7 @@ async def write_file(
     try:
         with open(file_path, "w", encoding=encoding) as file:
             file.write(content)
+        await _notify_persona_file_saved(file_path, "agent_tool")
         return ToolResponse(
             content=[
                 TextBlock(
