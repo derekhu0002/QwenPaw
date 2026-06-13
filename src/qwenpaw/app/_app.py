@@ -535,13 +535,9 @@ async def lifespan(  # pylint: disable=too-many-statements,too-many-branches
             )
 
     async def _periodic_rule_integrity_check():
-        from ..security.tool_guard.rules_integrity import (
-            verify_default_builtin_rule_files,
-        )
+        from ..security.rule_integrity_bridge import periodic_rule_integrity_check
 
-        while True:
-            await asyncio.to_thread(verify_default_builtin_rule_files)
-            await asyncio.sleep(5)
+        await periodic_rule_integrity_check()
 
     _bg_task = asyncio.create_task(_background_startup())
     _rule_integrity_task = asyncio.create_task(

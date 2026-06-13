@@ -14,6 +14,7 @@ import {
   HealthCheckSection,
 } from "./components";
 import { PageHeader } from "@/components/PageHeader";
+import { RuleIntegrityRepairBanner } from "@extension/rule_integrity";
 import styles from "./index.module.less";
 
 function SecurityPage() {
@@ -93,29 +94,11 @@ function SecurityPage() {
         current={t("security.security")}
       />
 
-      {rulesIntegrity && !rulesIntegrity.ok && (
-        <div className={styles.integrityAlert}>
-          <div className={styles.integrityAlertMain}>
-            <span className={styles.integrityAlertIcon}>!</span>
-            <span className={styles.integrityAlertTitle}>
-              {t("security.rulesIntegrity.tamperedTitle", {
-                defaultValue: "内置检测规则已被篡改",
-              })}
-            </span>
-          </div>
-          <Button
-            danger
-            type="primary"
-            loading={repairingRulesIntegrity}
-            onClick={handleRepairRulesIntegrity}
-            className={styles.integrityRepairButton}
-          >
-            {t("security.rulesIntegrity.repairButton", {
-              defaultValue: "修复",
-            })}
-          </Button>
-        </div>
-      )}
+      <RuleIntegrityRepairBanner
+        rulesIntegrity={rulesIntegrity}
+        repairing={repairingRulesIntegrity}
+        onRepair={handleRepairRulesIntegrity}
+      />
 
       <div className={styles.content}>
         <Tabs

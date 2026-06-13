@@ -2,6 +2,13 @@
   "version": 1,
   "name": "integrity-delivery-selftest",
   "description": "Unified self-test net for all Integrity Protection deliveries (rule integrity, persona baseline, health check).",
+  "console_gate": {
+    "typecheck": {
+      "label": "Console tsc + vite build",
+      "cwd": "console",
+      "command": "npm run build"
+    }
+  },
   "deliveries": [
     {
       "id": "rule-integrity",

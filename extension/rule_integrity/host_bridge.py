@@ -1,27 +1,45 @@
 # -*- coding: utf-8 -*-
-"""Backward-compatible re-exports for built-in tool guard rule integrity.
-
-Implementation lives in extension/rule_integrity/. The guardian and routers
-keep importing this module path unchanged.
-"""
+"""Host wiring for built-in tool guard rule integrity."""
 from __future__ import annotations
 
-from qwenpaw.security.rule_integrity_bridge import (
+from pathlib import Path
+from typing import Any
+
+from .constants import (
     DANGEROUS_SHELL_RULES_NAME,
     HASH_SCHEME,
     MANIFEST_NAME,
     RECOVERY_SOURCE_URL,
     SIGNATURE_NAME,
     SIGNATURE_SCHEME,
+)
+from .models import (
     RuleIntegrityFinding,
     RuleIntegrityRepairResult,
     RuleIntegrityResult,
-    _sha256_normalized_content,
+)
+from .repair import repair_default_builtin_rule_file
+from .verifier import (
     get_last_rule_integrity_status,
-    repair_default_builtin_rule_file,
+    sha256_normalized_content,
     verify_builtin_rule_files,
     verify_default_builtin_rule_files,
 )
+
+
+def run_passive_check() -> dict[str, Any]:
+    """Run passive rule integrity check for Integrity Protection delivery."""
+
+    return verify_default_builtin_rule_files().to_dict()
+
+
+def get_router():
+    """Return the FastAPI router for rule integrity delivery routes."""
+
+    from .routes import router
+
+    return router
+
 
 __all__ = [
     "DANGEROUS_SHELL_RULES_NAME",
@@ -33,9 +51,11 @@ __all__ = [
     "RuleIntegrityFinding",
     "RuleIntegrityRepairResult",
     "RuleIntegrityResult",
-    "_sha256_normalized_content",
     "get_last_rule_integrity_status",
     "repair_default_builtin_rule_file",
+    "run_passive_check",
+    "get_router",
+    "sha256_normalized_content",
     "verify_builtin_rule_files",
     "verify_default_builtin_rule_files",
 ]

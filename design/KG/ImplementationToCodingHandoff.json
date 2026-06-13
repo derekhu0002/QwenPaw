@@ -58,7 +58,7 @@
       "testcaseName": "sec-e2e-029-builtin-rule-line-ending-invariant",
       "entryPath": "extension/run-integrity-delivery-selftest.py",
       "controlPoint": "Run extension/run-integrity-delivery-selftest.py to execute all extension-owned Integrity Protection self-test nets (rule integrity, persona baseline, health check) across wiring, backend, and frontend layers.",
-      "observationPoint": "All delivery nets pass; rule-integrity backend in the self-test manifest still verifies LF-canonical and CRLF-only ok branches plus semantic tamper through tests/unit/security/tool_guard/test_rules_integrity.py.",
+      "observationPoint": "All delivery nets pass; rule-integrity backend in the self-test manifest still verifies LF-canonical and CRLF-only ok branches plus semantic tamper through extension/rule_integrity/tests/test_rules_integrity.py.",
       "initialExecutionStatus": "passed",
       "initialExecutionCommand": "python extension/run-integrity-delivery-selftest.py"
     },
@@ -336,7 +336,7 @@
     "tests/e2e/security_center/test_security_event_inbox.py",
     "tests/integration/security/harness.py",
     "tests/integration/security/test_audit_foundation.py",
-    "tests/unit/security/tool_guard/test_rules_integrity.py"
+    "extension/rule_integrity/tests/test_rules_integrity.py"
   ],
   "openGaps": [
     "deploy/api currently lacks POST /security-center/v1/events, accepted event storage, failed reception storage, event list/detail routes, event contract validation, idempotency, persistence-error behavior, and oversized invalid payload bounding.",

@@ -6,23 +6,27 @@ from typing import Any, List, Optional
 
 from pydantic import BaseModel, Field
 
+from ...security.rule_integrity_bridge import (
+    ToolGuardRuleIntegrityFindingResponse,
+    ToolGuardRuleIntegrityRepairResponse,
+    ToolGuardRuleIntegrityResponse,
+)
 
-class ToolGuardRuleIntegrityFindingResponse(BaseModel):
-    file: str
-    reason: str
-    expected_sha256: Optional[str] = None
-    actual_sha256: Optional[str] = None
-    detail: str = ""
-
-
-class ToolGuardRuleIntegrityResponse(BaseModel):
-    ok: bool
-    status: str
-    message: str
-    checked_at: Optional[str] = None
-    findings: List[ToolGuardRuleIntegrityFindingResponse] = Field(
-        default_factory=list,
-    )
+__all__ = [
+    "HealthCheckFixRequest",
+    "HealthCheckFixResponse",
+    "HealthCheckScanRequest",
+    "HealthCheckScanResponse",
+    "IntegrityProtectionSettingsResponse",
+    "PersonaProtectionActionRequest",
+    "PersonaProtectionActionResponse",
+    "PersonaProtectionAlertsResponse",
+    "PersonaProtectionSettingsResponse",
+    "PersonaProtectionSettingsUpdateRequest",
+    "ToolGuardRuleIntegrityFindingResponse",
+    "ToolGuardRuleIntegrityRepairResponse",
+    "ToolGuardRuleIntegrityResponse",
+]
 
 
 class IntegrityProtectionSettingsResponse(BaseModel):

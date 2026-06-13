@@ -1,6 +1,7 @@
 import { request } from "../request";
 import { healthCheckApi } from "@extension/health_check/api/client";
 import { personaApi } from "@extension/persona_baseline/api/client";
+import { ruleIntegrityApi } from "@extension/rule_integrity/api/client";
 
 export type {
   HealthCheckFixResponse,
@@ -15,6 +16,11 @@ export type {
   PersonaProtectionSettings,
   PersonaProtectionSettingsUpdateBody,
 } from "@extension/persona_baseline/api/client";
+export type {
+  ToolGuardRuleIntegrityFinding,
+  ToolGuardRulesIntegrity,
+  ToolGuardRulesIntegrityRepair,
+} from "@extension/rule_integrity/api/client";
 
 export interface ToolGuardRule {
   id: string;
@@ -36,30 +42,6 @@ export interface ToolGuardConfig {
   disabled_rules: string[];
   auto_denied_rules: string[];
   shell_evasion_checks: Record<string, boolean>;
-}
-
-export interface ToolGuardRuleIntegrityFinding {
-  file: string;
-  reason: string;
-  expected_sha256?: string | null;
-  actual_sha256?: string | null;
-  detail: string;
-}
-
-export interface ToolGuardRulesIntegrity {
-  ok: boolean;
-  status: string;
-  message: string;
-  checked_at?: string | null;
-  findings: ToolGuardRuleIntegrityFinding[];
-}
-
-export interface ToolGuardRulesIntegrityRepair {
-  ok: boolean;
-  message: string;
-  source_url: string;
-  backup_path?: string | null;
-  integrity: ToolGuardRulesIntegrity;
 }
 
 // ── Integrity Protection types ─────────────────────────────────────
@@ -150,16 +132,9 @@ export const securityApi = {
   getBuiltinRules: () =>
     request<ToolGuardRule[]>("/config/security/tool-guard/builtin-rules"),
 
-  getToolGuardRulesIntegrity: () =>
-    request<ToolGuardRulesIntegrity>(
-      "/config/security/tool-guard/rules-integrity",
-    ),
+  getToolGuardRulesIntegrity: ruleIntegrityApi.getToolGuardRulesIntegrity,
 
-  repairToolGuardRulesIntegrity: () =>
-    request<ToolGuardRulesIntegrityRepair>(
-      "/config/security/tool-guard/rules-integrity/repair",
-      { method: "POST" },
-    ),
+  repairToolGuardRulesIntegrity: ruleIntegrityApi.repairToolGuardRulesIntegrity,
 
   // ── Integrity Protection ────────────────────────────────────────
 
@@ -172,11 +147,7 @@ export const securityApi = {
 
   runIntegrityHealthCheckFix: healthCheckApi.runIntegrityHealthCheckFix,
 
-  checkIntegrityRuleEntry: () =>
-    request<ToolGuardRulesIntegrity>(
-      "/config/security/integrity-protection/rules-integrity/check",
-      { method: "POST" },
-    ),
+  checkIntegrityRuleEntry: ruleIntegrityApi.checkIntegrityRuleEntry,
 
   getPersonaProtectionSettings: personaApi.getPersonaProtectionSettings,
 

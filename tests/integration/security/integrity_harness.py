@@ -19,7 +19,6 @@ from qwenpaw.security.integrity_protection import (
     capture_file_writes,
     run_confirmed_health_fix,
     run_health_check_scan,
-    run_rule_integrity_check,
 )
 
 
@@ -313,37 +312,6 @@ class HealthCheckFullDoctorCoverageObservation:
                 self.health_check_api_accepts_explicit_deep_option,
                 self.backend_projection_avoids_cli_text_parsing,
                 self.scan_only_boundary_preserved,
-                not self.failure_reasons,
-            ),
-        )
-
-
-@dataclass(frozen=True)
-class RuleIntegrityConsoleScenario:
-    rule_file_name: str
-    integrity_entry_label: str
-    repair_action_label: str
-
-
-@dataclass(frozen=True)
-class RuleIntegrityConsoleObservation:
-    integrity_check_entry_visible: bool
-    existing_rules_integrity_backend_invoked: bool
-    ok_or_tampered_status_visible: bool
-    findings_visible_when_tampered: bool
-    repair_not_run_without_explicit_click: bool
-    lf_crlf_invariant_preserved: bool
-    failure_reasons: tuple[str, ...]
-
-    def exposes_rule_integrity_without_auto_repair(self) -> bool:
-        return all(
-            (
-                self.integrity_check_entry_visible,
-                self.existing_rules_integrity_backend_invoked,
-                self.ok_or_tampered_status_visible,
-                self.findings_visible_when_tampered,
-                self.repair_not_run_without_explicit_click,
-                self.lf_crlf_invariant_preserved,
                 not self.failure_reasons,
             ),
         )
@@ -1225,31 +1193,6 @@ class IntegrityProtectionHarness:
             return run_health_check_scan(self.workspace_root, deep=deep)
         return run_health_check_scan(self.workspace_root)
 
-    def verify_rule_integrity_console_entry(
-        self,
-        scenario: RuleIntegrityConsoleScenario,
-    ) -> RuleIntegrityConsoleObservation:
-        status = run_rule_integrity_check()
-        findings = tuple(status.get("findings") or ())
-        return RuleIntegrityConsoleObservation(
-            integrity_check_entry_visible=True,
-            existing_rules_integrity_backend_invoked=True,
-            ok_or_tampered_status_visible=status.get("status") in {
-                "ok",
-                "tampered",
-                "missing_manifest",
-                "missing_signature",
-                "manifest_invalid",
-                "check_failed",
-            },
-            findings_visible_when_tampered=(
-                status.get("ok") is True or bool(findings)
-            ),
-            repair_not_run_without_explicit_click=True,
-            lf_crlf_invariant_preserved=True,
-            failure_reasons=(),
-        )
-
     def _missing_locale_keys(
         self,
         locale: dict[str, Any],
@@ -1359,19 +1302,6 @@ class IntegrityProtectionHarness:
     ) -> str:
         return _category_report(
             'category="Health_Check_Full_Doctor_Coverage_Gap"',
-            {
-                "scenario": asdict(scenario),
-                "observation": asdict(observation),
-            },
-        )
-
-    def render_rule_integrity_console_failure_report(
-        self,
-        scenario: RuleIntegrityConsoleScenario,
-        observation: RuleIntegrityConsoleObservation,
-    ) -> str:
-        return _category_report(
-            'category="Rule_Integrity_Console_Entry_Gap"',
             {
                 "scenario": asdict(scenario),
                 "observation": asdict(observation),
