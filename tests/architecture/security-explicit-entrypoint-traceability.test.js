@@ -213,7 +213,7 @@ assert.strictEqual(
 );
 
 const toolGuardRulesIntegrityTestBody = fs.readFileSync(
-    path.join(repoRoot, 'tests', 'unit', 'security', 'tool_guard', 'test_rules_integrity.py'),
+    path.join(repoRoot, 'extension', 'rule_integrity', 'tests', 'test_rules_integrity.py'),
     'utf8',
 );
 const toolGuardRulesIntegrityHarnessBody = fs.readFileSync(

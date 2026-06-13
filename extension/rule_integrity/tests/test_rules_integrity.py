@@ -2,11 +2,16 @@
 """Frozen explicit and critical guard tests for built-in tool rule integrity."""
 from __future__ import annotations
 
+import sys
 from pathlib import Path
 
 import pytest
 
-from tests.unit.security.tool_guard.harness import ToolGuardRulesIntegrityHarness
+_EXTENSION_DIR = Path(__file__).resolve().parents[2]
+if str(_EXTENSION_DIR) not in sys.path:
+    sys.path.insert(0, str(_EXTENSION_DIR))
+
+from rule_integrity.tests.harness import ToolGuardRulesIntegrityHarness
 
 
 @pytest.fixture

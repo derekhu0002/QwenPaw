@@ -12,7 +12,6 @@ from .schemas_integrity_delivery import (
     HealthCheckScanRequest,
     HealthCheckScanResponse,
     IntegrityProtectionSettingsResponse,
-    ToolGuardRuleIntegrityResponse,
 )
 
 router = APIRouter(tags=["config"])
@@ -65,14 +64,3 @@ async def run_integrity_health_check_fix(
     )
     return HealthCheckFixResponse(**result.to_dict())
 
-
-@router.post(
-    "/security/integrity-protection/rules-integrity/check",
-    response_model=ToolGuardRuleIntegrityResponse,
-    summary="Run built-in rule integrity check without repair",
-)
-async def check_integrity_rule_entry() -> ToolGuardRuleIntegrityResponse:
-    from ...security.integrity_protection import run_rule_integrity_check
-
-    status = await asyncio.to_thread(run_rule_integrity_check)
-    return ToolGuardRuleIntegrityResponse(**status)

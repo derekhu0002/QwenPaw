@@ -15,14 +15,12 @@
       "runner": "pytest",
       "targets": [
         {
-          "module": "tests/unit/security/tool_guard/test_rules_integrity.py",
+          "module": "extension/rule_integrity/tests/test_rules_integrity.py",
           "tests": []
         },
         {
-          "module": "tests/integration/security/test_integrity_protection.py",
-          "tests": [
-            "test_rule_integrity_entry_visible"
-          ]
+          "module": "extension/rule_integrity/tests/test_integration_entry.py",
+          "tests": []
         }
       ]
     },
@@ -31,7 +29,8 @@
       "runner": "vitest",
       "cwd": "console",
       "targets": [
-        "src/pages/Settings/Security/components/IntegrityCheckSection.test.tsx"
+        "src/pages/Settings/Security/components/IntegrityCheckSection.test.tsx",
+        "src/extension/rule_integrity/api/client.test.ts"
       ]
     }
   },

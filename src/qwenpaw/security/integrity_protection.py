@@ -13,8 +13,6 @@ from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import Any
 
-from .tool_guard.rules_integrity import verify_default_builtin_rule_files
-
 
 @dataclass(frozen=True)
 class IntegrityProtectionSettings:
@@ -127,12 +125,6 @@ if str(_EXTENSION_DIR) not in sys.path:
 
 from health_check.fix import run_confirmed_health_fix  # noqa: E402
 from health_check.scanner import run_health_check_scan  # noqa: E402
-
-
-def run_rule_integrity_check() -> dict[str, Any]:
-    """Run the existing dangerous-shell-rule integrity backend passively."""
-
-    return verify_default_builtin_rule_files().to_dict()
 
 
 @dataclass

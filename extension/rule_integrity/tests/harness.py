@@ -16,14 +16,9 @@ from qwenpaw.security.tool_guard.rules_integrity import (
     verify_builtin_rule_files,
 )
 
-_OFFICIAL_RULES_DIR = (
-    Path(__file__).resolve().parents[4]
-    / "src"
-    / "qwenpaw"
-    / "security"
-    / "tool_guard"
-    / "rules"
-)
+from rule_integrity.paths import default_rules_dir, repo_root
+
+_OFFICIAL_RULES_DIR = default_rules_dir()
 _OFFICIAL_MANIFEST_SHA256 = (
     "138904e36b497e300ab93722db569f454c55a02ae1d08726034603695b4624f8"
 )
@@ -127,7 +122,13 @@ class ToolGuardRulesIntegrityHarness:
     def sha256_normalized_content_via_manifest_script(self, content_bytes: bytes) -> str:
         import importlib.util
 
-        script_path = _OFFICIAL_RULES_DIR.parents[4] / "scripts" / "update_tool_rule_manifest.py"
+        script_path = (
+            repo_root()
+            / "extension"
+            / "rule_integrity"
+            / "scripts"
+            / "update_tool_rule_manifest.py"
+        )
         module_spec = importlib.util.spec_from_file_location(
             "update_tool_rule_manifest",
             script_path,
@@ -136,7 +137,7 @@ class ToolGuardRulesIntegrityHarness:
             raise ImportError(f"unable to load manifest script at {script_path}")
         manifest_script = importlib.util.module_from_spec(module_spec)
         module_spec.loader.exec_module(manifest_script)
-        normalized_hasher = manifest_script._sha256_normalized_content
+        normalized_hasher = manifest_script.sha256_normalized_content
         return normalized_hasher(content_bytes)
 
     def expect_integrity_ok(

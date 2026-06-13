@@ -34,6 +34,9 @@ element_path: extension
 - path: health_check/
   kind: extension-module
   role: doctor-derived Health Check projection (projection.py), scan orchestration (scanner.py), confirmed fix (fix.py)
+- path: rule_integrity/
+  kind: extension-module
+  role: built-in tool guard rule integrity verify/repair, API routes, startup polling, and acceptance harness/tests
 - path: Console Frontend Decoupling Design.md
   kind: implementation-design-contract
   role: console/src/extension module layout and re-export boundary
@@ -47,7 +50,7 @@ element_path: extension
 - tests/integration/security/test_integrity_protection.py::test_integrity_security_menu_default_off
 - tests/integration/security/test_integrity_protection.py::test_persona_drift_alert_restore_accept
 - tests/integration/security/test_integrity_protection.py::test_health_check_scan_and_confirmed_fix
-- tests/integration/security/test_integrity_protection.py::test_rule_integrity_entry_visible
+- extension/rule_integrity/tests/test_integration_entry.py::test_rule_integrity_entry_visible
 - tests/integration/security/test_integrity_protection.py::test_security_i18n_and_healthcheck_progress_carousel
 - tests/integration/security/test_integrity_protection.py::test_healthcheck_full_doctor_coverage_projection
 

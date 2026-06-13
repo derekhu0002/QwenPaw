@@ -139,6 +139,7 @@ markers = [
 ]
 testpaths = [
     "tests",
+    "extension/rule_integrity/tests",
 ]
 
 [tool.coverage.run]

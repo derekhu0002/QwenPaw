@@ -12,7 +12,6 @@ from .integrity_harness import (
     IntegritySecurityMenuExpectation,
     PersonaBaselineDriftScenario,
     PersonaDisableReenableScenario,
-    RuleIntegrityConsoleScenario,
     SecurityI18nProgressCarouselScenario,
 )
 
@@ -428,32 +427,3 @@ def test_persona_restore_rejects_wrong_phrase(tmp_path: Path) -> None:
     result, unchanged_marker = asyncio.run(_run())
     assert result["confirmed"] is False
     assert unchanged_marker
-
-
-@pytest.mark.integration
-@pytest.mark.p0
-def test_rule_integrity_entry_visible(integrity_harness: IntegrityProtectionHarness) -> None:
-    """Control point: click the Integrity Check rule-integrity entry.
-
-    Observation point: the console invokes the existing dangerous-shell-rule
-    integrity backend, displays status and findings, and does not repair the
-    rule file without an explicit repair action.
-    """
-
-    # // GIVEN
-    rule_integrity_review = RuleIntegrityConsoleScenario(
-        rule_file_name="dangerous_shell_commands.yaml",
-        integrity_entry_label="Built-in Rule Integrity Check",
-        repair_action_label="Repair dangerous shell command rules",
-    )
-
-    # // WHEN
-    rule_integrity_observation = integrity_harness.verify_rule_integrity_console_entry(
-        rule_integrity_review,
-    )
-
-    # // THEN
-    assert rule_integrity_observation.exposes_rule_integrity_without_auto_repair(), integrity_harness.render_rule_integrity_console_failure_report(
-        scenario=rule_integrity_review,
-        observation=rule_integrity_observation,
-    )

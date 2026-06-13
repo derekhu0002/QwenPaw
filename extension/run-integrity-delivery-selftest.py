@@ -13,7 +13,10 @@ Usage:
   python extension/run-integrity-delivery-selftest.py --delivery rule-integrity --delivery health-check
   python extension/run-integrity-delivery-selftest.py --layer backend
   python extension/run-integrity-delivery-selftest.py --layer frontend --layer wiring
+  python extension/run-integrity-delivery-selftest.py --layer typecheck
   python extension/run-integrity-delivery-selftest.py --list
+
+Layers: wiring, backend, frontend, typecheck (console npm run build — catches tsc errors vitest misses)
 
 Argo gate:
   sec-e2e-029-builtin-rule-line-ending-invariant runs this script with no args via npm run test:argo.
@@ -34,7 +37,7 @@ EXTENSION_DIR = Path(__file__).resolve().parent
 REPO_ROOT = EXTENSION_DIR.parent
 MASTER_MANIFEST_PATH = EXTENSION_DIR / "integrity-delivery-selftest.manifest.json"
 
-ALL_LAYERS = ("wiring", "backend", "frontend")
+ALL_LAYERS = ("wiring", "backend", "frontend", "typecheck")
 
 
 @dataclass
@@ -154,6 +157,43 @@ def run_frontend_layer(delivery_id: str, delivery_label: str, manifest: dict) ->
     return LayerResult(delivery_id, delivery_label, "frontend", label, proc.returncode == 0, " ".join(cmd))
 
 
+def run_typecheck_layer(master: dict) -> LayerResult:
+    gate = master.get("console_gate", {}).get("typecheck", {})
+    label = gate.get("label", "Console TypeScript build")
+    cwd = REPO_ROOT / gate.get("cwd", "console")
+    command = gate.get("command", "npm run build")
+    if isinstance(command, str):
+        cmd = command.split()
+    else:
+        cmd = list(command)
+    npm = shutil.which(cmd[0]) if cmd else None
+    if npm is None:
+        return LayerResult(
+            "console-gate",
+            "Console compile gate",
+            "typecheck",
+            label,
+            False,
+            " ".join(cmd),
+            detail=f"{cmd[0]} not found on PATH",
+        )
+    cmd[0] = npm
+    env = os.environ.copy()
+    env.setdefault("NODE_OPTIONS", "--max-old-space-size=4096")
+    _print_header("[console-gate] typecheck — " + label)
+    print("Command:", " ".join(cmd))
+    print("CWD:", cwd)
+    proc = _run(cmd, cwd=cwd, env=env)
+    return LayerResult(
+        "console-gate",
+        "Console compile gate",
+        "typecheck",
+        label,
+        proc.returncode == 0,
+        " ".join(cmd),
+    )
+
+
 LAYER_RUNNERS = {
     "wiring": run_wiring_layer,
     "backend": run_backend_layer,
@@ -191,6 +231,16 @@ def list_master_manifest(master: dict) -> None:
                     print(f"    - {target}")
         for item in manifest.get("scenarios", []):
             print(f"    scenario {item['id']}: [{item['layer']}] {item['target']}")
+    gate = master.get("console_gate", {}).get("typecheck")
+    if gate:
+        print("\nconsole-gate — Console compile gate")
+        print(f"  typecheck ({gate.get('label', 'Console TypeScript build')}):")
+        command = gate.get("command", "npm run build")
+        if isinstance(command, list):
+            print(f"    - {' '.join(command)}")
+        else:
+            print(f"    - {command}")
+        print(f"    cwd: {gate.get('cwd', 'console')}")
 
 
 def run_delivery(delivery: dict, selected_layers: list[str]) -> DeliverySummary:
@@ -207,7 +257,11 @@ def run_delivery(delivery: dict, selected_layers: list[str]) -> DeliverySummary:
     return summary
 
 
-def print_summary(summaries: list[DeliverySummary]) -> int:
+def print_summary(
+    summaries: list[DeliverySummary],
+    *,
+    gate_result: LayerResult | None = None,
+) -> int:
     _print_header("Integrity Protection delivery self-test summary")
     failed = 0
     for summary in summaries:
@@ -221,6 +275,15 @@ def print_summary(summaries: list[DeliverySummary]) -> int:
             print(f"  [{layer_status}] {result.name}: {result.label}")
             if result.detail:
                 print(f"           {result.detail}")
+    if gate_result is not None:
+        gate_ok = gate_result.ok
+        if not gate_ok:
+            failed += 1
+        gate_status = "PASS" if gate_ok else "FAIL"
+        print(f"\n[{gate_status}] {gate_result.delivery_id}: {gate_result.delivery_label}")
+        print(f"  [{gate_status}] {gate_result.name}: {gate_result.label}")
+        if gate_result.detail:
+            print(f"           {gate_result.detail}")
     print()
     if failed:
         print(f"FAILED: {failed} delivery net(s) did not pass.")
@@ -275,15 +338,17 @@ def main() -> int:
         selected_deliveries = [item for item in master["deliveries"] if item["id"] in args.deliveries]
 
     selected_layers = args.layer or list(ALL_LAYERS)
+    per_delivery_layers = [layer for layer in selected_layers if layer != "typecheck"]
     summaries: list[DeliverySummary] = []
     for delivery in selected_deliveries:
         try:
-            summaries.append(run_delivery(delivery, selected_layers))
+            summaries.append(run_delivery(delivery, per_delivery_layers))
         except FileNotFoundError as exc:
             print(f"Manifest not found for {delivery['id']}: {exc}", file=sys.stderr)
             return 2
 
-    return print_summary(summaries)
+    gate_result = run_typecheck_layer(master) if "typecheck" in selected_layers else None
+    return print_summary(summaries, gate_result=gate_result)
 
 
 if __name__ == "__main__":
