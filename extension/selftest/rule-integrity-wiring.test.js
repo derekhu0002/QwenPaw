@@ -1,0 +1,80 @@
+/**
+ * Extension wiring check for the built-in tool rule integrity self-test net.
+ */
+const assert = require('assert');
+const fs = require('fs');
+const path = require('path');
+
+const repoRoot = path.resolve(__dirname, '..', '..');
+
+function read(relativePath) {
+    return fs.readFileSync(path.join(repoRoot, ...relativePath.split('/')), 'utf8');
+}
+
+function readJson(relativePath) {
+    return JSON.parse(read(relativePath));
+}
+
+function exists(relativePath) {
+    return fs.existsSync(path.join(repoRoot, ...relativePath.split('/')));
+}
+
+const manifest = readJson('extension/rule-integrity-selftest.manifest.json');
+const unitTestBody = read('tests/unit/security/tool_guard/test_rules_integrity.py');
+const integrationBody = read('tests/integration/security/test_integrity_protection.py');
+
+assert.strictEqual(manifest.name, 'rule-integrity-selftest');
+
+for (const layerName of ['wiring', 'frontend']) {
+    const layer = manifest.layers[layerName];
+    for (const target of layer.targets) {
+        const relative = layerName === 'frontend' ? path.join('console', target) : target;
+        assert.ok(exists(relative), `missing ${layerName} target: ${relative}`);
+    }
+}
+
+for (const target of manifest.layers.backend.targets) {
+    assert.ok(exists(target.module), `missing backend module: ${target.module}`);
+    const body = target.module.includes('integration') ? integrationBody : unitTestBody;
+    for (const testName of target.tests || []) {
+        const marker = `def ${testName}`;
+        assert.ok(body.includes(marker), `backend test not found: ${marker}`);
+    }
+}
+
+const requiredWiring = [
+    'src/qwenpaw/security/tool_guard/rules_integrity.py',
+    'src/qwenpaw/security/tool_guard/rules/rules_manifest.json',
+    'src/qwenpaw/security/tool_guard/rules/rules_manifest.sig',
+    'src/qwenpaw/security/tool_guard/rules/dangerous_shell_commands.yaml',
+    'scripts/update_tool_rule_manifest.py',
+    'src/qwenpaw/app/routers/config.py',
+    'console/src/pages/Settings/Security/useToolGuard.ts',
+    'console/src/pages/Settings/Security/useSecurityPage.ts',
+    'console/src/pages/Settings/Security/components/IntegrityCheckSection.tsx',
+];
+
+for (const filePath of requiredWiring) {
+    assert.ok(exists(filePath), `rule integrity wiring file missing: ${filePath}`);
+}
+
+const configBody = read('src/qwenpaw/app/routers/config.py');
+assert.ok(configBody.includes('get_tool_guard_rules_integrity'), 'config router must expose integrity status');
+assert.ok(configBody.includes('repair_tool_guard_rules_integrity'), 'config router must expose repair endpoint');
+
+const toolGuardHook = read('console/src/pages/Settings/Security/useToolGuard.ts');
+assert.ok(toolGuardHook.includes('getToolGuardRulesIntegrity'), 'useToolGuard must load integrity status');
+assert.ok(toolGuardHook.includes('repairToolGuardRulesIntegrity'), 'useToolGuard must expose repair action');
+
+const integritySection = read('console/src/pages/Settings/Security/components/IntegrityCheckSection.tsx');
+assert.ok(integritySection.includes('checkIntegrityRuleEntry'), 'IntegrityCheckSection must call rule check API');
+
+const scenarioIds = new Set(manifest.scenarios.map((item) => item.id));
+for (const scenarioId of ['sec-e2e-029', 'ip-e2e-005', 'RI-UI-ENTRY']) {
+    assert.ok(scenarioIds.has(scenarioId), `manifest scenario missing: ${scenarioId}`);
+}
+
+console.log(
+    `rule-integrity-wiring: manifest v${manifest.version} ok ` +
+        `(unit module + integration entry, ${manifest.layers.frontend.targets.length} frontend suite)`,
+);

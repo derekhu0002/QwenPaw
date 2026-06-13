@@ -146,11 +146,11 @@
         },
         {
           "name": "sec-e2e-029-builtin-rule-line-ending-invariant",
-          "description": "Built-in dangerous shell command rules must pass integrity verification when only line endings differ between LF and CRLF representations of the same semantic content.",
+          "description": "Integrity Protection delivery self-test net (rule integrity, persona baseline, health check) must pass wiring, backend, and frontend layers through the extension-owned runner without regressing built-in rule LF/CRLF invariance coverage.",
           "type": "Acceptance Test",
-          "Input": "Stage the official signed manifest bundle with LF-canonical and CRLF-only transformations of the same dangerous_shell_commands.yaml content, then run verify_builtin_rule_files against a semantic tamper that removes a required rule without updating the manifest.",
-          "acceptanceCriteria": "tests/unit/security/tool_guard/test_rules_integrity.py::test_builtin_rule_line_ending_invariant",
-          "TestResults": "LF-canonical and CRLF-only branches return ok=true with status ok; semantic tamper returns ok=false with status tampered and sha256_mismatch; Windows checkout must not false-positive tamper when content is unchanged."
+          "Input": "Run extension/run-integrity-delivery-selftest.py to execute all extension-owned self-test manifests for rule integrity, persona protection, and health check across wiring, pytest, and vitest layers.",
+          "acceptanceCriteria": "extension/run-integrity-delivery-selftest.py",
+          "TestResults": "All three delivery nets pass wiring, backend, and frontend layers; rule-integrity backend still covers LF-canonical and CRLF-only ok branches plus semantic tamper detection through the self-test manifest rather than a standalone pytest node mount."
         }
       ]
     },

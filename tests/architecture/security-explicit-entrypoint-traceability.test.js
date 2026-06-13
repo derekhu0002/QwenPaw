@@ -31,7 +31,7 @@ const frozenExplicitTestcases = [
     },
     {
         testcaseName: 'sec-e2e-029-builtin-rule-line-ending-invariant',
-        entryPath: 'tests/unit/security/tool_guard/test_rules_integrity.py::test_builtin_rule_line_ending_invariant',
+        entryPath: 'extension/run-integrity-delivery-selftest.py',
         requiredTestMarker: 'def test_builtin_rule_line_ending_invariant',
     },
 ];
@@ -53,7 +53,7 @@ const codingQueueTestcases = [
     },
     {
         testcaseName: 'sec-e2e-029-builtin-rule-line-ending-invariant',
-        entryPath: 'tests/unit/security/tool_guard/test_rules_integrity.py::test_builtin_rule_line_ending_invariant',
+        entryPath: 'extension/run-integrity-delivery-selftest.py',
         initialExecutionStatus: 'passed',
     },
 ];

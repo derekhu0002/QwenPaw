@@ -1,0 +1,44 @@
+{
+  "version": 1,
+  "name": "rule-integrity-selftest",
+  "description": "Self-test net for built-in tool guard rule integrity (wiring + backend + frontend).",
+  "layers": {
+    "wiring": {
+      "label": "Extension wiring",
+      "runner": "node",
+      "targets": [
+        "extension/selftest/rule-integrity-wiring.test.js"
+      ]
+    },
+    "backend": {
+      "label": "Backend unit + integration",
+      "runner": "pytest",
+      "targets": [
+        {
+          "module": "tests/unit/security/tool_guard/test_rules_integrity.py",
+          "tests": []
+        },
+        {
+          "module": "tests/integration/security/test_integrity_protection.py",
+          "tests": [
+            "test_rule_integrity_entry_visible"
+          ]
+        }
+      ]
+    },
+    "frontend": {
+      "label": "Console frontend",
+      "runner": "vitest",
+      "cwd": "console",
+      "targets": [
+        "src/pages/Settings/Security/components/IntegrityCheckSection.test.tsx"
+      ]
+    }
+  },
+  "scenarios": [
+    { "id": "sec-e2e-029", "layer": "backend", "target": "test_builtin_rule_line_ending_invariant" },
+    { "id": "sec-e2e-029-helper", "layer": "backend", "target": "test_sha256_normalized_content_shared_helper_contract" },
+    { "id": "ip-e2e-005", "layer": "backend", "target": "test_rule_integrity_entry_visible" },
+    { "id": "RI-UI-ENTRY", "layer": "frontend", "target": "IntegrityCheckSection.test.tsx" }
+  ]
+}
