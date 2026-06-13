@@ -56,11 +56,11 @@
     },
     {
       "testcaseName": "sec-e2e-029-builtin-rule-line-ending-invariant",
-      "entryPath": "tests/unit/security/tool_guard/test_rules_integrity.py::test_builtin_rule_line_ending_invariant",
-      "controlPoint": "Stage the official signed manifest bundle into a temporary rules directory, then verify LF-canonical bytes, CRLF-only transformed bytes, and semantic tamper without manifest update via verify_builtin_rule_files.",
-      "observationPoint": "LF-canonical and CRLF-only branches return ok=true with status ok; semantic tamper returns ok=false with status tampered and sha256_mismatch; cached get_last_rule_integrity_status must match each branch.",
+      "entryPath": "extension/run-integrity-delivery-selftest.py",
+      "controlPoint": "Run extension/run-integrity-delivery-selftest.py to execute all extension-owned Integrity Protection self-test nets (rule integrity, persona baseline, health check) across wiring, backend, and frontend layers.",
+      "observationPoint": "All delivery nets pass; rule-integrity backend in the self-test manifest still verifies LF-canonical and CRLF-only ok branches plus semantic tamper through tests/unit/security/tool_guard/test_rules_integrity.py.",
       "initialExecutionStatus": "passed",
-      "initialExecutionCommand": ".\\.venv\\Scripts\\python.exe -m pytest tests/unit/security/tool_guard/test_rules_integrity.py::test_builtin_rule_line_ending_invariant -q"
+      "initialExecutionCommand": "python extension/run-integrity-delivery-selftest.py"
     },
     {
       "testcaseName": "sec-event-ingestion-v1-accept-legal-event",
